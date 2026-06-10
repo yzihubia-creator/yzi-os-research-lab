@@ -1,0 +1,5 @@
+paper1.txt -> 01-context-engineering\1. Context Engineering (Fundação Principal).pdf (39 pages, 104963 chars)
+paper2.txt -> 02-intent-specification-engineering\2. Context → Intent → Specification Engineering.pdf (25 pages, 94432 chars)
+paper3.txt -> 03-harness-engineering\3. Harness Engineering (Governança).pdf (11 pages, 42687 chars)
+paper4.txt -> 04-runtime-harness\4. AI Harness Runtime.pdf (35 pages, 129173 chars)
+paper5.txt -> 05-agentic-harness-evolution\5. Agentic Harness Engineering.pdf (16 pages, 50719 chars)

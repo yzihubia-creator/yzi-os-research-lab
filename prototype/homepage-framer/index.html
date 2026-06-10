@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>YZI OS — seu crescimento está vazando</title>
+<meta name="description" content="Protótipo visual — YZI OS, o sistema operacional de crescimento. Converse com a YZI." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Camadas atmosféricas (sutilíssimas — o protagonista é o vídeo) -->
+<div class="aurora" aria-hidden="true"><i></i><i></i></div>
+<div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+<!-- ============ 1. HERO — vídeo protagonista ============ -->
+<section class="hero" id="top">
+  <div class="hero-media" aria-hidden="true">
+    <div class="hero-fallback"></div>
+    <video id="heroVideo" autoplay muted loop playsinline preload="metadata">
+      <source src="video/hero.mp4" type="video/mp4" />
+      <!-- Placeholder stock (Pexels) — substituir por footage final da marca -->
+      <source src="https://videos.pexels.com/video-files/3129671/3129671-uhd_3840_2160_30fps.mp4" type="video/mp4" />
+    </video>
+    <div class="hero-scrim"></div>
+  </div>
+
+  <!-- Navbar flutuante em pills (absoluta — rola junto com o hero) -->
+  <header class="topbar">
+    <a class="pill pill-brand" href="#top">yzi <span>os</span></a>
+    <nav class="pill pill-nav" aria-label="Navegação principal">
+      <a href="#experiencia">experiência</a>
+      <a href="#como-opera">como opera</a>
+      <a href="#estagios">estágios</a>
+      <a href="#growth">growth</a>
+    </nav>
+    <a class="pill pill-cta" href="#conversar">conversar com a yzi</a>
+  </header>
+
+  <!-- Sinal — topo direito -->
+  <div class="hero-signal signal-tr">
+    <span class="diag" aria-hidden="true"></span>
+    <div class="sig-body">
+      <span class="num">+3</span>
+      <span class="lbl">oportunidades em risco<br />detectadas agora · simulação</span>
+    </div>
+  </div>
+
+  <!-- Sinal — presença, lado direito inferior -->
+  <div class="hero-signal signal-br">
+    <span class="live-dot" aria-hidden="true"></span>
+    <span class="lbl">yzi · presente e observando</span>
+  </div>
+
+  <!-- Tipografia gigante staggered -->
+  <h1 class="hero-title">
+    <span class="line l1">seu</span>
+    <span class="line l2">crescimento</span>
+    <span class="line l3">está <em>vazando.</em></span>
+  </h1>
+
+  <div class="hero-bottom">
+    <p class="hero-sub">Entre o clique, a conversa e o follow-up, dinheiro escapa todo mês — em pontos que você não está olhando.</p>
+    <div class="hero-actions">
+      <a href="#conversar" class="hero-cta">conversar com a yzi</a>
+      <a href="#experiencia" class="hero-link">ver a yzi operando<span aria-hidden="true"> ↓</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MARQUEE ============ -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track" id="marqueeTrack">
+    <span>Detecta vazamento</span>
+    <span>Prioriza por valor</span>
+    <span>Prepara a ação</span>
+    <span>Você aprova</span>
+    <span>Recupera receita</span>
+    <span>Aprende com o resultado</span>
+  </div>
+</div>
+
+<!-- ============ 2. A EMPRESA VIVA ============ -->
+<section class="alive" id="experiencia">
+  <div class="wrap alive-grid">
+    <div class="alive-copy">
+      <div class="kicker reveal">A empresa viva</div>
+      <h2 class="reveal d1">Isto não é um dashboard.<br />É a YZI <em>trabalhando</em>.</h2>
+      <p class="reveal d2">Cada linha que aparece ao lado é uma operação real do ciclo da YZI: um sinal detectado, uma ação preparada, uma receita voltando à mesa.</p>
+      <p class="reveal d2">Nada de relatórios para você interpretar. A YZI interpreta — e chega em você já com a decisão pronta.</p>
+      <div class="alive-stat glass reveal d3">
+        <span class="num">R$ <b id="recoveredCounter">12.480</b></span>
+        <span class="lbl">recuperados neste cenário · simulação</span>
+      </div>
+    </div>
+
+    <div class="live-panel glass reveal d2">
+      <div class="live-head">
+        <div class="who">
+          <span class="mini-orb" aria-hidden="true"></span>
+          <span>YZI <small>presente · observando a operação</small></span>
+        </div>
+        <span class="sim-badge">simulação</span>
+      </div>
+      <div class="live-feed" id="liveFeed"></div>
+      <div class="live-foot"><span class="live-dot"></span>ciclo operacional contínuo</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. CONVERSE COM A YZI ============ -->
+<section class="converse" id="conversar">
+  <div class="wrap">
+    <div class="kicker center reveal">Primeira sessão</div>
+    <h2 class="reveal d1" style="margin-top: 22px;">Converse com a YZI</h2>
+    <p class="micro reveal d2">Sem formulário, sem demo agendada. Conte qual é o seu negócio e a YZI mostra onde o crescimento está vazando.</p>
+
+    <div class="console glass reveal d3">
+      <div class="console-status"><span class="live-dot"></span>YZI · presente e ouvindo</div>
+      <div class="console-reply" id="consoleReply" aria-live="polite"></div>
+      <div class="console-row">
+        <label for="consoleInput" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);">Conte para a YZI qual é o seu negócio</label>
+        <input class="console-input" id="consoleInput" type="text" placeholder="Conte para a YZI qual é o seu negócio…" />
+        <button class="console-btn" id="consoleSend">Iniciar primeira sessão</button>
+      </div>
+      <div class="console-foot">A primeira leitura leva minutos, não semanas. Resposta simulada — protótipo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. COMO A YZI OPERA ============ -->
+<section class="operate" id="como-opera">
+  <div class="wrap">
+    <div class="operate-head">
+      <div class="kicker reveal">Sistema operante</div>
+      <h2 class="reveal d1">Um ciclo que nunca dorme.</h2>
+      <p class="reveal d2">A YZI encontra oportunidades em risco, prioriza o que mais importa, prepara a ação certa, recupera o valor e aprende com cada resultado.</p>
+    </div>
+
+    <div class="flow reveal d2" id="flow">
+      <div class="flow-step glass"><div class="num">01</div><h3>Encontrar</h3><p>Sinais de vazamento detectados em toda a operação.</p></div>
+      <div class="flow-step glass"><div class="num">02</div><h3>Priorizar</h3><p>O que mais importa sobe ao topo, por valor e urgência.</p></div>
+      <div class="flow-step glass"><div class="num">03</div><h3>Agir</h3><p>A ação certa, preparada e pronta para sua aprovação.</p></div>
+      <div class="flow-step glass"><div class="num">04</div><h3>Recuperar</h3><p>A oportunidade volta à vida e o valor volta para a mesa.</p></div>
+      <div class="flow-step glass"><div class="num">05</div><h3>Aprender</h3><p>Cada resultado torna a próxima detecção mais precisa.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. ESTÁGIOS ============ -->
+<section class="stages" id="estagios">
+  <div class="wrap">
+    <div class="stages-head">
+      <div class="kicker center reveal">Estágios, não planos</div>
+      <h2 class="reveal d1">Em que estágio sua operação está?</h2>
+      <p class="reveal d2">A YZI cresce junto com a sua operação — do primeiro vazamento estancado à orquestração completa.</p>
+    </div>
+
+    <div class="stage-grid">
+      <div class="stage-card glass reveal tilt" data-level="1">
+        <div class="glare"></div>
+        <div class="stage-num">ESTÁGIO 01</div>
+        <h3>Start</h3>
+        <p class="role">Estancar vazamento. A YZI encontra onde o dinheiro está escapando e fecha os primeiros ralos.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação inicial</div>
+      </div>
+
+      <div class="stage-card glass reveal d1 tilt" data-level="2">
+        <div class="glare"></div>
+        <div class="stage-num">ESTÁGIO 02</div>
+        <h3>Growth</h3>
+        <p class="role">Operar oportunidades. A YZI detecta, prioriza e prepara ações de recuperação continuamente.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação contínua</div>
+      </div>
+
+      <div class="stage-card glass reveal d2 tilt" data-level="3">
+        <div class="glare"></div>
+        <div class="stage-num">ESTÁGIO 03</div>
+        <h3>Scale</h3>
+        <p class="role">Orquestrar crescimento. A YZI coordena múltiplos canais e frentes de recuperação em paralelo.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação orquestrada</div>
+      </div>
+
+      <div class="stage-card glass advanced reveal d3 tilt" data-level="4">
+        <div class="glare"></div>
+        <div class="stage-num">ESTÁGIO 04</div>
+        <h3>Advanced</h3>
+        <p class="role">Estrategista humano + YZI operando junto. Inteligência viva com direção de especialista.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação híbrida</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. CTA FINAL ============ -->
+<section class="final" id="growth">
+  <div class="wrap">
+    <h2 class="reveal">O que a YZI <em>encontraria</em> no seu negócio?</h2>
+    <p class="reveal d1">Deixe a YZI olhar sua operação e mostrar onde o crescimento está vazando.</p>
+    <div class="reveal d2">
+      <a href="#conversar" class="btn btn-primary magnetic">conversar com a yzi</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <span class="mono">YZI OS</span>
+    <span>Growth powered by YZI — protótipo visual navegável</span>
+    <span class="mono">framer-proto · v0.2</span>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

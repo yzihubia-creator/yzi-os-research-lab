@@ -1,0 +1,98 @@
+Como projetamos a IA do Slack
+Nosso vice-presidente de produto compartilha as prioridades e os valores que norteiam a criação de nossas ferramentas nativas de IA.
+
+Autora: Jackie Rocca
+Data: 17 de outubro de 2023
+Fonte: Slack
+
+Índice
+- Nossos princípios orientadores de design
+- A transparência constrói confiança
+- O que vem por aí no Slack
+
+Nota do editor:
+Jackie Rocca é vice-presidente de produto do Slack e lidera o desenvolvimento da IA do Slack. Levamos a sério nosso compromisso com a proteção dos dados dos clientes. Saiba como criamos o Slack para ser seguro e privado.
+
+Estamos na vanguarda de uma revolução da produtividade.
+
+Ao longo do último ano, diversos avanços em IA alcançaram adoção em massa, transformando o cenário tecnológico. Uma tendência notável é a ascensão de grandes modelos de linguagem (LLMs) e suas interfaces de usuário, como o ChatGPT da OpenAI e o Bard do Google, que possuem capacidades revolucionárias para compreender e gerar linguagem humana. Isso deu origem a uma infinidade de aplicações, desde chatbots até a criação automatizada de conteúdo.
+
+Com a ascensão meteórica dessas ferramentas de IA, há muita expectativa e entusiasmo exagerado em torno do que a IA realmente pode fazer. Nossas equipes de produto mantiveram os pés no chão e analisaram a situação sob uma perspectiva um pouco diferente: como podemos aplicar essas novas tecnologias para desbloquear possibilidades em nossa plataforma e ajudar os clientes a alcançarem ainda mais produtividade com o Slack hoje?
+
+Nossos princípios orientadores de design
+
+Ao iniciarmos o processo de design do Slack AI, duas prioridades ficaram claras. Os clientes desenvolveram um contexto valioso no Slack, mas estão apenas começando a explorar o que podem aprender com o conhecimento coletivo de suas organizações. Queremos ajudar as pessoas a encontrar essas informações imediatamente. E, em segundo lugar, sabemos que o trabalho é dinâmico — por isso, queremos ajudar as pessoas a identificar rapidamente o que é mais importante.
+
+Embora estejamos extremamente entusiasmados com o potencial da IA, também estamos cientes de que ela pode levantar questões e desafios importantes que precisam ser abordados de forma ponderada e clara. Para nós, foi fundamental manter três coisas em mente:
+
+Segurança: É seguro? A IA é irrelevante se não conseguirmos manter os dados dos nossos clientes em segurança.
+
+Relevância: É útil? Como isso adiciona um contexto útil que maximiza a experiência no Slack?
+
+Usabilidade: Conseguimos tornar nossa IA fácil e agradável de usar?
+
+Com base nessas prioridades, desenvolvemos um conjunto de princípios que orientaram o desenvolvimento de nossos produtos.
+
+Não force os humanos a serem engenheiros ágeis.
+Nosso principal objetivo era fornecer valor imediato, sem obrigá-lo a aprender novas habilidades para aproveitar essas ferramentas. A IA do Slack ajudará quando você precisar, guiando-o com sugestões em vez de deixá-lo olhando para caixas de texto sem resposta.
+
+Deixe claro quando a IA estiver envolvida.
+Sinalizar o conteúdo gerado por IA é crucial. Ao explorarmos esse novo cenário, seremos transparentes quando uma informação for gerada por IA, incentivando uma cultura de confiança e compreensão sobre o papel da IA em auxiliá-lo.
+
+Permita que os usuários interajam com a IA de forma privada.
+Por padrão, você pode interagir com a IA em um espaço individual, e sempre fica claro quando somente você pode ver algo. E quando estiver pronto, compartilhe suas percepções com o auxílio da IA com seus colegas de equipe, construindo uma experiência colaborativa passo a passo.
+
+Mantenha a flexibilidade.
+Embora nossa IA seja projetada para aparecer quando você precisar e desaparecer quando não precisar, sabemos que você pode querer ajustar seus resultados além das opções padrão. Deseja um resumo para um intervalo de datas específico? Prefere respostas concisas? Nós temos a solução.
+
+Ofereça contexto útil.
+Nos dedicamos a criar experiências relevantes e a fornecer resumos automáticos de mensagens perdidas. Nosso objetivo é encantar você com uma assistência de IA intuitiva e acessível, sem que você precise dar comandos explícitos.
+
+Numa época em que tantas empresas estão tentando inserir IA em todos os cantos de seus produtos, estamos adotando uma abordagem diferente. Estamos aprimorando nossos recursos de estreia à perfeição, de uma forma que irá melhorar significativamente a experiência diária dos usuários. Você vai olhar para trás e se perguntar como conseguiu trabalhar sem isso.
+
+A transparência constrói confiança
+
+Na Slack e na Salesforce, nossa empresa controladora, a confiança é o nosso valor mais importante. Aliás, a principal preocupação que ouvimos dos nossos clientes em relação à IA é a segurança. Por isso, seguimos um conjunto de valores de produto que orientam nossas decisões, sempre focados em manter a sua confiança acima de tudo.
+
+Seus dados não são nosso produto.
+Em um mundo onde algumas empresas usam os dados dos clientes como um ativo para vender, nós priorizamos a segurança do usuário e a privacidade dos dados acima de tudo. Nossos novos recursos de IA foram desenvolvidos desde o início dentro da infraestrutura segura do Slack para garantir que seus dados permaneçam seus — e somente seus. Não vendemos nem alugamos seus dados. Criamos mecanismos robustos para aprimorar o Slack para você e para todos os clientes do Slack, protegendo a privacidade e a segurança das suas informações. Porque acreditamos firmemente que sua confiança não está à venda.
+
+Você controla o acesso aos seus dados.
+Somos rigorosos em evitar que qualquer informação confidencial seja compartilhada entre os clientes. Todo o ecossistema do Slack segue um alto padrão de segurança e conformidade. Nosso Gerenciamento de Chaves Empresariais (EKM) permite que os clientes controlem suas chaves de criptografia, inclusive com a autonomia para revogar o acesso quando quiserem. E você não precisa acreditar apenas na nossa palavra; nossa conformidade com padrões reconhecidos, como HIPAA, FINRA, FedRAMP e SOC 2, foi comprovada por auditorias realizadas por especialistas independentes do setor.
+
+Nós lhe damos os meios para verificar os resultados.
+Entendemos que, para confiar em uma tecnologia, é preciso poder contar com sua confiabilidade o tempo todo. A IA do Slack não substituirá o julgamento dos seus funcionários. Em vez disso, estamos projetando os recursos do nosso produto de IA para serem transparentes, para que você possa analisar o que é importante e verificar os resultados de forma independente.
+
+O que vem por aí no Slack
+
+Neste inverno, vamos iniciar o projeto piloto de IA para o Slack. Com cada mensagem enviada, tela compartilhada e clipe gravado, o Slack se tornou um verdadeiro tesouro de conhecimento em toda a organização. Para aproveitar todo o potencial desse conhecimento coletivo, começaremos com alguns recursos básicos, porém poderosos, que prometem gerar um enorme valor diário para os usuários:
+
+Resumos de canais.
+Os usuários podem gerar destaques importantes em qualquer canal, ajudando-os a ir direto ao que é mais relevante. Imagine poder acompanhar várias conversas que você perdeu durante suas férias ou extrair instantaneamente os principais temas de um canal de projeto ao qual você acabou de se juntar. Com novas informações acessíveis de forma rápida e fácil, as equipes podem tomar decisões informadas e focadas no cliente.
+
+Resumos de conversas.
+Os usuários podem se atualizar sobre qualquer conversa com um clique. Imagine que a equipe de suporte ao cliente esteja trabalhando intensamente em um caso e adicione especialistas ao longo da conversa. Com os resumos de conversas, os especialistas podem se integrar rapidamente e ajudar a resolver o problema.
+
+Resultados de pesquisa inteligentes.
+Os usuários podem fazer uma pergunta e obter uma resposta clara e concisa com base em mensagens relevantes do Slack. Por exemplo, ao aprender sobre um novo projeto, as respostas da pesquisa ajudam os usuários a entender rapidamente o objetivo do projeto, as principais partes interessadas envolvidas e muito mais — tudo apresentado em um design visualmente distinto, ao lado dos resultados de pesquisa tradicionais que os usuários estão acostumados a ver.
+
+E temos muito mais novidades reservadas, com planos para desenvolver recursos ainda mais inteligentes para ajudar você a fazer o seu melhor trabalho. Quer ser o primeiro a saber quando essas ferramentas de IA estiverem disponíveis para o seu ambiente de trabalho? Explore-as em detalhes em nosso novo e-book e inscreva-se hoje mesmo no projeto piloto de IA do Slack.
+
+Notas de curadoria para YZI OS Research Lab
+
+Classificação:
+Referência de mercado / indústria.
+
+Tema:
+AI UX, Product Experience, transparência, privacidade, verificação de resultados, IA contextual no fluxo de trabalho, assistência discreta e útil.
+
+Relevância para o YZI OS:
+Este artigo é útil para a futura frente Product Experience & Interface Governance. Ele reforça que a IA deve aparecer de forma contextual, útil e verificável, sem exigir que o usuário final aprenda a operar prompts ou engenharia de IA.
+
+Aplicação conceitual ao YZI OS:
+- O cliente final deve ver consequências de negócio, não mecanismos técnicos.
+- A IA deve aparecer quando ajuda e desaparecer quando não é necessária.
+- Sugestões, resumos e ações devem ser verificáveis em linguagem de negócio.
+- A transparência deve ser proporcional ao papel do usuário.
+- Para tenants, mostrar clareza operacional.
+- Para a YZIHUB, manter cockpit cognitivo-operacional completo.

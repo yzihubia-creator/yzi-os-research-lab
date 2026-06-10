@@ -1,0 +1,240 @@
+Skip to main content
+
+Subscribe to Figma’s editorial newsletter
+Maker Stories
+Working Well
+Inside Figma
+Insights
+Topics
+
+
+
+October 28, 2025
+Schema 2025: Design systems for a new era
+
+Paige CostelloVP Product, Figma
+Inside Figma
+Design systems
+Product updates
+
+Graphic featuring the word 'schema' in large lowercase letters on a maroon rectangle with light blue text, and 'by Figma' beneath it in smaller light blue text. The background is solid blue, with a pattern of stacked orange semicircles against light blue rectangles rising from the bottom right.
+Design systems help teams push what’s possible while maintaining a high level of craft, polish, and performance. Here’s everything we announced at Schema by Figma to help teams design for the AI era.
+
+Share Schema 2025: Design systems for a new era
+
+
+
+
+Quality and taste matter more than ever now that the boundaries between product, design, and engineering are blurring
+
+, and more people—and AI tools—contribute to the product development process. Design systems have long been the key to driving consistency between design and production at scale. Now they have the potential to be not just a shared language for product builders, but also the translation AI needs to understand design and code. In this way, design systems are evolving from static standards into living systems that product teams can build on.
+
+Today, we’re sharing design systems updates to help you navigate these shifts across design and development. We’re focusing on balancing power and flexibility, bridging the gap between design and code, and broadening the reach and impact of your design system to let more people contribute to the design process. We want teams to take ideas further while extending and evolving taste and design intent wherever they are working. We’re rolling out some of these features in the coming weeks, and will continue to develop others based on your feedback.
+
+Nimble by design
+Design systems are built to make things simpler. But as they span new products, brands, and platforms, simplicity can give way to complexity for design systems managers and product builders alike. Today, we’re announcing updates that make it easier for teams to scale their design systems across new paradigms.
+
+Extended collections
+Variables have become the standard
+
+ for managing theming in Figma. While they’ve worked seamlessly for Figma users looking for a straightforward approach, they are an imperfect solution for companies that have multiple products, each with their own distinct brand needs.
+
+Enter: Extended collections, a new way to manage multi-brand design systems. Now, design systems authors can release a simple whitelabeled version of their design system that designers across the company can extend with their own themes, publish, and reuse. This extension is intrinsically tied to the parent design system, meaning it will inherit changes like new variables or color updates. This allows the extended collection to stay in sync with the core system while still maintaining the colors and values it has explicitly overridden.
+
+
+Learn more about Extended collections, which will be available in November.
+
+Slots
+Since components were originally released in Figma, they’ve had restrictions on how they could be used. For example, if you had a dropdown list component, you couldn’t add new list items to an instance; you’d either have to author it with hidden list items (which designers could unhide to use), or designers would have to detach the component (breaking its connection with the design system and making handoff more difficult). With slots, you will be able to add your own layers within instances and easily specify which instances a slot accepts, allowing for both increased usability and compliance with your design system.
+
+
+Learn more about slots and apply for early access here.
+
+Check designs
+If you’ve ever handed off a design for development, you’ve probably received follow-up questions about which exact token you’re using. Now it’s easier than ever to match your raw values with their corresponding variables with our new Check designs linter. Simply mark something ready for dev, or trigger “Check designs” via a quick action, and we’ll automatically surface elements like variables to align to your design system. Our custom model will suggest the right variable to use in that context, and let you check the work before applying it. Once you’re done, you can hand off those designs to a dev with confidence.
+
+
+Learn more about Check designs. Organization or Enterprise full seat plans can apply for early access here.
+
+Improvements to design system performance
+Our design systems rewrite has delivered big performance gains: Actions like updating variables or switching modes are now 30–60% faster, and heavy state swaps have gone from 3500ms to 350ms, and from 2500ms to 450 ms, depending on complexity of variable interactions and components.
+
+We know that performance gains can have an outsized impact on workflow efficiency. That’s why we set out to improve performance by creating a single, unified foundation for all of Figma’s design systems features. We’ve completed a massive rewrite of our design systems architecture, refactoring and creating new systems and underlying data models that power core features like components and variables.
+
+
+With this new foundation, you’ll see faster instance updates (especially for components with thousands of instances) and a more responsive editing experience across even the most complex files. These systems also provide the foundation for many of the new features we’re announcing today.
+
+These performance improvements are now live.
+
+Codebase context
+Whether through loosely inferred connections—like shared naming conventions on components, styles, and variables—or more tightly-bound context with Code Connect and variables code syntax, we’ve been working hard to bring context from your codebase into your design system. As more teams rely on AI tools to write workable code, this link between design systems and code is more important than ever.
+
+Code Connect UI
+Code Connect
+
+ has been one of the biggest drivers in bridging the gap between design and code in Figma. While we’ve seen a lot of excitement from users about Code Connect and its power to drive design system adoption by making code more accessible and useful for developers, we’ve also heard feedback that getting started could be easier. With the new Code Connect UI, users can connect Figma directly to their GitHub repositories and use our new AI suggestions feature to quickly find the right code file to map to Figma components—no coding necessary. This new flow allows design system teams to establish a link between code and design more quickly, and with less maintenance.
+
+Learn more about the Code Connect UI, which is now rolling out to Organization and Enterprise customers.
+
+Figma MCP server
+The Figma MCP server
+
+, which brings your Figma and codebase context into agentic coding workflows, is out of beta and generally available. Starting today, you can now add guidelines for how AI models should adhere to your design system. Our remote and desktop servers—which allow you to access context from Figma links and the desktop app—also have feature parity so you can use MCP in your preferred workflow. And with new FigJam diagram support, you can build multi-step workflows and wire up interactions using your agentic coding tools. We want everyone coding with Figma context, so we’re excited to expand MCP availability to all users.
+
+
+Learn more about the Figma MCP server, which is now available, and visit the MCP Client Catalog to get started with a supported MCP client.
+
+Built for the whole team
+As AI tools make it easier for even more people to participate in the design process, many teams are worried that quality is at stake. Our view is that design is everyone’s business. Craft doesn’t have to suffer when more people design; especially if designers are defining the quality bar. We’re making it easier for builders in every role to take part in design, without losing sight of craft and taste.
+
+Design systems in Make
+We launched Figma Make
+
+, a prompt-to-app tool, at Config 2025 to help teams prototype, validate, and build more easily across the product development process. It’s been incredible to see how Figma Make has opened up new possibilities for iterating and shipping across entire product teams.
+
+At the same time, we know that pulling context from your design system and production code is essential to getting better results. People spend months crafting thousands of components, styles, and variables with every single detail being refined down to the pixel—we want that level of fidelity and craft to be reflected in your Make generations. We also want you to be able to bring in your design systems no matter where they live—whether they're in Figma libraries or in code. We’re approaching this in two ways:
+
+Make kits
+The first is to allow you to directly import libraries from Figma, through a new feature we’re calling Make kits. With Make kits, you will be able to generate React code components and CSS files for your styles and variables, then package those outputs for use in Figma Make.
+
+
+Learn more about Make kits and apply for early access here.
+
+Npm package imports
+For teams who already have a design system in their codebase, we will allow you to import your React components—whether self-built or open-source components—via public and private node package manager (npm) imports.
+
+
+Learn more about npm packages.
+
+Evolving design systems—together
+All of these updates are focused on helping you build and maintain design systems that flex and grow with your team. And to truly enable this kind of scale, we’re always looking to the community for their feedback on how we can help those who manage, maintain, and consume design systems. Here are some of the most-requested features that we’re excited to roll out over the coming weeks.
+
+Importing and exporting variables
+Native import and export has long been a top-requested feature in our forums. We’ve held off on adding this feature—opting instead to release an open source import/export plugin—until The Design Tokens W3C Community Group (DTCG), a community focused on creating design tokens standards, finished their 1.0 release. This was to ensure a better authoring experience across our tooling ecosystem. The community group spec is now officially at 1.0, along with native import and export support in Figma.
+
+Variables import and export will be available in November.
+
+Simplifying authoring experience for collections
+To give you context on your design system architecture while you author new variables, we’re making a change that will show you all of your subscribed collections—directly in the authoring modal. You’ll also be able to create variables inline to help you more easily author collections that are organized in groups. Finally, to make more space for these updates, the authoring modal will open full screen by default.
+
+Variables authoring improvements will be available in November.
+
+More variable modes
+For large teams, four modes just isn’t enough for your growing design systems. Today, we have increased the number of modes to 10 for those on the Professional plan and 20 for those on Figma Organization.
+
+Learn more about the variable mode limit increase, which is now available.
+
+Design systems allow teams to harness the power of AI tooling while keeping craft high. We want to make it easy for design systems authors and consumers to use their systems as catalysts for creativity as they navigate this shifting landscape. As always, we’re driven by your feedback and can’t wait to see what you build as these updates roll out over the coming months.
+
+
+Paige Costello is the VP of Product at Figma leading the Editor group, responsible for Figma Design. Before Figma, she led Core Product and was the Head of AI at Asana, a work management platform built to maximize team impact and create clarity at scale. She has also held leadership roles at Intercom and Intuit. Paige is passionate about building products customers love and growing the people who bring them to life.
+
+LinkedIn
+X
+Subscribe to Figma’s editorial newsletter
+Enter email*
+Enter email
+
+I agree to opt-in to Figma's mailing list.*
+
+By clicking “Subscribe” you agree to our TOS and Privacy Policy.
+
+Related articles
+
+Design systems: From the basics to big things ahead
+October 21, 2025
+By Madeline Stafford
+To prepare for Schema 2025, we combed through Shortcut archives to pull together our design systems greatest hits.
+
+Working Well
+Design systems
+Design
+
+Illustration showing a UI component called Card connected to code with import statements and a visual preview.
+Design context, everywhere you build
+September 23, 2025
+By Kris Rasmussen
+Our latest updates to the Figma MCP server and Code Connect bring Figma design context anywhere you work.
+
+Inside Figma
+Product updates
+Figma MCP
+
+Abstract illustration of interconnected black circles at the center, with thin black lines branching out to green dots and colorful geometric shapes. The shapes include red, yellow, blue, and multicolored forms with comb-like textures, arranged symmetrically on a gray background.
+Design systems and AI: Why MCP servers are the unlock
+August 6, 2025
+By Ana Boyer
+Paired with MCP servers, design systems become a productivity coefficient for AI-powered workflows, ensuring that AI agents produce output that’s relevant and on brand.
+
+Working Well
+Design systems
+AI
+
+Figma Socials
+Product
+Figma Design
+Dev Mode
+FigJam
+Figma Slides
+Figma Draw
+Figma BuzzBeta
+Figma SitesBeta
+Figma Make
+Figma WeaveNew
+AI
+Downloads
+Release notes
+Plans
+Pricing
+Enterprise
+Organization
+Professional
+Use cases
+UI design
+UX design
+Wireframing
+Diagramming
+Prototyping
+Brainstorming
+Presentation Maker
+Online whiteboard
+Strategic planning
+Mind mapping
+Concept map
+AI app builder
+AI prototype generator
+AI website builder
+AI wireframe generator
+Banner maker
+Ad maker
+Resources
+Blog
+Best practices
+Gradient Library
+Gradient Generator
+GIF maker
+Color wheel
+Colors
+Color picker
+Font library
+Templates
+Developers
+Integrations
+Affiliate program
+Resource library
+Reports and insights
+Support
+Status
+Legal and privacy
+Privacy Policy
+Modern slavery statement (UK)
+Impressum
+Climate disclosure statement
+Company
+Events
+Customers
+Careers
+Newsroom
+Investors
+Figma Ventures
+Cookie settings

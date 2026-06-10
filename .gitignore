@@ -1,0 +1,42 @@
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Env files (keep .env.example versioned) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor files ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Misc caches ---
+.cache/
+.eslintcache
+coverage/
+.vercel/
+
+# docs/, prototype/, .claude/, .agents/ and _extracted/ stay versioned intentionally.

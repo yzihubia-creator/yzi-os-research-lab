@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>YZI OS — Seu crescimento está vazando</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   YZI OS — Protótipo visual da homepage
+   Direção: semi-dark premium, cinematográfico, calm operational
+   ============================================================ */
+
+:root {
+  /* Superfícies — carvão quente, nunca preto puro, nunca azul SaaS */
+  --bg-0: #0c0e10;
+  --bg-1: #111417;
+  --bg-2: #16191d;
+  --bg-3: #1c2025;
+  --line: rgba(232, 226, 217, 0.08);
+  --line-strong: rgba(232, 226, 217, 0.14);
+
+  /* Tinta — branco quente */
+  --ink-0: #ece8e1;
+  --ink-1: #b8b3aa;
+  --ink-2: #837e76;
+  --ink-3: #56524c;
+
+  /* Sinais operacionais */
+  --ember: #e8a23d;          /* vazamento / risco */
+  --ember-dim: rgba(232, 162, 61, 0.14);
+  --pulse: #4fd6a7;          /* vida / recuperação / YZI */
+  --pulse-dim: rgba(79, 214, 167, 0.12);
+  --alert: #e06d52;          /* risco alto */
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-0);
+  color: var(--ink-0);
+  font-family: var(--font-body);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+::selection { background: var(--pulse-dim); color: var(--ink-0); }
+
+/* Grão de filme sutil sobre tudo */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px); }
+
+/* ---------- Tipografia ---------- */
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kicker::before {
+  content: "";
+  width: 24px; height: 1px;
+  background: var(--ink-3);
+}
+
+/* ---------- Navegação ---------- */
+
+header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 22px 0;
+  transition: background 0.5s, backdrop-filter 0.5s, padding 0.5s;
+}
+header.scrolled {
+  padding: 14px 0;
+  background: rgba(12, 14, 16, 0.78);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--line);
+}
+.nav { display: flex; align-items: center; justify-content: space-between; }
+.logo {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-0);
+  text-decoration: none;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.logo span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--ink-2);
+}
+.nav-links { display: flex; gap: 36px; align-items: center; }
+.nav-links a {
+  color: var(--ink-1);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 400;
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--ink-0); }
+.nav-cta {
+  padding: 9px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 100px;
+  color: var(--ink-0) !important;
+  transition: border-color 0.3s, background 0.3s;
+}
+.nav-cta:hover { border-color: var(--pulse); background: var(--pulse-dim); }
+@media (max-width: 760px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+/* ---------- Botões ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 100px;
+  padding: 15px 30px;
+  cursor: pointer;
+  transition: transform 0.4s var(--ease-out), box-shadow 0.4s, background 0.3s, border-color 0.3s;
+  border: none;
+}
+.btn-primary {
+  background: var(--ink-0);
+  color: var(--bg-0);
+  box-shadow: 0 0 0 0 rgba(79, 214, 167, 0);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px -8px rgba(79, 214, 167, 0.35);
+}
+.btn-primary .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--pulse);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-1);
+  border: 1px solid var(--line-strong);
+}
+.btn-ghost:hover { color: var(--ink-0); border-color: var(--ink-2); transform: translateY(-2px); }
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ---------- Reveal on scroll ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 1s var(--ease-out), transform 1s var(--ease-out);
+}
+.reveal.in { opacity: 1; transform: translateY(0); }
+.reveal.d1 { transition-delay: 0.12s; }
+.reveal.d2 { transition-delay: 0.24s; }
+.reveal.d3 { transition-delay: 0.36s; }
+
+/* ============================================================
+   1. HERO CINEMATOGRÁFICO
+   ============================================================ */
+
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+#heroCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 30% 45%, transparent 30%, rgba(12,14,16,0.55) 100%),
+    linear-gradient(to bottom, rgba(12,14,16,0.5) 0%, transparent 22%, transparent 70%, var(--bg-0) 100%);
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 640px;
+  padding-top: 80px;
+}
+.hero h1 {
+  font-size: clamp(44px, 6.4vw, 78px);
+  line-height: 1.04;
+  font-weight: 400;
+  margin: 26px 0 28px;
+}
+.hero h1 em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ember);
+}
+.hero .sub {
+  font-size: clamp(16px, 1.6vw, 19px);
+  color: var(--ink-1);
+  max-width: 480px;
+  line-height: 1.65;
+  margin-bottom: 42px;
+}
+.hero-ctas { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+
+/* Legenda da fase do loop — canto inferior */
+.phase-hud {
+  position: absolute;
+  z-index: 2;
+  bottom: 48px;
+  left: clamp(20px, 4vw, 48px);
+  right: clamp(20px, 4vw, 48px);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.phase-track { display: flex; flex-direction: column; gap: 14px; }
+.phase-steps { display: flex; gap: 10px; }
+.phase-step {
+  width: 44px; height: 2px;
+  background: var(--line-strong);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.phase-step::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--ink-1);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.phase-step.active::after { animation: fillStep var(--phase-dur, 5s) linear forwards; }
+.phase-step.done::after { transform: scaleX(1); }
+@keyframes fillStep { to { transform: scaleX(1); } }
+
+.phase-label {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  min-height: 36px;
+}
+.phase-label strong { color: var(--ink-0); font-weight: 500; display: block; margin-bottom: 3px; }
+.phase-label .txt { transition: opacity 0.6s; }
+
+.scroll-hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.scroll-hint::after {
+  content: "";
+  width: 1px; height: 36px;
+  background: linear-gradient(to bottom, var(--ink-3), transparent);
+  animation: dropline 2.2s ease-in-out infinite;
+}
+@keyframes dropline { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+@media (max-width: 760px) { .scroll-hint { display: none; } }
+
+/* ============================================================
+   2. SEÇÃO VIVA DA YZI
+   ============================================================ */
+
+.yzi-live {
+  position: relative;
+  padding: 140px 0 150px;
+  text-align: center;
+}
+.yzi-live::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: min(900px, 90vw); height: 100%;
+  background: radial-gradient(ellipse 60% 45% at 50% 38%, var(--pulse-dim), transparent 70%);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* O núcleo vivo da YZI */
+.yzi-core {
+  position: relative;
+  width: 150px; height: 150px;
+  margin: 0 auto 48px;
+}
+.yzi-core .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(79, 214, 167, 0.25);
+  animation: ringExpand 4.5s var(--ease-out) infinite;
+}
+.yzi-core .ring:nth-child(2) { animation-delay: 1.5s; }
+.yzi-core .ring:nth-child(3) { animation-delay: 3s; }
+@keyframes ringExpand {
+  0% { transform: scale(0.55); opacity: 0; }
+  25% { opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.yzi-core .orb {
+  position: absolute;
+  inset: 30px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(236, 232, 225, 0.25), transparent 45%),
+    radial-gradient(circle at 60% 65%, rgba(79, 214, 167, 0.55), transparent 65%),
+    radial-gradient(circle at 50% 50%, #1d2b27, #11181a 70%);
+  box-shadow:
+    0 0 60px -10px rgba(79, 214, 167, 0.4),
+    inset 0 0 24px rgba(79, 214, 167, 0.18);
+  animation: orbBreathe 4.5s ease-in-out infinite;
+}
+@keyframes orbBreathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 50px -12px rgba(79,214,167,0.35), inset 0 0 24px rgba(79,214,167,0.15); }
+  50% { transform: scale(1.06); box-shadow: 0 0 80px -8px rgba(79,214,167,0.55), inset 0 0 32px rgba(79,214,167,0.28); }
+}
+.yzi-core .iris {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.yzi-core .iris span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--pulse);
+  box-shadow: 0 0 18px 2px rgba(79, 214, 167, 0.8);
+  animation: breathe 4.5s ease-in-out infinite;
+}
+
+.yzi-live h2 {
+  font-size: clamp(34px, 4.4vw, 52px);
+  margin-bottom: 22px;
+}
+.yzi-live .micro {
+  max-width: 520px;
+  margin: 0 auto 52px;
+  color: var(--ink-1);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* Console de sessão */
+.session-console {
+  position: relative;
+  max-width: 660px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6);
+  text-align: left;
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+.session-console:focus-within {
+  border-color: rgba(79, 214, 167, 0.35);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,214,167,0.15), 0 0 60px -20px rgba(79,214,167,0.3);
+}
+.console-status {
+  display: flex; align-items: center; gap: 9px;
+  padding: 12px 16px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.console-status .live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--pulse);
+  box-shadow: 0 0 10px rgba(79,214,167,0.9);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.console-row { display: flex; gap: 10px; align-items: stretch; padding: 6px; }
+.console-input {
+  flex: 1;
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
+  color: var(--ink-0);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 300;
+  outline: none;
+  transition: border-color 0.3s;
+  min-width: 0;
+}
+.console-input::placeholder { color: var(--ink-2); }
+.console-input:focus { border-color: rgba(79,214,167,0.3); }
+.console-btn {
+  flex-shrink: 0;
+  background: var(--pulse);
+  color: #0a1410;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  border-radius: 14px;
+  padding: 0 26px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s, filter 0.3s;
+}
+.console-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px -8px rgba(79,214,167,0.6);
+  filter: brightness(1.05);
+}
+@media (max-width: 560px) {
+  .console-row { flex-direction: column; }
+  .console-btn { padding: 16px; }
+}
+.console-foot {
+  padding: 10px 16px 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  display: flex; align-items: center; gap: 8px;
+}
+.console-foot svg { flex-shrink: 0; opacity: 0.7; }
+
+/* ============================================================
+   3. OPPORTUNITY RADAR
+   ============================================================ */
+
+.radar-section { padding: 60px 0 140px; }
+.radar-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(40px, 6vw, 90px);
+  align-items: center;
+}
+@media (max-width: 880px) { .radar-grid { grid-template-columns: 1fr; } }
+
+.radar-copy h2 { font-size: clamp(32px, 3.8vw, 46px); margin: 24px 0 20px; line-height: 1.12; }
+.radar-copy p { color: var(--ink-1); font-size: 16px; max-width: 420px; }
+
+/* Card de operação em andamento */
+.opp-card {
+  position: relative;
+  background: linear-gradient(165deg, var(--bg-3), var(--bg-1) 65%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 30px 32px 26px;
+  box-shadow: 0 40px 100px -40px rgba(0,0,0,0.7);
+  overflow: hidden;
+}
+.opp-card::before {
+  /* varredura de radar atravessando o card */
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 140px;
+  background: linear-gradient(90deg, transparent, rgba(79,214,167,0.05), transparent);
+  animation: sweep 6s linear infinite;
+  pointer-events: none;
+}
+@keyframes sweep { 0% { left: -160px; } 100% { left: 110%; } }
+
+.opp-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px;
+}
+.opp-tag {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.opp-tag .sig {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 12px rgba(232,162,61,0.9);
+  animation: breathe 1.8s ease-in-out infinite;
+}
+.opp-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+}
+.opp-signal {
+  font-family: var(--font-display);
+  font-size: clamp(19px, 2vw, 23px);
+  font-weight: 400;
+  line-height: 1.4;
+  margin-bottom: 26px;
+  color: var(--ink-0);
+}
+.opp-signal em { color: var(--ember); font-style: italic; }
+
+.opp-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+.opp-meta > div { background: var(--bg-1); padding: 14px 18px; }
+.opp-meta .lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 5px;
+}
+.opp-meta .val { font-size: 15px; font-weight: 400; color: var(--ink-0); }
+.opp-meta .val.risk { color: var(--alert); display: flex; align-items: center; gap: 8px; }
+.opp-meta .val.risk::before {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--alert);
+  box-shadow: 0 0 10px rgba(224,109,82,0.8);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+.opp-meta .val .mono { font-family: var(--font-mono); font-size: 14px; }
+
+/* Janela de recuperação se fechando */
+.opp-window { margin-bottom: 24px; }
+.opp-window .lbl-row {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 9px;
+}
+.opp-window .lbl-row .closing { color: var(--ember); }
+.window-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: var(--bg-0);
+  overflow: hidden;
+  position: relative;
+}
+.window-bar .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--pulse), var(--ember) 75%, var(--alert));
+  transform-origin: left;
+  animation: windowDrain 14s linear infinite;
+}
+@keyframes windowDrain {
+  0% { transform: scaleX(0.62); opacity: 1; }
+  46% { transform: scaleX(0.34); opacity: 1; }
+  50% { transform: scaleX(0.32); opacity: 0.4; }
+  54% { transform: scaleX(0.62); opacity: 0.4; }
+  60% { opacity: 1; }
+  100% { transform: scaleX(0.62); opacity: 1; }
+}
+
+.opp-action {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  background: var(--pulse-dim);
+  border: 1px solid rgba(79,214,167,0.25);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.opp-action .txt { font-size: 14px; color: var(--ink-0); }
+.opp-action .txt .lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pulse);
+  display: block;
+  margin-bottom: 4px;
+}
+.opp-action .approve {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse);
+  border: 1px solid rgba(79,214,167,0.4);
+  border-radius: 100px;
+  padding: 9px 16px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+  white-space: nowrap;
+}
+.opp-action .approve:hover { background: var(--pulse); color: #0a1410; }
+
+/* ============================================================
+   4. COMO A YZI OPERA
+   ============================================================ */
+
+.operate { padding: 120px 0 140px; border-top: 1px solid var(--line); }
+.operate-head { max-width: 640px; margin-bottom: 80px; }
+.operate-head h2 { font-size: clamp(34px, 4.4vw, 54px); margin: 24px 0 20px; }
+.operate-head p { color: var(--ink-1); font-size: 17px; max-width: 520px; }
+
+.flow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  position: relative;
+}
+@media (max-width: 880px) { .flow { grid-template-columns: 1fr; gap: 0; } }
+
+.flow-line {
+  position: absolute;
+  top: 27px; left: 5%; right: 5%;
+  height: 1px;
+  background: var(--line-strong);
+  overflow: hidden;
+}
+.flow-line::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 110px;
+  background: linear-gradient(90deg, transparent, var(--pulse), transparent);
+  animation: flowPulse 5s linear infinite;
+  opacity: 0.8;
+}
+@keyframes flowPulse { 0% { left: -120px; } 100% { left: 105%; } }
+@media (max-width: 880px) { .flow-line { display: none; } }
+
+.flow-step { position: relative; padding: 0 18px; }
+@media (max-width: 880px) {
+  .flow-step { display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .flow-step:last-child { border-bottom: none; }
+}
+.flow-node {
+  position: relative;
+  z-index: 1;
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  transition: border-color 0.5s, color 0.5s, box-shadow 0.5s;
+  flex-shrink: 0;
+}
+.flow-step.lit .flow-node {
+  border-color: rgba(79,214,167,0.5);
+  color: var(--pulse);
+  box-shadow: 0 0 30px -6px rgba(79,214,167,0.45);
+}
+.flow-step h3 { font-size: 20px; margin-bottom: 8px; font-weight: 500; transition: color 0.5s; color: var(--ink-1); }
+.flow-step.lit h3 { color: var(--ink-0); }
+.flow-step p { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; }
+
+/* ============================================================
+   5. PLANOS COMO ESTÁGIOS
+   ============================================================ */
+
+.stages { padding: 110px 0 140px; border-top: 1px solid var(--line); }
+.stages-head { text-align: center; max-width: 600px; margin: 0 auto 72px; }
+.stages-head .kicker { justify-content: center; }
+.stages-head .kicker::before { display: none; }
+.stages-head h2 { font-size: clamp(32px, 4vw, 50px); margin: 24px 0 16px; }
+.stages-head p { color: var(--ink-1); font-size: 16px; }
+
+.stage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+@media (max-width: 1020px) { .stage-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .stage-grid { grid-template-columns: 1fr; } }
+
+.stage-card {
+  position: relative;
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 34px 28px 30px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s var(--ease-out), border-color 0.5s, box-shadow 0.5s;
+  overflow: hidden;
+}
+.stage-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(79,214,167,0.3);
+  box-shadow: 0 30px 70px -30px rgba(0,0,0,0.7), 0 0 50px -25px rgba(79,214,167,0.35);
+}
+.stage-card .stage-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--ink-3);
+  margin-bottom: 28px;
+}
+.stage-card h3 { font-size: 26px; font-weight: 500; margin-bottom: 12px; }
+.stage-card .role { font-size: 14px; color: var(--ink-1); line-height: 1.6; flex: 1; }
+.stage-card .stage-sig {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.stage-sig .bars { display: flex; gap: 3px; align-items: flex-end; height: 14px; }
+.stage-sig .bars i {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ink-3);
+}
+.stage-card[data-level="1"] .bars i:nth-child(-n+1),
+.stage-card[data-level="2"] .bars i:nth-child(-n+2),
+.stage-card[data-level="3"] .bars i:nth-child(-n+3),
+.stage-card[data-level="4"] .bars i:nth-child(-n+4) {
+  background: var(--pulse);
+  box-shadow: 0 0 8px rgba(79,214,167,0.5);
+}
+.stage-sig .bars i:nth-child(1) { height: 5px; }
+.stage-sig .bars i:nth-child(2) { height: 8px; }
+.stage-sig .bars i:nth-child(3) { height: 11px; }
+.stage-sig .bars i:nth-child(4) { height: 14px; }
+
+.stage-card.advanced {
+  border-color: rgba(232,162,61,0.25);
+  background:
+    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(232,162,61,0.07), transparent),
+    linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+.stage-card.advanced:hover {
+  border-color: rgba(232,162,61,0.45);
+  box-shadow: 0 30px 70px -30px rgba(0,0,0,0.7), 0 0 50px -25px rgba(232,162,61,0.35);
+}
+.stage-card.advanced .bars i { background: var(--ember) !important; box-shadow: 0 0 8px rgba(232,162,61,0.5) !important; }
+
+/* ============================================================
+   6. CTA FINAL
+   ============================================================ */
+
+.final {
+  position: relative;
+  padding: 160px 0 180px;
+  text-align: center;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+.final::before {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -40%;
+  transform: translateX(-50%);
+  width: 900px; height: 600px;
+  background: radial-gradient(ellipse at center, rgba(79,214,167,0.1), transparent 65%);
+  pointer-events: none;
+}
+.final h2 {
+  font-size: clamp(36px, 5vw, 62px);
+  max-width: 760px;
+  margin: 0 auto 24px;
+  line-height: 1.1;
+}
+.final h2 em { font-style: italic; color: var(--pulse); font-weight: 300; }
+.final p {
+  color: var(--ink-1);
+  font-size: 17px;
+  max-width: 460px;
+  margin: 0 auto 48px;
+}
+
+footer {
+  border-top: 1px solid var(--line);
+  padding: 36px 0;
+}
+.foot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.foot-row .mono { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; }
+
+/* ---------- Acessibilidade: reduz motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header id="header">
+  <div class="wrap nav">
+    <a class="logo" href="#">YZI <span>OS</span></a>
+    <nav class="nav-links">
+      <a href="#como-opera">Como opera</a>
+      <a href="#estagios">Estágios</a>
+      <a href="#yzi" class="nav-cta">Converse com a YZI</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ 1. HERO ============ -->
+<section class="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="hero-vignette"></div>
+
+  <div class="wrap">
+    <div class="hero-content">
+      <div class="kicker reveal in">Growth Operating System</div>
+      <h1 class="reveal in d1">Seu crescimento está <em>vazando</em>.</h1>
+      <p class="sub reveal in d2">Entre o clique, a conversa e o follow-up, dinheiro escapa todo mês — em pontos que você não está olhando.</p>
+      <div class="hero-ctas reveal in d3">
+        <a href="#yzi" class="btn btn-primary"><span class="dot"></span>Converse com a YZI</a>
+        <a href="#radar" class="btn btn-ghost">Veja uma oportunidade voltar à vida</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase-hud">
+    <div class="phase-track">
+      <div class="phase-steps">
+        <div class="phase-step" id="step0"></div>
+        <div class="phase-step" id="step1"></div>
+        <div class="phase-step" id="step2"></div>
+      </div>
+      <div class="phase-label"><div class="txt" id="phaseLabel"><strong>Vazamento</strong>sinais esfriam sem resposta</div></div>
+    </div>
+    <div class="scroll-hint">explore</div>
+  </div>
+</section>
+
+<!-- ============ 2. SEÇÃO VIVA DA YZI ============ -->
+<section class="yzi-live" id="yzi">
+  <div class="wrap">
+    <div class="yzi-core reveal">
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="orb"></div>
+      <div class="iris"><span></span></div>
+    </div>
+
+    <h2 class="reveal d1">Converse com a YZI</h2>
+    <p class="micro reveal d2">Na primeira sessão, a YZI olha seu negócio, identifica onde o crescimento está vazando e mostra uma oportunidade que pode ser recuperada.</p>
+
+    <div class="session-console reveal d3">
+      <div class="console-status"><span class="live-dot"></span>YZI · presente e observando</div>
+      <div class="console-row">
+        <input class="console-input" type="text" placeholder="Conte para a YZI qual é o seu negócio..." />
+        <button class="console-btn" onclick="fakeSession(this)">Iniciar primeira sessão</button>
+      </div>
+      <div class="console-foot">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2.5 2.5"/></svg>
+        A primeira leitura leva minutos, não semanas. Sem formulário, sem demo agendada.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. OPPORTUNITY RADAR ============ -->
+<section class="radar-section" id="radar">
+  <div class="wrap radar-grid">
+    <div class="radar-copy">
+      <div class="kicker reveal">Opportunity Radar</div>
+      <h2 class="reveal d1">Isto é o que a YZI vê — antes de você.</h2>
+      <p class="reveal d2">Cada oportunidade em risco vira uma operação ao vivo: sinal, valor, janela de tempo e ação preparada. Você só aprova.</p>
+    </div>
+
+    <div class="opp-card reveal d2">
+      <div class="opp-head">
+        <span class="opp-tag"><span class="sig"></span>Oportunidade detectada</span>
+        <span class="opp-id">OPP-0347 · ao vivo</span>
+      </div>
+
+      <div class="opp-signal">Contato pediu orçamento e está <em>sem resposta há 3 dias</em>.</div>
+
+      <div class="opp-meta">
+        <div>
+          <div class="lbl">Risco</div>
+          <div class="val risk">Alto</div>
+        </div>
+        <div>
+          <div class="lbl">Valor estimado</div>
+          <div class="val"><span class="mono">R$ 4.800</span> <span style="color:var(--ink-2); font-size:12px;">estimado</span></div>
+        </div>
+      </div>
+
+      <div class="opp-window">
+        <div class="lbl-row">
+          <span>Janela de recuperação</span>
+          <span class="closing">se fechando</span>
+        </div>
+        <div class="window-bar"><div class="fill"></div></div>
+      </div>
+
+      <div class="opp-action">
+        <div class="txt">
+          <span class="lbl">Ação proposta</span>
+          Retomada preparada, aguardando aprovação.
+        </div>
+        <button class="approve" onclick="fakeApprove(this)">Aprovar retomada</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. COMO A YZI OPERA ============ -->
+<section class="operate" id="como-opera">
+  <div class="wrap">
+    <div class="operate-head">
+      <div class="kicker reveal">Sistema operante</div>
+      <h2 class="reveal d1">A YZI opera por você.</h2>
+      <p class="reveal d2">A YZI encontra oportunidades em risco, prioriza o que mais importa, prepara a ação certa, opera a recuperação e aprende com cada resultado.</p>
+    </div>
+
+    <div class="flow reveal d2" id="flow">
+      <div class="flow-line"></div>
+      <div class="flow-step"><div class="flow-node">01</div><div><h3>Encontrar</h3><p>Sinais de vazamento detectados em toda a operação.</p></div></div>
+      <div class="flow-step"><div class="flow-node">02</div><div><h3>Priorizar</h3><p>O que mais importa sobe ao topo, por valor e urgência.</p></div></div>
+      <div class="flow-step"><div class="flow-node">03</div><div><h3>Agir</h3><p>A ação certa, preparada e pronta para sua aprovação.</p></div></div>
+      <div class="flow-step"><div class="flow-node">04</div><div><h3>Recuperar</h3><p>A oportunidade volta à vida e o valor volta para a mesa.</p></div></div>
+      <div class="flow-step"><div class="flow-node">05</div><div><h3>Aprender</h3><p>Cada resultado torna a próxima detecção mais precisa.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. PLANOS COMO ESTÁGIOS ============ -->
+<section class="stages" id="estagios">
+  <div class="wrap">
+    <div class="stages-head">
+      <div class="kicker reveal">Estágios, não planos</div>
+      <h2 class="reveal d1">Em que estágio sua operação está?</h2>
+      <p class="reveal d2">A YZI cresce junto com a sua operação — do primeiro vazamento estancado à orquestração completa.</p>
+    </div>
+
+    <div class="stage-grid">
+      <div class="stage-card reveal" data-level="1">
+        <div class="stage-num">ESTÁGIO 01</div>
+        <h3>Start</h3>
+        <p class="role">Estancar vazamento. A YZI encontra onde o dinheiro está escapando e fecha os primeiros ralos.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação inicial</div>
+      </div>
+
+      <div class="stage-card reveal d1" data-level="2">
+        <div class="stage-num">ESTÁGIO 02</div>
+        <h3>Growth</h3>
+        <p class="role">Operar oportunidades. A YZI detecta, prioriza e prepara ações de recuperação continuamente.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação contínua</div>
+      </div>
+
+      <div class="stage-card reveal d2" data-level="3">
+        <div class="stage-num">ESTÁGIO 03</div>
+        <h3>Scale</h3>
+        <p class="role">Orquestrar crescimento. A YZI coordena múltiplos canais e frentes de recuperação em paralelo.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação orquestrada</div>
+      </div>
+
+      <div class="stage-card advanced reveal d3" data-level="4">
+        <div class="stage-num">ESTÁGIO 04</div>
+        <h3>Advanced</h3>
+        <p class="role">Estrategista humano + YZI operando junto. Inteligência viva com direção de especialista.</p>
+        <div class="stage-sig"><span class="bars"><i></i><i></i><i></i><i></i></span>operação híbrida</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. CTA FINAL ============ -->
+<section class="final">
+  <div class="wrap">
+    <h2 class="reveal">O que a YZI <em>encontraria</em> no seu negócio?</h2>
+    <p class="reveal d1">Deixe a YZI olhar sua operação e mostrar onde o crescimento está vazando.</p>
+    <div class="reveal d2">
+      <a href="#yzi" class="btn btn-primary"><span class="dot"></span>Converse com a YZI</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <span class="mono">YZI OS</span>
+    <span>Growth powered by YZI — protótipo visual</span>
+    <span class="mono">v0.1</span>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   HERO — narrativa em 3 loops: Vazamento → Detecção → Recuperação
+   Canvas com campo de sinais; um sinal focal esfria, é detectado
+   e volta a pulsar. Operação, não decoração.
+   ============================================================ */
+(function () {
+  const canvas = document.getElementById("heroCanvas");
+  const ctx = canvas.getContext("2d");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let W, H, dpr;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  // Cores
+  const C = {
+    neutral: "232, 226, 217",   // sinais ambiente
+    ember: "232, 162, 61",      // vazamento
+    alert: "224, 109, 82",      // risco
+    pulse: "79, 214, 167",      // vida / recuperação
+  };
+
+  // Campo de sinais ambiente
+  const N = 64;
+  const field = [];
+  for (let i = 0; i < N; i++) {
+    field.push({
+      x: Math.random(), y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.00016,
+      vy: (Math.random() - 0.5) * 0.00012,
+      r: 0.8 + Math.random() * 1.6,
+      tw: Math.random() * Math.PI * 2,
+      tws: 0.4 + Math.random() * 0.8,
+    });
+  }
+
+  // Partículas de vazamento (gotejam do nó focal)
+  const leaks = [];
+  function spawnLeak(fx, fy) {
+    leaks.push({
+      x: fx, y: fy,
+      vx: 0.2 + Math.random() * 0.5,
+      vy: 0.5 + Math.random() * 0.7,
+      life: 1, r: 1 + Math.random() * 1.8,
+    });
+  }
+
+  // Loop de fases (ms)
+  const PHASES = [5000, 4500, 5500];           // vazamento, detecção, recuperação
+  const TOTAL = PHASES.reduce((a, b) => a + b);
+  const labels = [
+    ["Vazamento", "sinais esfriam sem resposta"],
+    ["Detecção", "a YZI encontra o sinal em risco"],
+    ["Recuperação", "a oportunidade volta a pulsar"],
+  ];
+  const labelEl = document.getElementById("phaseLabel");
+  const steps = [0, 1, 2].map(i => document.getElementById("step" + i));
+  let lastPhase = -1;
+
+  function setPhaseUI(p) {
+    if (p === lastPhase) return;
+    lastPhase = p;
+    labelEl.style.opacity = 0;
+    setTimeout(() => {
+      labelEl.innerHTML = "<strong>" + labels[p][0] + "</strong>" + labels[p][1];
+      labelEl.style.opacity = 1;
+    }, 300);
+    steps.forEach((s, i) => {
+      s.classList.remove("active", "done");
+      if (i < p) s.classList.add("done");
+      if (i === p) {
+        s.style.setProperty("--phase-dur", PHASES[p] + "ms");
+        // reinicia a animação da barra
+        s.offsetHeight;
+        s.classList.add("active");
+      }
+    });
+  }
+  labelEl.style.transition = "opacity 0.3s";
+
+  const ease = t => 1 - Math.pow(1 - t, 3);
+
+  let start = performance.now();
+  function frame(now) {
+    const elapsed = (now - start) % TOTAL;
+    let phase = 0, acc = 0, pt = 0;
+    for (let i = 0; i < PHASES.length; i++) {
+      if (elapsed < acc + PHASES[i]) { phase = i; pt = (elapsed - acc) / PHASES[i]; break; }
+      acc += PHASES[i];
+    }
+    setPhaseUI(phase);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Nó focal — a oportunidade (lado direito do hero)
+    const fx = W * (W > 880 ? 0.72 : 0.5);
+    const fy = H * (W > 880 ? 0.42 : 0.3);
+
+    // --- Campo ambiente ---
+    for (const p of field) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = 1; if (p.x > 1) p.x = 0;
+      if (p.y < 0) p.y = 1; if (p.y > 1) p.y = 0;
+      p.tw += 0.016 * p.tws;
+      const a = 0.10 + 0.10 * Math.sin(p.tw);
+      ctx.beginPath();
+      ctx.arc(p.x * W, p.y * H, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${C.neutral}, ${a})`;
+      ctx.fill();
+    }
+
+    // Linhas finas entre sinais próximos — malha viva, bem sutil
+    for (let i = 0; i < N; i += 3) {
+      for (let j = i + 3; j < N; j += 5) {
+        const a = field[i], b = field[j];
+        const dx = (a.x - b.x) * W, dy = (a.y - b.y) * H;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < 110 * 110) {
+          ctx.beginPath();
+          ctx.moveTo(a.x * W, a.y * H);
+          ctx.lineTo(b.x * W, b.y * H);
+          ctx.strokeStyle = `rgba(${C.neutral}, ${0.03 * (1 - d2 / (110 * 110))})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // --- FASE 1: VAZAMENTO ---
+    if (phase === 0) {
+      // o nó focal esfria: âmbar → apagado
+      const heat = 1 - ease(pt);
+      if (!reduced && Math.random() < 0.16) spawnLeak(fx, fy);
+      drawFocal(fx, fy, heat, "ember", 0.35 + heat * 0.5);
+      // legenda de calor caindo
+      drawHalo(fx, fy, 60 + 20 * heat, C.ember, 0.05 + heat * 0.07);
+    }
+
+    // --- FASE 2: DETECÇÃO ---
+    if (phase === 1) {
+      drawFocal(fx, fy, 0.3, "ember", 0.5);
+      // anéis de varredura convergindo no alvo
+      const rings = 3;
+      for (let i = 0; i < rings; i++) {
+        const rp = (pt * 1.4 + i / rings) % 1;
+        const r = (1 - ease(rp)) * Math.min(W, H) * 0.38 + 18;
+        ctx.beginPath();
+        ctx.arc(fx, fy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${C.neutral}, ${0.16 * ease(rp)})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      // colchetes de alvo travando
+      if (pt > 0.45) {
+        const lock = ease(Math.min(1, (pt - 0.45) / 0.4));
+        drawBrackets(fx, fy, 34 + (1 - lock) * 26, `rgba(${C.ember}, ${0.85 * lock})`);
+      }
+      // etiqueta de detecção
+      if (pt > 0.6) {
+        const la = Math.min(1, (pt - 0.6) / 0.3);
+        drawTag(fx, fy, "SINAL EM RISCO", `rgba(${C.ember}, ${la})`, la);
+      }
+    }
+
+    // --- FASE 3: RECUPERAÇÃO ---
+    if (phase === 2) {
+      const rev = ease(Math.min(1, pt * 1.8));
+      // transição âmbar → verde-pulso
+      drawFocal(fx, fy, 0.3 + rev * 0.7, rev > 0.5 ? "pulse" : "ember", 0.5 + rev * 0.45);
+      drawHalo(fx, fy, 50 + rev * 45, C.pulse, rev * 0.12);
+      // batimentos de vida
+      if (pt > 0.3) {
+        for (let i = 0; i < 2; i++) {
+          const bp = ((pt - 0.3) * 1.6 + i * 0.5) % 1;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 18 + ease(bp) * 70, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${C.pulse}, ${0.4 * (1 - bp)})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+      drawBrackets(fx, fy, 34, `rgba(${C.pulse}, ${0.7 * rev})`);
+      if (pt > 0.35) {
+        const la = Math.min(1, (pt - 0.35) / 0.3);
+        drawTag(fx, fy, "AÇÃO PREPARADA", `rgba(${C.pulse}, ${la})`, la);
+      }
+    }
+
+    // --- Partículas de vazamento (todas as fases, decaindo) ---
+    for (let i = leaks.length - 1; i >= 0; i--) {
+      const l = leaks[i];
+      l.x += l.vx; l.y += l.vy;
+      l.vy += 0.012;
+      l.life -= 0.008;
+      if (l.life <= 0) { leaks.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, l.r * l.life, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${C.ember}, ${0.5 * l.life})`;
+      ctx.fill();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function drawFocal(x, y, intensity, colorKey, alpha) {
+    const col = C[colorKey];
+    const r = 5 + intensity * 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${col}, ${alpha})`;
+    ctx.shadowColor = `rgba(${col}, 0.9)`;
+    ctx.shadowBlur = 18 * intensity + 6;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawHalo(x, y, r, col, a) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${col}, ${a})`);
+    g.addColorStop(1, `rgba(${col}, 0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  function drawBrackets(x, y, s, style) {
+    const L = s * 0.4;
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 1.4;
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    for (const [cx, cy] of corners) {
+      ctx.beginPath();
+      ctx.moveTo(x + cx * s, y + cy * s - cy * L);
+      ctx.lineTo(x + cx * s, y + cy * s);
+      ctx.lineTo(x + cx * s - cx * L, y + cy * s);
+      ctx.stroke();
+    }
+  }
+
+  function drawTag(x, y, text, style, a) {
+    ctx.font = "10.5px 'JetBrains Mono', monospace";
+    ctx.fillStyle = style;
+    ctx.globalAlpha = a;
+    ctx.fillText(text, x + 52, y - 40);
+    ctx.beginPath();
+    ctx.moveTo(x + 26, y - 26);
+    ctx.lineTo(x + 46, y - 43);
+    ctx.lineTo(x + 48, y - 43);
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  requestAnimationFrame(frame);
+})();
+
+/* ---------- Header em scroll ---------- */
+const header = document.getElementById("header");
+window.addEventListener("scroll", () => {
+  header.classList.toggle("scrolled", window.scrollY > 30);
+}, { passive: true });
+
+/* ---------- Reveal on scroll ---------- */
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+  }
+}, { threshold: 0.12 });
+document.querySelectorAll(".reveal:not(.in)").forEach(el => io.observe(el));
+
+/* ---------- Fluxo: acende passo a passo em loop ---------- */
+(function () {
+  const stepsEls = document.querySelectorAll("#flow .flow-step");
+  let i = 0;
+  setInterval(() => {
+    stepsEls.forEach(s => s.classList.remove("lit"));
+    stepsEls[i].classList.add("lit");
+    i = (i + 1) % stepsEls.length;
+  }, 1600);
+})();
+
+/* ---------- Interações simuladas (protótipo) ---------- */
+function fakeSession(btn) {
+  const orig = btn.textContent;
+  btn.textContent = "YZI observando…";
+  btn.style.pointerEvents = "none";
+  setTimeout(() => { btn.textContent = "Sessão em breve — protótipo"; }, 1400);
+  setTimeout(() => { btn.textContent = orig; btn.style.pointerEvents = ""; }, 3400);
+}
+function fakeApprove(btn) {
+  btn.textContent = "Retomada em operação ✓";
+  btn.style.background = "var(--pulse)";
+  btn.style.color = "#0a1410";
+  setTimeout(() => {
+    btn.textContent = "Aprovar retomada";
+    btn.style.background = "";
+    btn.style.color = "";
+  }, 2800);
+}
+</script>
+</body>
+</html>

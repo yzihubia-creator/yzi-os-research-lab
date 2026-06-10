@@ -1,0 +1,21 @@
+YZI OS Foundation
+
+Base Teórica:
+
+1. Context Engineering
+2. Intent Engineering
+3. Specification Engineering
+4. Harness Engineering
+5. Runtime Harness Systems
+6. Agentic Evolution
+
+Princípios:
+
+- Backend é a verdade operacional
+- Contexto governa comportamento
+- RAG + Policies governam agentes
+- Runtime executa
+- Agentes são interface
+- Observabilidade é obrigatória
+- Estado é persistente
+- Multi-tenant por design

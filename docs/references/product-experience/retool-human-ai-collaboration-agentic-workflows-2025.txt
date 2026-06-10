@@ -1,0 +1,197 @@
+Colaboração entre humanos e IA: além da ansiedade da automação
+Autora: Rebecca Dodd
+Cargo: Redatora de Conteúdo Técnico
+Fonte: Blog Retool
+Data: 6 de novembro de 2025
+
+Resumo editorial:
+Este artigo resume uma conversa entre Paco Vinoly, chefe de design de produto da Retool, e Tom Konewka, arquiteto de soluções estratégicas, durante o Retool Summit 2025. O texto defende que colocar agentes de IA em produção com segurança exige uma arquitetura que combine workflows determinísticos, agentes probabilísticos, checkpoints humanos, interfaces específicas, observabilidade, guardrails e autonomia incremental.
+
+Índice
+
+01. O que significa “agente” na prática
+02. Agencial é um espectro, não tudo ou nada
+03. A arquitetura que realmente funciona
+04. O agente orquestrador atua como um supervisor
+05. Por que a interface é o elemento crucial
+06. Interfaces desenvolvidas especificamente para tarefas específicas
+07. O manual do líder: Como realizar envios com segurança em semanas, não em trimestres
+08. Comece com processos que tenham resultados claros e políticas explícitas
+09. Invista em mecanismos de proteção, observabilidade e avaliações
+10. Adicionar autonomia gradualmente
+11. Consolidar o trabalho de andaimes em uma plataforma
+12. O futuro é a colaboração perfeita, não a autonomia perfeita
+
+Texto do artigo
+
+Construir um agente de IA hoje em dia não é tão difícil, mas colocá-lo em produção com segurança é onde a maioria das equipes encontra dificuldades. Criar uma prova de conceito impressionante de forma isolada é o novo “mas funciona na minha máquina!”.
+
+Segundo o relatório Builder 2025 da Retool, 65% dos desenvolvedores de aplicativos corporativos atuais não são engenheiros de software, e 48% criam soluções diretamente, sem esperar por recursos de engenharia. Embora isso seja uma ótima notícia para a democratização do código, não é surpresa que o trabalho de integração, tedioso até mesmo para desenvolvedores experientes — autenticação, monitoramento, trilhas de auditoria, fluxos de aprovação e verificações de conformidade — esteja resultando em falhas no lançamento.
+
+Além dessa constatação realista, existe um caminho viável: em vez de buscar a autonomia total, uma combinação de fluxos de trabalho automatizados, agentes de IA e tarefas humanas permite aproveitar ao máximo cada capacidade, mantendo a segurança e a confiabilidade. Adicionar gradualmente mais autonomia, onde fizer sentido, é a maneira de obter ganhos incrementais com menos riscos.
+
+Então, como construir sistemas onde a IA e as pessoas trabalhem juntas — não apenas coexistindo, mas colaborando e amplificando os pontos fortes umas das outras? E como construir esses sistemas pensando na mudança, sabendo que os limites das responsabilidades humanas ou da IA continuarão a se transformar ao longo do tempo?
+
+O que significa “agente” na prática
+
+Antes de abordarmos a melhor forma de combinar tarefas humanas com agentes ou fluxos de trabalho com agentes, vamos alinhar nossos entendimentos sobre o que cada um desses termos significa.
+
+Agencial é um espectro, não tudo ou nada.
+
+Num extremo do espectro, temos a IA dentro de fluxos de trabalho determinísticos: os humanos permanecem firmemente no controle, enquanto os LLMs aprimoram etapas específicas.
+
+Exemplo:
+Um workflow recebe a transcrição de uma chamada de vendas e inclui uma etapa de GenAI para resumir a chamada, destacando objeções e itens de ação. Depois, envia um e-mail de recapitulação ao representante de vendas. Embora a saída do LLM varie, o workflow como um todo é consistente.
+
+No outro extremo do espectro, temos workflows abertos de agentes de IA, onde um agente planeja, age, acessa ferramentas e converge para um resultado. Não há etapas fixas, e o agente pode traçar um caminho diferente a cada execução. Isso funciona bem para tarefas ambíguas, altamente dependentes de contexto e que podem exigir vários loops para o agente coletar dados e confirmar que tem tudo o que precisa antes de prosseguir para o próximo passo autodefinido.
+
+Agentic workflows são um ponto intermediário: ainda são workflows definidos por humanos, mas, em vez de apenas gerar uma saída, o modelo de IA toma algumas decisões sobre qual caminho seguir. Ele pode executar o workflow inteiro de ponta a ponta ou decidir escalar para um humano para esclarecimento antes de agir.
+
+Cada um desses modelos representa limites ligeiramente diferentes entre automação e input humano. Pode parecer que a jornada ideal é começar com workflows GenAI e evoluir até agentes autônomos, indo de um estado de baixa maturidade em IA até o mais avançado. Mas a resposta real é que todos os tipos de workflows de IA têm seu lugar. O truque é descobrir qual padrão se encaixa melhor em cada caso de uso.
+
+Idealmente, deve-se limitar o uso de LLMs a tarefas ambíguas e abertas, para não introduzir imprevisibilidade onde ela não é bem-vinda.
+
+A arquitetura que realmente funciona
+
+A maioria das empresas precisa de alguma combinação de:
+
+- Workflows, para fornecer durabilidade e repetibilidade em tarefas ou processos determinísticos.
+- Agentes, para oferecer raciocínio flexível e probabilístico em fluxos não determinísticos.
+- Checkpoints humanos, para adicionar julgamento, decisões de política e accountability final por meio de aprovações, edições e tratamento de exceções.
+
+A arquitetura de agentes que funciona segue um padrão de tríade: combinar workflows, agentes e tarefas humanas.
+
+No centro está uma camada de orquestração unificada — um sistema de coordenação com vários componentes trabalhando juntos.
+
+O agente orquestrador atua como um supervisor
+
+Ele recebe uma tarefa, a divide e delega para subagentes especializados. Em vez de tentar fazer um único agente ser especialista em tudo, cria-se agentes focados que se destacam em tarefas específicas.
+
+Exemplo:
+Imagine construir um workflow de resolução de disputas. Você poderia criar um único “agente de disputas” com todas as políticas da empresa e pedir que ele avaliasse disputas, revisasse evidências, analisasse histórico do cliente e redigisse respostas de e-mail. Pode funcionar, mas não será excelente em nenhuma dessas tarefas.
+
+Uma abordagem melhor é ter um agente gerente de disputas que orquestra subagentes especializados. Um agente se destaca em análise de linguagem porque foi treinado especificamente nessa tarefa. Outro se especializa em revisar histórico do cliente. Quando uma tarefa chega, o orquestrador a roteia para o especialista certo, prepara o contexto e coordena o processo geral sem tentar fazer tudo sozinho. Esses agentes trabalham em paralelo, cada um com guardrails claros sobre o que pode acessar e o que está procurando.
+
+A lógica de ramificação permite que o sistema tome decisões com base no que descobre.
+
+Exemplo de resolução de disputa:
+Um cliente contesta uma cobrança de cartão de crédito. O agente orquestrador recebe a reclamação e imediatamente cria vários subagentes em paralelo.
+
+Cada subagente tem uma função diferente:
+
+- O agente coletor de evidências pode verificar análises de produto para validar se o cliente está realmente usando o produto.
+- Um agente Salesforce avalia sinais da conta, como histórico de pagamentos contestados, e retorna uma pontuação de risco.
+
+Com base no que esses agentes encontram, o workflow se ramifica. Se a evidência for clara, o sistema pode aceitar ou rejeitar automaticamente a disputa. Mas, se houver ambiguidade — o que frequentemente acontece — o workflow é encaminhado para um humano revisar e aprovar antes de finalizar a decisão.
+
+Longe de serem um remendo posterior, checkpoints human-in-the-loop são projetados na arquitetura desde o início. Humanos podem ver exatamente o que a IA descobriu, revisar as evidências e tomar a decisão final.
+
+Nesse modelo, mesmo processos de negócio complexos e multi-step podem rodar em segundo plano com o nível de automação com o qual a empresa se sente confortável, e humanos podem intervir apenas onde são necessários. Interfaces de usuário e envolvimento humano não são o ponto de partida, mas sim a rede de segurança para guiar e aprovar o que a IA está fazendo.
+
+Por que a interface é o elemento crucial
+
+Embora chatbots tenham levado a IA ao mainstream, eles não são a resposta para todos os casos de uso. Interfaces de chat são ótimas para tarefas de baixa barreira de entrada, onde o usuário fornece contexto aberto. Mas a desvantagem é que o chat força os usuários a iniciarem todas as ações.
+
+Algo acontece no Salesforce, chega um e-mail ou uma disputa é aberta — e agora a pessoa precisa copiar e colar informações em uma interface de chat para iniciar o processo. O ChatGPT pode ajudar a redigir uma resposta de e-mail, mas não pode enviá-la por você.
+
+Prompting é cansativo. O usuário precisa pensar em tudo, estruturar o pedido perfeitamente e torcer para que o agente interprete corretamente. Alternar entre ferramentas para executar diferentes partes do processo custa foco. Em vez de aliviar a carga cognitiva, transferir tarefas para IA por meio de uma interface de chatbot pode criar ainda mais carga.
+
+Dar agência aos agentes mantendo algum nível de supervisão humana exige uma abordagem diferente.
+
+Interfaces desenvolvidas especificamente para tarefas específicas
+
+O que funciona melhor são interfaces purpose-built para tarefas específicas, como:
+
+- Formulários com inputs estruturados vinculados aos campos específicos que o agente precisa.
+- Requisitos de upload de arquivos para certos tipos de arquivo.
+- Triggers baseados em e-mail para processos assíncronos que podem levar horas ou dias porque envolvem aprovações humanas.
+
+Essas restrições mantêm a lógica no nível do workflow e limitam a ambiguidade ou flexibilidade movida por LLM às tarefas que realmente se beneficiam dela.
+
+A UI correta atua como uma superfície de controle para IA: permite que as pessoas forneçam inputs estruturados, tomem decisões em gates importantes e rastreiem o que a IA está fazendo.
+
+O manual do líder: Como realizar envios com segurança em semanas, não em trimestres
+
+Construir agentes e suas interfaces humanas/UI em sandboxes separadas e depois tentar descobrir como fazê-los se comunicar sem perder contexto pode significar semanas gastas apenas com encanamento.
+
+Segundo o texto, 51% dos builders da Retool agora resolvem problemas em dias ou semanas em vez de meses ou trimestres.
+
+Um exemplo citado é Eric Cheng, arquiteto empresarial da Komatsu, que criou um app Retool funcionando como superfície para construção de sistemas agentic que automatizam operações longas e passo a passo de atendimento ao cliente. O projeto começou como side project e foi escalado usando Retool como painel de controle e serviço MCP central, conectado a endpoints externos, sistemas de armazenamento de arquivos, APIs e workflows de varejo.
+
+Para realizar a promessa dos pilotos de IA, o artigo recomenda:
+
+Comece com processos que tenham resultados claros e políticas explícitas
+
+Um erro comum é pedir que a IA automatize algo que a empresa ainda não entende totalmente. Se você não consegue articular os passos que um humano seguiria para completar uma tarefa, um agente não vai descobrir magicamente. Escolha workflows onde você sabe como o sucesso se parece e onde as regras de decisão são claras o suficiente para avaliar se a IA acertou.
+
+Invista em mecanismos de proteção, observabilidade e avaliações
+
+LLMs são sistemas não determinísticos que precisam de uma abordagem diferente de segurança e QA em comparação ao software tradicional. Unit tests sozinhos não bastam. Se você dá aos agentes “as chaves do reino” permitindo que eles tomem ações por meio de ferramentas críticas de negócio, também precisa tomar medidas para impedir ações não autorizadas ou maliciosas.
+
+Observabilidade poderosa e detalhada permite saber sempre o que está acontecendo dentro dos sistemas e depurar qualquer saída suspeita ou incorreta.
+
+Métricas e sinais úteis incluem:
+
+- Preocupações de orçamento, como uso de tokens e custo estimado.
+- Monitoramento de performance, como runtime e total de execuções.
+- Medidas de segurança, como acesso e uso de ferramentas.
+
+Ao mesmo tempo, evals automatizadas ajudam a garantir que, depois que o agente foi desenvolvido, sua saída permaneça consistente com o esperado.
+
+Adicionar autonomia gradualmente
+
+Não é necessário automatizar tudo de ponta a ponta de uma vez.
+
+Um exemplo citado: um membro da equipe construiu uma ferramenta interna para processar gravações de demos de chamadas de engenharia. Integrar com a API do Zoom permitiria puxar transcrições automaticamente, mas levaria semanas. Em vez disso, começou com uma caixa de texto onde cola a transcrição manualmente. Não é totalmente automatizado, mas funciona — e leva apenas dois minutos por semana. Ainda é possível iterar e automatizar essa última parte depois, mas já houve ganho incremental.
+
+Consolidar o trabalho de andaimes em uma plataforma
+
+Se uma prova de conceito é construída no mesmo ambiente do sistema de produção, não é necessário recomeçar do zero quando estiver pronta para ser lançada. O app ou agente de IA já está vinculado às fontes de dados reais, com governança configurada e monitoramento em vigor.
+
+Com uma abordagem de plataforma, também é possível configurar agentes como ferramentas para outros agentes. O orquestrador sabe que tem acesso a agentes especializados e pode chamá-los, enquanto a plataforma lida com a coordenação.
+
+O futuro é a colaboração perfeita, não a autonomia perfeita
+
+Nenhum agente será perfeito no primeiro dia. Eles raciocinam e agem como humanos, o que significa que precisam de coaching e iteração para melhorar. Um agente pode desviar 30% dos tickets de suporte hoje. Com iteração em prompts, refinamento de guardrails e melhoria dos modelos, pode chegar a 50%, 60% e eventualmente 99%.
+
+Essa iteração, junto com o rápido avanço das capacidades de IA, significa que a fronteira entre o que deve ser automatizado e o que precisa de input humano está sempre se movendo. Conforme os esforços são refinados, modelos melhoram, equipes ganham confiança e requisitos de negócio mudam, essa linha se desloca.
+
+Modelos e processos de negócio continuarão se transformando. Simplificar o encanamento em torno dos esforços de IA ajuda a acompanhar essa mudança. Conseguir trazer qualquer LLM para criar agentes e agentic workflows, junto com uma maneira fácil de conceder acesso seguro às ferramentas de negócio, dá tempo para ajustar os processos ao longo do tempo.
+
+A combinação certa de agentes orquestrados, processos determinísticos e julgamento humano estruturado embutido nos workflows de negócio pode transformar demos chamativas em valor durável de produção.
+
+Notas de curadoria para YZI OS Research Lab
+
+Classificação:
+Referência de mercado / indústria.
+
+Tema:
+Agentic workflows, human-in-the-loop, interfaces operacionais, agentes em produção, observabilidade, guardrails, autonomia incremental, workflows determinísticos, orquestração e subagentes.
+
+Valor para o YZI OS:
+Muito alto. Este artigo expressa de forma muito próxima a filosofia operacional do YZI OS: agentes não devem ser tratados como chatbots autônomos ou substitutos totais da operação humana, mas como parte de uma infraestrutura governada que combina workflows, agentes especializados, ferramentas, estado, observabilidade e julgamento humano.
+
+Conceitos-chave para o YZI OS:
+- Agencialidade é espectro, não tudo ou nada.
+- Nem todo caso de uso precisa de agente autônomo.
+- LLMs devem ser limitados às partes ambíguas e abertas.
+- Workflows determinísticos dão durabilidade e repetibilidade.
+- Agentes probabilísticos dão flexibilidade onde há ambiguidade.
+- Humanos adicionam julgamento, aprovação, exceção e accountability.
+- O agente orquestrador não deve fazer tudo; deve coordenar subagentes especializados.
+- Checkpoints human-in-the-loop devem ser desenhados desde o início.
+- Chat não deve ser a interface principal para todo processo.
+- Interfaces purpose-built reduzem carga cognitiva.
+- A UI funciona como uma superfície de controle para IA.
+- Guardrails, observabilidade e evals são essenciais para agentes em produção.
+- Autonomia deve ser adicionada gradualmente.
+- O futuro é colaboração perfeita, não autonomia perfeita.
+
+Aplicação conceitual ao YZI OS:
+- O cliente final deve operar o negócio, não conversar com um GPT.
+- O cockpit do tenant deve ser uma superfície de controle de negócio.
+- A YZIHUB deve operar o cockpit cognitivo-operacional com observabilidade profunda.
+- A plataforma deve combinar workflows determinísticos, agentes especializados, tools e intervenção humana.
+- A autonomia deve crescer por maturidade operacional, não por promessa de marketing.
+- A interface do YZI OS deve reduzir carga cognitiva e organizar ação, aprovação, exceção e revisão.
+- A arquitetura não deve depender de prompt como interface primária.
