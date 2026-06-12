@@ -9,6 +9,10 @@
 > Camada: `prd` · Status: canônico · Versão: v1 · Data: 2026-06-03
 > Proveniência: `[CE]` `[PYR]` `[HE-GOV]` `[AHE]` `[HARNESS-RT]` (ver
 > [`terminology.md`](../foundation/terminology.md))
+>
+> **Patch aditivo de clareza de produto** aplicado em 2026-06-12 antes da abertura da Lane 5
+> (não remove nem reescreve doutrina; apenas acrescenta texto às seções §0, §8, §18 e §19). Ver
+> [`yzi-os-prd-product-clarity-review-before-lane-5-v1.md`](../specs/product/yzi-os-prd-product-clarity-review-before-lane-5-v1.md).
 
 ---
 
@@ -17,6 +21,12 @@
 Este é um **PRD arquitetural**, não um plano comercial. Seu objeto é a **infraestrutura
 institucional** — a arquitetura é o produto. Ele descreve *o que o YZI OS é, por que existe e
 como se governa*, sem especificar implementação.
+
+A asserção **“a arquitetura é o produto”** vale no nível de **infraestrutura**. Na **superfície
+do operador** — o **cockpit** (§8) — o produto lidera pelo **outcome operado**, não pela
+arquitetura exposta: o cockpit mostra a operação e seu resultado, não o diagrama de camadas. Os
+dois planos não competem — a infraestrutura é o produto por dentro; o outcome operado é o produto
+na tela.
 
 O PRD é deliberadamente **derivado**: cada seção sintetiza uma camada canônica e remete a ela
 para o detalhe. Em caso de divergência entre este PRD e um documento de camada, prevalece a
@@ -204,6 +214,14 @@ sob troca de modelo, sem depender da memória opaca do modelo. `[CE]` `[PYR]`
 (Ver [`state-architecture.md`](../architecture/state-architecture.md) e
 [`runtime-state-management.md`](../runtime/runtime-state-management.md).)
 
+O **cockpit** é a **superfície humana de supervisão do operador** (§2): a projeção do estado
+operacional na qual o operador **vê** a operação em andamento, **aprova**, **intervém** e
+**acompanha** o resultado. Como toda interface, o cockpit é **projeção do estado, nunca fonte da
+verdade** (§3); ele honra o **invariante de controlabilidade** (§17) — quem executa não desliga a
+própria fiscalização — e exibe **estado vazio honesto** quando não há operação. O cockpit lidera
+pelo **outcome operado**, não pela arquitetura interna (agents/tools/state), e por isso **não deve
+degenerar em console técnico genérico**. `[AHE]` `[CE]`
+
 ---
 
 ## 9. Services e Tools — decisão e execução
@@ -332,6 +350,13 @@ e **decompor** (parte a tarefa). `[PYR]`
 [`context-isolation.md`](../context-engineering/context-isolation.md) e
 [`operational-boundaries.md`](../governance/operational-boundaries.md).)
 
+A pertença de um operador (§2) a um tenant é a **membership** — o **vínculo governado** entre
+operador e tenant. A membership **determina o que o operador pode ver, aprovar e operar** no
+cockpit (§8), sempre **dentro da fronteira de tenant** (`P10`): é a projeção, no nível do operador
+humano, do mesmo invariante de isolamento que separa estado, contexto e memória entre tenants.
+**Nenhum operador enxerga ou opera além do que sua membership autoriza no seu tenant**, e a
+fronteira entre tenants permanece inacessível por desenho — não por configuração de tela. `[PYR]`
+
 ---
 
 ## 19. Verticalização
@@ -343,6 +368,15 @@ coerência do sistema enquanto permite que cada instituição opere sob suas pr�
 `[PYR]`
 (Ver [`conceptual-architecture.md`](../architecture/conceptual-architecture.md) §7 e
 [`tenant-architecture.md`](../architecture/tenant-architecture.md).)
+
+A **primeira verticalização declarada** do YZI OS é o **Growth OS** — a operação de crescimento
+descrita em [`yzi-os-product-architecture-plan-v1.md`](../specs/product/yzi-os-product-architecture-plan-v1.md)
+e [`yzi-os-operating-model-v1.md`](../specs/product/yzi-os-operating-model-v1.md). Esse par de
+documentos é a **primeira experiência operável** sobre o núcleo deste PRD: o **PRD institucional é
+o núcleo de governança** (estável, horizontal, citável); o **Growth OS instancia** a verticalização
+prevista nesta seção — specifications, policies e retrieval próprios de um domínio — **sem alterar o
+núcleo**. O Growth OS **não substitui** o PRD nem reabre sua doutrina: é aplicação e narrativa de
+mercado **sobre** o PRD. Em caso de divergência, prevalece a **hierarquia documental** (§0). `[PYR]`
 
 ---
 
