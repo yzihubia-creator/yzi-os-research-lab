@@ -35,7 +35,8 @@ Mapa operacional único que conecta Spec → Execution Pack → Regras de Harnes
 | 3 | Auth and Tenant Boundary | **concluída — auth/tenant boundary SQL evidenciado — baseline limpo** |
 | 4 | Cockpit Skeleton | **concluída — Google OAuth + cockpit skeleton validado — estado vazio honesto** |
 | 5 | Agent Operations Layer | **concluída — cockpit operador-facing + estado `no_membership` validado em runtime por humano** |
-| 6 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
+| 6 | Tenant Bootstrap / Membership Activation Layer | **concluída — 1 tenant + 1 membership reais ativados (manual/humano) — `tenant_found` validado em runtime por humano** |
+| 7 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
 
 Uma lane por vez. Avanço de lane exige evidência verificada da lane anterior.
 
@@ -97,9 +98,16 @@ Harness é governança de execução: restringe o que pode ser executado, como �
 - Remanescentes não bloqueantes da Lane 5: `tenant_found` não exercitado com tenant real; logout/encerrar sessão não implementado; dupla chamada `getUser()` por render (risco menor/performance). Diferidos a lanes futuras.
 - Closure gate da Lane 5 registrado em `lanes/lane-5-agent-operations-layer-closure-gate-v1.md`. Readiness final: `LANE_5_AGENT_OPERATIONS_LAYER_CLOSED_NO_MEMBERSHIP_VALIDATED`.
 - Nenhum tenant/membership/seed real criado na Lane 5; nenhum agente/subagent/MCP/runner; nenhum SQL; nenhuma policy de escrita; service role não usada. Baseline segue limpo: 0 tenants, 0 memberships.
+- **Lane 6 concluída** — Tenant Bootstrap / Membership Activation Layer: criado o primeiro caminho governado, reversível e auditável para ativar **1 tenant real + 1 membership real** do operador validado, exercitando `tenant_found` real em runtime. Batches: 6.1 product definition (`7392a86`), 6.2 SQL manual activation plan (`fdda440`), 6.3 Auth/RLS review (`fee8124`), 6.4 human SQL execution evidence (`6965f2e`), 6.5 runtime `tenant_found` validation — bloqueio de ambiente → validado por humano (`c18fc39`). Execution program: `529bb12`.
+- Produto entregue na Lane 6: primeiro tenant real `YZI OS — Operação Inicial`; primeira membership real (role `viewer`, status `active`); operador saiu de `no_membership` para `tenant_found`; cockpit renderizou o tenant real em runtime; base agentic continua vazia/honesta; nenhum agente real ou simulado; nenhum `slug`/`id` cru como produto.
+- Decisões de governança da Lane 6: bootstrap via Supabase SQL Editor humano/manual; **nenhuma policy de escrita criada**; frontend permanece read-only (anon key + RLS); role inicial `viewer`; rollback documentado (não executado — ativação validada/mantida); nenhum seed permanente; nenhum service role no frontend.
+- Validações da Lane 6: Auth/RLS aprovado; SQL executado apenas por humano; 1 tenant / 1 membership; role `viewer`; `tenant_found` validado no cockpit por observação humana; `no_membership` deixou de aparecer para o operador validado; sem `e-mail`/`UUID`/`token`/`cookie`/OAuth `code` versionado.
+- Remanescentes não bloqueantes da Lane 6: logout/encerrar sessão ainda não implementado; `tenant_found` validado para 1 operador/1 tenant apenas; role `viewer` ainda sem matriz funcional ampla; agent registry e operação agentic real continuam fora de escopo; rollback existe mas não foi executado (ativação validada). Diferidos a lanes futuras.
+- Closure gate da Lane 6 registrado em `lanes/lane-6-tenant-bootstrap-membership-activation-closure-gate-v1.md`. Readiness final: `LANE_6_TENANT_BOOTSTRAP_MEMBERSHIP_ACTIVATION_CLOSED_TENANT_FOUND_VALIDATED`.
+- Nenhum agente/subagent/MCP/runner criado na Lane 6; nenhuma policy de escrita; nenhum seed permanente; service role não usada no frontend. Estado de dados: **1 tenant + 1 membership reais ativos** (ativação reversível; baseline 0/0 é estado de retorno documentado).
 
 ## 8. Próxima ação
 
-**Decidir sobre a abertura da Lane 6 — próxima candidata (não aberta).**
+**Decidir sobre a abertura da Lane 7 — próxima candidata (não aberta).**
 
-A Lane 5 — Agent Operations Layer está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-5-agent-operations-layer-closure-gate-v1.md` (readiness `LANE_5_AGENT_OPERATIONS_LAYER_CLOSED_NO_MEMBERSHIP_VALIDATED`). A **Lane 6 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 5. Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.
+A Lane 6 — Tenant Bootstrap / Membership Activation Layer está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-6-tenant-bootstrap-membership-activation-closure-gate-v1.md` (readiness `LANE_6_TENANT_BOOTSTRAP_MEMBERSHIP_ACTIVATION_CLOSED_TENANT_FOUND_VALIDATED`). A **Lane 7 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 6 (`AUTORIZO ABERTURA DA LANE 7`). Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.
