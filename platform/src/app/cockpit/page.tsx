@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-boundary";
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
@@ -128,6 +129,10 @@ export default async function CockpitPage() {
       // planejadas job-anchored (lidera pelo resultado, não por nomes de agentes).
       // Também puro/declarativo; tudo "Planejado — não ativo".
       const definition = getAgentDefinitionConfig();
+      // Agent Capability Boundary Layer (Lane 11): para cada capacidade planejada,
+      // o LIMITE honesto (poderá / ainda não pode / dependência) antes de operar.
+      // Puro/declarativo; nenhuma execução, nenhum agente, nenhum MCP/tool/memória.
+      const capabilityBoundary = getAgentCapabilityBoundary();
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -279,6 +284,86 @@ export default async function CockpitPage() {
               <p className="text-sm text-zinc-500 dark:text-zinc-500">
                 {definition.dependency}
               </p>
+            </div>
+          </section>
+
+          {/* Agent Capability Boundary (Lane 11). Para cada capacidade planejada
+              (Lane 10), o limite honesto: o que PODERÁ fazer, o que ainda NÃO
+              pode e de que depende. Job-anchored; tudo declarativo e read-only —
+              nenhuma execução, nenhum agente, nenhum MCP/runner/tool/memória,
+              nenhum botão de ação. O limite é exibido antes de a capacidade existir. */}
+          <section
+            aria-labelledby="agent-capability-boundary-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <h2
+                id="agent-capability-boundary-title"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                {capabilityBoundary.title}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {capabilityBoundary.intro}
+              </p>
+            </div>
+
+            <ul className="flex flex-col gap-4">
+              {capabilityBoundary.capabilities.map((item) => (
+                <li
+                  key={item.capability}
+                  className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      {item.capability}
+                    </span>
+                    <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                      {capabilityBoundary.status}
+                    </span>
+                  </div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {item.purpose}
+                  </span>
+                  <dl className="flex flex-col gap-1 text-sm">
+                    <div className="flex flex-col gap-0.5">
+                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                        Poderá fazer
+                      </dt>
+                      <dd className="text-zinc-600 dark:text-zinc-400">
+                        {item.futureAbility}
+                      </dd>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                        Ainda não pode
+                      </dt>
+                      <dd className="text-zinc-500 dark:text-zinc-500">
+                        {item.notYet}
+                      </dd>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                        Depende de
+                      </dt>
+                      <dd className="text-zinc-500 dark:text-zinc-500">
+                        {item.dependency}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Ausência de execução — vale para todas as capacidades
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {capabilityBoundary.noExecution.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
             </div>
           </section>
           <LogoutControl />

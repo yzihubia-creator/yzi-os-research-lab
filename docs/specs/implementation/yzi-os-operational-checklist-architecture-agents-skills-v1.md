@@ -21,7 +21,8 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | 8 | Role / Permission Boundary | concluída — fronteira `viewer` legível |
 | 9 | Agent Registry Shell | concluída — superfície de existência vazia honesta |
 | 10 | Agent Definition (read-only, job-anchored) | concluída — capacidades planejadas "Planejado — não ativo" |
-| 11+ | (não abertas) | candidatas prováveis: Tool/Memory Boundary · Agent Capability Boundary · depois First Controlled Agent Operation |
+| 11 | Agent Capability Boundary | concluída — limites read-only por capacidade (poderá / ainda não pode / depende de) |
+| 12+ | (não abertas) | candidata provável: Tool/Memory Boundary · depois First Controlled Agent Operation |
 
 ---
 
@@ -36,6 +37,7 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | Role/boundary | `viewer` legível (pode / ainda não pode) | `platform/src/lib/tenant/role-boundary.ts` |
 | Agent Registry Shell | existência vazia honesta ("Nenhum agente ativo") | `platform/src/lib/agents/agent-registry-shell.ts` |
 | Agent Definition | capacidades planejadas job-anchored, read-only | `platform/src/lib/agents/agent-definition.ts` |
+| Agent Capability Boundary | limites read-only por capacidade (poderá / ainda não pode / depende de) | `platform/src/lib/agents/agent-capability-boundary.ts` |
 
 **Ainda NÃO existe:** agente real · execução agentic · MCP · runner · scheduler · tools · memória operacional · tabela `agents` · policy de escrita · role model amplo · service role no frontend.
 
@@ -114,9 +116,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 
 ## 8. Próxima ordem sugerida
 
-1. **Lane 11 provável:** Tool/Memory Boundary **ou** Agent Capability Boundary (definir limites antes de capacidade real).
-2. **First Controlled Agent Operation** só **depois** do boundary estar fechado e validado.
-3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 11`.
+1. **Lane 12 provável:** Tool/Memory Boundary (limites futuros de tools e memória, read-only, sem integração real).
+2. **First Controlled Agent Operation** só **depois** do boundary de tool/memória estar fechado e validado.
+3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 12`.
 
 ---
 
