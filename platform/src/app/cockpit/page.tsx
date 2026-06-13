@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
@@ -123,6 +124,10 @@ export default async function CockpitPage() {
       // sem MCP, sem tool, sem memória). Renderizado apenas no estado autenticado
       // com tenant real — o operador vê que a área existe e que está vazia.
       const registry = getAgentRegistryShell();
+      // Agent Definition / Read-only Configuration Layer (Lane 10): capacidades
+      // planejadas job-anchored (lidera pelo resultado, não por nomes de agentes).
+      // Também puro/declarativo; tudo "Planejado — não ativo".
+      const definition = getAgentDefinitionConfig();
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -208,37 +213,72 @@ export default async function CockpitPage() {
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Fronteira de execução: o que esta área ainda não faz. */}
-              <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  O que esta área ainda não faz
-                </h3>
-                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                  {registry.boundary.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
+            {/* Fronteira de execução: o que esta área ainda não faz. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                O que esta área ainda não faz
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {registry.boundary.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
 
-              {/* Capacidades futuras: declarativas, não acionáveis. */}
-              <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  O que será habilitado no futuro
-                </h3>
-                <ul className="flex flex-col gap-2">
-                  {registry.futureCapabilities.map((capability) => (
-                    <li key={capability.title} className="flex flex-col">
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {capability.title}
-                      </span>
-                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                        {capability.description}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          {/* Agent Definition / Read-only Configuration Layer (Lane 10).
+              Job-anchored: lidera pelo resultado/capacidade, não por nomes de
+              agentes. Tudo declarativo, planejado e NÃO ativo — nenhum agente
+              roda, nenhum MCP/runner/tool/memória, nenhuma execução, sem botão. */}
+          <section
+            aria-labelledby="agent-definition-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <h2
+                id="agent-definition-title"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                {definition.title}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {definition.intro}
+              </p>
+            </div>
+
+            <ul className="flex flex-col gap-3">
+              {definition.capabilities.map((item) => (
+                <li
+                  key={item.capability}
+                  className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      {item.capability}
+                    </span>
+                    <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                      {definition.status}
+                    </span>
+                  </div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {item.purpose}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Limites desta fase — valem para todas as capacidades
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {definition.limits.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {definition.dependency}
+              </p>
             </div>
           </section>
           <LogoutControl />
