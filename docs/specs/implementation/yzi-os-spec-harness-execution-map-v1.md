@@ -36,7 +36,8 @@ Mapa operacional único que conecta Spec → Execution Pack → Regras de Harnes
 | 4 | Cockpit Skeleton | **concluída — Google OAuth + cockpit skeleton validado — estado vazio honesto** |
 | 5 | Agent Operations Layer | **concluída — cockpit operador-facing + estado `no_membership` validado em runtime por humano** |
 | 6 | Tenant Bootstrap / Membership Activation Layer | **concluída — 1 tenant + 1 membership reais ativados (manual/humano) — `tenant_found` validado em runtime por humano** |
-| 7 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
+| 7 | Operator Session & Control Layer | **concluída — logout/session control no cockpit; ciclo `tenant_found → logout → login → re-login → tenant_found` validado em runtime por humano** |
+| 8 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
 
 Uma lane por vez. Avanço de lane exige evidência verificada da lane anterior.
 
@@ -105,9 +106,16 @@ Harness é governança de execução: restringe o que pode ser executado, como �
 - Remanescentes não bloqueantes da Lane 6: logout/encerrar sessão ainda não implementado; `tenant_found` validado para 1 operador/1 tenant apenas; role `viewer` ainda sem matriz funcional ampla; agent registry e operação agentic real continuam fora de escopo; rollback existe mas não foi executado (ativação validada). Diferidos a lanes futuras.
 - Closure gate da Lane 6 registrado em `lanes/lane-6-tenant-bootstrap-membership-activation-closure-gate-v1.md`. Readiness final: `LANE_6_TENANT_BOOTSTRAP_MEMBERSHIP_ACTIVATION_CLOSED_TENANT_FOUND_VALIDATED`.
 - Nenhum agente/subagent/MCP/runner criado na Lane 6; nenhuma policy de escrita; nenhum seed permanente; service role não usada no frontend. Estado de dados: **1 tenant + 1 membership reais ativos** (ativação reversível; baseline 0/0 é estado de retorno documentado).
+- **Lane 7 concluída** — Operator Session & Control Layer: fechado o controle básico de sessão do operador no cockpit. Batches: 7.1 product definition; 7.2 minimal logout/session UX plan; 7.3 minimal implementation (`platform/src/app/cockpit/page.tsx`, lint/build verdes); 7.4 Auth/session + UX/Cockpit review aprovados; 7.5 runtime validado por humano; 7.6 evidence + closure + mapa. Execution program: `lanes/lane-7-operator-session-control-layer-execution-program-v1.md`. Revisão de escopo: `lanes/lane-7-product-scope-candidate-review-v1.md`.
+- Produto entregue na Lane 7: logout funcional a partir do `/cockpit` (Server Action `signOutOperator` via `supabase.auth.signOut()`, anon key, simétrico ao login Google OAuth) + controle "Encerrar sessão" nos estados autenticados; re-login recuperando `tenant_found`. Fluxo validado: **`tenant_found → logout → login → re-login → tenant_found`**, tenant `YZI OS — Operação Inicial` preservado.
+- Decisões de governança da Lane 7: frontend-only (único arquivo de código: `cockpit/page.tsx`); apenas valores públicos (anon key), nenhum service role; `proxy.ts` inalterado (`/cockpit` segue protegido, fail-closed); nenhum SQL/schema/tenant/membership/policy tocado; nenhum token/cookie/OAuth `code` versionado.
+- Validações da Lane 7: `lint` verde; `build` verde (Next.js 16.2.9; `ƒ /cockpit` server-rendered; Proxy ativo); Auth/session review aprovado; UX/Cockpit review aprovado; runtime humano validado (sem erro visual/hydration/loop/stack; sem token/cookie/OAuth `code` exposto).
+- Remanescentes não bloqueantes da Lane 7: Agent Registry, tools/memória e agentes reais ainda não criados; role model amplo ainda não criado (`viewer` mantido); `main` canonicalization ainda diferida; commit acidental local `9abc33e` ainda diferido. Diferidos a decisões/lanes futuras.
+- Closure gate da Lane 7 registrado em `lanes/lane-7-operator-session-control-layer-closure-gate-v1.md`. Readiness final: `LANE_7_OPERATOR_SESSION_CONTROL_CLOSED_LOGOUT_RELOGIN_TENANT_FOUND_VALIDATED`.
+- Nenhum agente/registry/tool/memória/MCP/runner criado na Lane 7; nenhum SQL; nenhuma policy; service role não usada. Estado de dados inalterado: **1 tenant + 1 membership reais ativos**.
 
 ## 8. Próxima ação
 
-**Decidir sobre a abertura da Lane 7 — próxima candidata (não aberta).**
+**Decidir sobre a abertura da Lane 8 — próxima candidata (não aberta).**
 
-A Lane 6 — Tenant Bootstrap / Membership Activation Layer está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-6-tenant-bootstrap-membership-activation-closure-gate-v1.md` (readiness `LANE_6_TENANT_BOOTSTRAP_MEMBERSHIP_ACTIVATION_CLOSED_TENANT_FOUND_VALIDATED`). A **Lane 7 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 6 (`AUTORIZO ABERTURA DA LANE 7`). Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.
+A Lane 7 — Operator Session & Control Layer está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-7-operator-session-control-layer-closure-gate-v1.md` (readiness `LANE_7_OPERATOR_SESSION_CONTROL_CLOSED_LOGOUT_RELOGIN_TENANT_FOUND_VALIDATED`). A **Lane 8 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 7 (`AUTORIZO ABERTURA DA LANE 8`). Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.

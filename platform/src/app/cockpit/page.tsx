@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { getSessionUser } from "@/lib/auth/session";
+import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 
 // Cockpit operador-facing (Lane 5, Batch 5.3 — gate G4, apenas este arquivo).
@@ -13,6 +14,37 @@ import { getTenantContext } from "@/lib/tenant/tenant-context";
 // estados são renderizados honestamente; com banco limpo o caminho real é
 // `no_membership`, sem inventar tenant. `tenant_found` é renderizado apenas
 // a partir de dado real do membership.
+
+// Logout do operador (Lane 7, Batch 7.3 — gate G4, apenas este arquivo).
+// Server Action simétrica ao login (`login/page.tsx`): encerra a sessão via
+// `supabase.auth.signOut()` — que limpa os cookies de sessão pelo adapter
+// @supabase/ssr (graváveis em Server Action) — e redireciona para `/login`. Usa
+// EXCLUSIVAMENTE valores públicos (URL + anon key); NUNCA service role, NUNCA
+// SQL, NUNCA lê/imprime token, cookie ou OAuth `code`. Não altera
+// tenant/membership: apenas encerra a presença do operador no cockpit.
+async function signOutOperator(): Promise<void> {
+  "use server";
+
+  const supabase = await createServerSupabaseClient();
+  await supabase.auth.signOut();
+  redirect("/login");
+}
+
+// Controle mínimo "Encerrar sessão": um <form> que invoca a Server Action acima.
+// Sem `use client`, sem estado, sem componente grande — progressive enhancement
+// por padrão. Renderizado apenas nos estados autenticados (há sessão a encerrar).
+function LogoutControl() {
+  return (
+    <form action={signOutOperator}>
+      <button
+        type="submit"
+        className="w-fit rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+      >
+        Encerrar sessão
+      </button>
+    </form>
+  );
+}
 
 export default async function CockpitPage() {
   const context = await getTenantContext();
@@ -74,6 +106,7 @@ export default async function CockpitPage() {
               criado e nada aqui é simulado.
             </p>
           </div>
+          <LogoutControl />
         </section>
       );
 
@@ -107,6 +140,7 @@ export default async function CockpitPage() {
               é simulado.
             </p>
           </div>
+          <LogoutControl />
         </section>
       );
 
