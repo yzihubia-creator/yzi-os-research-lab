@@ -148,3 +148,18 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 5. Lane 18 permanece candidata, nao aberta e sem execution program.
 
 `POST_SQL_HUMAN_APPLICATION_RECORDED_LANE_18_NOT_OPENED`
+
+---
+
+## 10. Post-SQL human validation approved checkpoint
+
+1. Validacao pos-SQL aprovada pelo humano no Supabase SQL Editor.
+2. Evidence documental:
+   `docs/specs/implementation/evidence/lane-16-runs-sql-human-post-application-validation-approved-v1.md`.
+3. Estado confirmado pelo humano: tabela `public.controlled_run_records`, RLS, policies tenant-scoped,
+   constraints e indices minimos existem; sem trigger/function relacionada; sem dados indevidos;
+   cockpit sem leitura/escrita; sem agente real, runner, scheduler, tool real ou memoria operacional.
+4. Lane 18 esta pronta para abertura em etapa separada, mediante autorizacao explicita.
+5. Lane 18 permanece nao aberta neste checkpoint e sem execution program.
+
+`POST_SQL_HUMAN_VALIDATION_APPROVED_LANE_18_READY_TO_OPEN`

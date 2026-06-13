@@ -193,3 +193,18 @@ O humano informou que aplicou manualmente o SQL da Lane 16 em Supabase a partir 
 Status deste checkpoint: SQL aplicado pelo humano; validacao pos-SQL humana ainda pendente; Codex/Claude
 nao executaram SQL, nao usaram MCP, nao chamaram Supabase/API externa e nao alteraram codigo do
 cockpit. A Lane 18 permanece apenas candidata, nao aberta e sem execution program.
+
+## 10. Post-SQL human validation approved checkpoint
+
+O humano informou que validou no Supabase SQL Editor a aplicacao manual do SQL da Lane 16. Evidence:
+`evidence/lane-16-runs-sql-human-post-application-validation-approved-v1.md`.
+
+Resultado humano: `VALIDACAO POS-SQL APROVADA`.
+
+Resumo confirmado pelo humano: `public.controlled_run_records` existe; RLS habilitada; policies
+tenant-scoped criadas; constraints e indices minimos criados; nenhum trigger/function relacionado;
+nenhum dado indevido (`count(*) = 0`); cockpit ainda nao le nem escreve na tabela; nenhum agente real,
+runner, scheduler, tool real ou memoria operacional criado.
+
+Estado: Lane 18 esta pronta para abertura em etapa separada, mas permanece nao aberta neste checkpoint.
+Nenhum execution program da Lane 18 foi criado.
