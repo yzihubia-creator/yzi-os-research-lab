@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-boundary";
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
+import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
@@ -133,6 +134,13 @@ export default async function CockpitPage() {
       // o LIMITE honesto (poderá / ainda não pode / dependência) antes de operar.
       // Puro/declarativo; nenhuma execução, nenhum agente, nenhum MCP/tool/memória.
       const capabilityBoundary = getAgentCapabilityBoundary();
+      // Tool / Memory Boundary Layer (Lane 12): limite futuro de ferramentas e
+      // memória, read-only. Preserva a arquitetura de memória já definida na base
+      // (Raw Event / Reflective / Retrieval Evidence / Memory Governance /
+      // Context-Evidence Trace) e mantém RAG separado de memória operacional.
+      // Puro/declarativo; nenhuma tool conectada, nenhuma memória ativa, sem
+      // vector store/embedding, sem MCP/runner, nenhum agente lê/escreve memória.
+      const toolMemoryBoundary = getToolMemoryBoundary();
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -361,6 +369,124 @@ export default async function CockpitPage() {
               </h3>
               <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
                 {capabilityBoundary.noExecution.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* Tool / Memory Boundary (Lane 12). Limite futuro de ferramentas e
+              memória das capacidades planejadas (Lanes 10/11), read-only e
+              honesto. Preserva a arquitetura de memória da base: Raw Event
+              Memory, Reflective Memory, Retrieval Evidence Layer, Memory
+              Governance e Context/Evidence Trace — todas planejadas e não
+              ativas — e mantém RAG/conhecimento semântico SEPARADO de memória
+              operacional. Tudo declarativo: nenhuma tool conectada, nenhuma
+              memória ativa, sem vector store/embedding, sem MCP/runner, nenhum
+              agente lê/escreve memória, nenhum botão de ação. */}
+          <section
+            aria-labelledby="tool-memory-boundary-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <h2
+                id="tool-memory-boundary-title"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                {toolMemoryBoundary.title}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {toolMemoryBoundary.intro}
+              </p>
+            </div>
+
+            {/* Ferramentas (tools) futuras — não conectadas, sem execução. */}
+            <div className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  {toolMemoryBoundary.tools.title}
+                </span>
+                <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                  {toolMemoryBoundary.tools.status}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {toolMemoryBoundary.tools.intro}
+              </p>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {toolMemoryBoundary.tools.constraints.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Memória — fronteira/governança read-only, arquitetura preservada. */}
+            <div className="flex flex-col gap-3 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  {toolMemoryBoundary.memory.title}
+                </span>
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.memory.intro}
+                </p>
+              </div>
+
+              <ul className="flex flex-col gap-3">
+                {toolMemoryBoundary.memory.layers.map((item) => (
+                  <li key={item.layer} className="flex flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                        {item.layer}
+                      </span>
+                      <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                        {item.status}
+                      </span>
+                    </div>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                      {item.purpose}
+                    </span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                      {item.restriction}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Separação explícita: RAG ≠ memória operacional. */}
+              <div className="flex flex-col gap-1 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                    {toolMemoryBoundary.memory.ragSeparation.title}
+                  </span>
+                  <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    {toolMemoryBoundary.memory.ragSeparation.status}
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.memory.ragSeparation.body}
+                </p>
+              </div>
+            </div>
+
+            {/* Relação com as capacidades planejadas. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {toolMemoryBoundary.capabilityRelation.title}
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {toolMemoryBoundary.capabilityRelation.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Ausência de ativação — vale para tools e memória. */}
+            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Ausência de ativação — vale para ferramentas e memória
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {toolMemoryBoundary.noActivation.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

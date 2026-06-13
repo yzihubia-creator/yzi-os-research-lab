@@ -22,7 +22,8 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | 9 | Agent Registry Shell | concluída — superfície de existência vazia honesta |
 | 10 | Agent Definition (read-only, job-anchored) | concluída — capacidades planejadas "Planejado — não ativo" |
 | 11 | Agent Capability Boundary | concluída — limites read-only por capacidade (poderá / ainda não pode / depende de) |
-| 12+ | (não abertas) | candidata provável: Tool/Memory Boundary · depois First Controlled Agent Operation |
+| 12 | Tool / Memory Boundary | concluída — fronteira read-only de tools/memória; arquitetura de memória preservada (Raw Event/Reflective/Retrieval Evidence/Memory Governance/Context-Evidence Trace, não ativas); RAG separado |
+| 13+ | (não abertas) | candidata provável: First Controlled Agent Operation (só após Tool/Memory Boundary, já fechado) |
 
 ---
 
@@ -38,8 +39,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | Agent Registry Shell | existência vazia honesta ("Nenhum agente ativo") | `platform/src/lib/agents/agent-registry-shell.ts` |
 | Agent Definition | capacidades planejadas job-anchored, read-only | `platform/src/lib/agents/agent-definition.ts` |
 | Agent Capability Boundary | limites read-only por capacidade (poderá / ainda não pode / depende de) | `platform/src/lib/agents/agent-capability-boundary.ts` |
+| Tool / Memory Boundary | fronteira read-only de tools/memória; arquitetura de memória preservada; RAG separado | `platform/src/lib/agents/tool-memory-boundary.ts` |
 
-**Ainda NÃO existe:** agente real · execução agentic · MCP · runner · scheduler · tools · memória operacional · tabela `agents` · policy de escrita · role model amplo · service role no frontend.
+**Ainda NÃO existe:** agente real · execução agentic · MCP · runner · scheduler · tools reais · memória operacional ativa · vector store/embeddings · tabela de memória · tabela `agents` · policy de escrita · role model amplo · service role no frontend.
 
 ---
 
@@ -116,9 +118,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 
 ## 8. Próxima ordem sugerida
 
-1. **Lane 12 provável:** Tool/Memory Boundary (limites futuros de tools e memória, read-only, sem integração real).
-2. **First Controlled Agent Operation** só **depois** do boundary de tool/memória estar fechado e validado.
-3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 12`.
+1. **Lane 12 concluída:** Tool/Memory Boundary fechado e validado (read-only; memória como boundary; RAG separado).
+2. **Lane 13 provável:** First Controlled Agent Operation — primeira operação agentic controlada, só agora que o boundary de tool/memória está fechado; sob governança e fronteira de papel, sem memória operacional ainda ativa.
+3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 13`.
 
 ---
 
