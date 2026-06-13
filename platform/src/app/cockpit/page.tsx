@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
+import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 
 // Cockpit operador-facing (Lane 5, Batch 5.3 — gate G4, apenas este arquivo).
@@ -111,9 +112,11 @@ export default async function CockpitPage() {
       );
 
     // Tenant resolvido via membership real (RLS da Lane 3). Mostra a operação
-    // pelo NOME do tenant — sem expor id/slug crus (anti-console). A base
+    // pelo NOME do tenant — sem expor id/slug crus (anti-console) — e a
+    // FRONTEIRA DE PERMISSÃO honesta do papel real do operador (Lane 8). A base
     // agentic permanece vazia e honesta.
-    case "tenant_found":
+    case "tenant_found": {
+      const boundary = getPermissionBoundary(context.role);
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -127,10 +130,49 @@ export default async function CockpitPage() {
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
               Você está vinculado a este tenant. É aqui que sua operação
-              acontece e o que você pode ver, aprovar e operar é determinado pelo
-              seu vínculo (membership).
+              acontece, e o que você pode ver, aprovar e operar é determinado
+              pelo seu papel neste vínculo (membership).
             </p>
           </div>
+
+          {/* Papel real do operador + fronteira de permissão honesta. O papel
+              vem do dado real da membership (RLS read-only); a fronteira não
+              inventa nenhuma ação que o cockpit ainda não execute. */}
+          <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">
+              Seu papel nesta operação
+            </p>
+            <p className="text-base font-medium text-zinc-800 dark:text-zinc-200">
+              {boundary.label}
+            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-500">
+              {boundary.summary}
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                O que você pode fazer
+              </h2>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+                {boundary.can.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                O que você ainda não pode fazer
+              </h2>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {boundary.cannotYet.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
           <div className="rounded-md border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
             <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Base de operação agentic
@@ -143,6 +185,7 @@ export default async function CockpitPage() {
           <LogoutControl />
         </section>
       );
+    }
 
     // Falha ao confirmar sessão/contexto. Erro é distinto de vazio: aqui não se
     // afirma vínculo nem ausência de vínculo. Mensagem fixa e honesta — nunca

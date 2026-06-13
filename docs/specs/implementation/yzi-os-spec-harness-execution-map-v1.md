@@ -37,7 +37,8 @@ Mapa operacional único que conecta Spec → Execution Pack → Regras de Harnes
 | 5 | Agent Operations Layer | **concluída — cockpit operador-facing + estado `no_membership` validado em runtime por humano** |
 | 6 | Tenant Bootstrap / Membership Activation Layer | **concluída — 1 tenant + 1 membership reais ativados (manual/humano) — `tenant_found` validado em runtime por humano** |
 | 7 | Operator Session & Control Layer | **concluída — logout/session control no cockpit; ciclo `tenant_found → logout → login → re-login → tenant_found` validado em runtime por humano** |
-| 8 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
+| 8 | Role / Permission Boundary | **concluída — fronteira de permissão `viewer` legível no cockpit; `tenant_found` + role real + boundary validado em runtime por humano** |
+| 9 | (a definir) | próxima candidata — não aberta; sem execution program; escopo técnico não definido |
 
 Uma lane por vez. Avanço de lane exige evidência verificada da lane anterior.
 
@@ -113,9 +114,16 @@ Harness é governança de execução: restringe o que pode ser executado, como �
 - Remanescentes não bloqueantes da Lane 7: Agent Registry, tools/memória e agentes reais ainda não criados; role model amplo ainda não criado (`viewer` mantido); `main` canonicalization ainda diferida; commit acidental local `9abc33e` ainda diferido. Diferidos a decisões/lanes futuras.
 - Closure gate da Lane 7 registrado em `lanes/lane-7-operator-session-control-layer-closure-gate-v1.md`. Readiness final: `LANE_7_OPERATOR_SESSION_CONTROL_CLOSED_LOGOUT_RELOGIN_TENANT_FOUND_VALIDATED`.
 - Nenhum agente/registry/tool/memória/MCP/runner criado na Lane 7; nenhum SQL; nenhuma policy; service role não usada. Estado de dados inalterado: **1 tenant + 1 membership reais ativos**.
+- **Lane 8 concluída** — Role / Permission Boundary: o cockpit passou a exibir, no `tenant_found`, a **fronteira de permissão legível** do operador. Batches: 8.1 product definition; 8.2 minimal implementation plan; 8.3 minimal implementation (`platform/src/lib/tenant/role-boundary.ts` novo, `platform/src/lib/tenant/tenant-context.ts`, `platform/src/app/cockpit/page.tsx`, lint/build verdes); 8.4 Auth/RLS + UX/Cockpit review aprovados; 8.5 runtime validado por humano; 8.6 evidence + closure + mapa + commit único. Execution program: `lanes/lane-8-role-permission-boundary-execution-program-v1.md`. Revisão de escopo: `lanes/lane-8-product-scope-candidate-review-v1.md`.
+- Produto entregue na Lane 8: papel real do operador (`viewer`) exibido de forma humana ("Viewer — observador") + fronteira honesta "pode / ainda não pode" (pode: ver operação, ver vínculo, encerrar sessão | ainda não pode: escrever dados, operar agentes, administrar tenant). Sem ação falsa, sem botão inoperante, sem `id`/`slug` cru.
+- Decisões de governança da Lane 8: read-only/declarativo; papel via RLS SELECT `memberships_select_own` (`select("tenant_id")` → `select("tenant_id, role")`, **mesma** policy); nenhuma policy nova, nenhum schema novo, nenhum INSERT/UPDATE/DELETE; sem service role, sem MCP, sem SQL; nenhuma capacidade de owner/admin/operator fabricada.
+- Validações da Lane 8: `lint` verde; `build` verde (Next.js 16.2.9; `ƒ /cockpit` server-rendered); Auth/RLS aprovado; UX/Cockpit aprovado; runtime humano validado (tenant **YZI OS — Operação Inicial** + role `viewer` + boundary legível; base agentic vazia; sem token/cookie/OAuth `code` exposto).
+- Remanescentes não bloqueantes da Lane 8: Agent Registry, tools/memória e agentes reais ainda não criados; role model amplo ainda não criado (`viewer` exibido); policies de escrita ainda não criadas; `main` canonicalization ainda diferida; commit acidental local `9abc33e` ainda diferido. Diferidos a decisões/lanes futuras.
+- Closure gate da Lane 8 registrado em `lanes/lane-8-role-permission-boundary-closure-gate-v1.md`. Evidence: `evidence/lane-8-role-permission-boundary-validated-evidence-v1.md`. Readiness final: `LANE_8_ROLE_PERMISSION_BOUNDARY_CLOSED_VIEWER_BOUNDARY_VALIDATED`.
+- Nenhum agente/registry/tool/memória/MCP/runner criado na Lane 8; nenhum SQL; nenhuma policy; service role não usada. Estado de dados inalterado: **1 tenant + 1 membership reais ativos**.
 
 ## 8. Próxima ação
 
-**Decidir sobre a abertura da Lane 8 — próxima candidata (não aberta).**
+**Decidir sobre a abertura da Lane 9 — próxima candidata (não aberta).**
 
-A Lane 7 — Operator Session & Control Layer está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-7-operator-session-control-layer-closure-gate-v1.md` (readiness `LANE_7_OPERATOR_SESSION_CONTROL_CLOSED_LOGOUT_RELOGIN_TENANT_FOUND_VALIDATED`). A **Lane 8 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 7 (`AUTORIZO ABERTURA DA LANE 8`). Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.
+A Lane 8 — Role / Permission Boundary está concluída e evidenciada; seu fechamento está em `docs/specs/implementation/lanes/lane-8-role-permission-boundary-closure-gate-v1.md` (readiness `LANE_8_ROLE_PERMISSION_BOUNDARY_CLOSED_VIEWER_BOUNDARY_VALIDATED`). A **Lane 9 permanece não aberta**, sem execution program e sem escopo técnico definido além de "próxima candidata". Sua abertura exige a frase de autorização explícita definida no closure gate da Lane 8 (`AUTORIZO ABERTURA DA LANE 9`). Critério de saída: decisão humana explícita; nenhuma execução (código, SQL, MCP, alteração de `platform/`) ocorre antes desse gate.
