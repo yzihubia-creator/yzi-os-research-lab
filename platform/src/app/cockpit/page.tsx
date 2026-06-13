@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
@@ -117,6 +118,11 @@ export default async function CockpitPage() {
     // agentic permanece vazia e honesta.
     case "tenant_found": {
       const boundary = getPermissionBoundary(context.role);
+      // Agent Registry Shell (Lane 9): superfície de EXISTÊNCIA de agentes,
+      // declarativa e vazia. Conteúdo puro (sem query, sem agente, sem runner,
+      // sem MCP, sem tool, sem memória). Renderizado apenas no estado autenticado
+      // com tenant real — o operador vê que a área existe e que está vazia.
+      const registry = getAgentRegistryShell();
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -173,15 +179,68 @@ export default async function CockpitPage() {
             </div>
           </div>
 
-          <div className="rounded-md border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
-            <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Base de operação agentic
-            </h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-500">
-              Ainda não há nada configurado — nenhum agente foi criado. Nada aqui
-              é simulado.
-            </p>
-          </div>
+          {/* Agent Registry Shell — superfície de existência honesta. Sem
+              botão, sem ação inoperante, sem agente real, sem console técnico:
+              apenas estado vazio, fronteira de execução e capacidades futuras. */}
+          <section
+            aria-labelledby="agent-registry-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <h2
+                id="agent-registry-title"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                {registry.title}
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {registry.subtitle}
+              </p>
+            </div>
+
+            {/* Estado vazio honesto: nenhum agente, nada simulado. */}
+            <div className="rounded-md border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+              <p className="text-base font-medium text-zinc-800 dark:text-zinc-200">
+                {registry.emptyState.headline}
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {registry.emptyState.body}
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Fronteira de execução: o que esta área ainda não faz. */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  O que esta área ainda não faz
+                </h3>
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {registry.boundary.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Capacidades futuras: declarativas, não acionáveis. */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  O que será habilitado no futuro
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {registry.futureCapabilities.map((capability) => (
+                    <li key={capability.title} className="flex flex-col">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                        {capability.title}
+                      </span>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                        {capability.description}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
           <LogoutControl />
         </section>
       );
