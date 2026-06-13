@@ -6,29 +6,38 @@ import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
 import { getControlledAgentOperation } from "@/lib/agents/controlled-agent-operation";
 import { getControlledRunRecord } from "@/lib/agents/controlled-run-record";
+import { getControlledRunRecordsReadonly } from "@/lib/agents/controlled-run-records-readonly";
 import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 
-// Cockpit operador-facing (Lane 5, Batch 5.3 — gate G4, apenas este arquivo).
+// Cockpit operador-facing.
+//
+// Cockpit Productization V1 (gate: bloco de produto): o estado `tenant_found`
+// foi reorganizado de um mural vertical longo para uma TELA DE PRODUTO
+// navegável — topo claro (tenant/operador/papel/status), grade de cards
+// (Estado da operação, Agente planejado, Capacidades, Ferramentas e memória,
+// Run governado, Registros persistidos) e os detalhes longos movidos para
+// blocos colapsáveis nativos (<details>), sem `use client`. Nenhuma consulta
+// nova, nenhum service role, nenhum dado fabricado e nenhuma promessa de
+// execução foram introduzidos: é a MESMA leitura honesta, apresentada como
+// produto. Os outros três estados (no_session / no_membership / error)
+// permanecem intactos e honestos.
+//
 // Server Component (sem `use client`) que consome EXCLUSIVAMENTE
 // getTenantContext() e getSessionUser() — sessão + leitura RLS read-only já
-// existentes. Nenhuma consulta nova, nenhum service role, nenhuma env lida
-// aqui, nenhum fetch externo, nenhum dado fabricado. Lidera pelo outcome
-// operado: mostra a OPERAÇÃO e o VÍNCULO, não a arquitetura interna (sem ID
-// cru, sem slug, sem agents/tools/state como console técnico). Os quatro
-// estados são renderizados honestamente; com banco limpo o caminho real é
-// `no_membership`, sem inventar tenant. `tenant_found` é renderizado apenas
-// a partir de dado real do membership.
+// existentes. Lidera pelo outcome operado: mostra a OPERAÇÃO e o VÍNCULO, não a
+// arquitetura interna. Os quatro estados são renderizados honestamente; com
+// banco limpo o caminho real é `no_membership`, sem inventar tenant.
+// `tenant_found` é renderizado apenas a partir de dado real do membership.
 
-// Logout do operador (Lane 7, Batch 7.3 — gate G4, apenas este arquivo).
-// Server Action simétrica ao login (`login/page.tsx`): encerra a sessão via
-// `supabase.auth.signOut()` — que limpa os cookies de sessão pelo adapter
-// @supabase/ssr (graváveis em Server Action) — e redireciona para `/login`. Usa
-// EXCLUSIVAMENTE valores públicos (URL + anon key); NUNCA service role, NUNCA
-// SQL, NUNCA lê/imprime token, cookie ou OAuth `code`. Não altera
-// tenant/membership: apenas encerra a presença do operador no cockpit.
+// Logout do operador (Lane 7, Batch 7.3). Server Action simétrica ao login
+// (`login/page.tsx`): encerra a sessão via `supabase.auth.signOut()` — que limpa
+// os cookies de sessão pelo adapter @supabase/ssr (graváveis em Server Action) —
+// e redireciona para `/login`. Usa EXCLUSIVAMENTE valores públicos (URL + anon
+// key); NUNCA service role, NUNCA SQL, NUNCA lê/imprime token, cookie ou OAuth
+// `code`. Não altera tenant/membership: apenas encerra a presença do operador.
 async function signOutOperator(): Promise<void> {
   "use server";
 
@@ -38,8 +47,8 @@ async function signOutOperator(): Promise<void> {
 }
 
 // Controle mínimo "Encerrar sessão": um <form> que invoca a Server Action acima.
-// Sem `use client`, sem estado, sem componente grande — progressive enhancement
-// por padrão. Renderizado apenas nos estados autenticados (há sessão a encerrar).
+// Sem `use client`, sem estado — progressive enhancement por padrão. Renderizado
+// apenas nos estados autenticados (há sessão a encerrar).
 function LogoutControl() {
   return (
     <form action={signOutOperator}>
@@ -50,6 +59,80 @@ function LogoutControl() {
         Encerrar sessão
       </button>
     </form>
+  );
+}
+
+// --- Componentes de apresentação (Cockpit Productization V1) ---------------
+// Puramente visuais, sem estado e sem `use client`. Existem só para dar forma
+// de produto (cards + status + detalhes colapsáveis) ao MESMO conteúdo honesto.
+
+// Selo de status compacto. `tone="warn"` para estados de atenção honestos
+// (ex.: execução real bloqueada); neutro caso contrário.
+function StatusPill({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "warn";
+}) {
+  const toneClasses =
+    tone === "warn"
+      ? "border-amber-400/60 text-amber-700 dark:border-amber-500/40 dark:text-amber-500"
+      : "border-zinc-300 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs ${toneClasses}`}>
+      {children}
+    </span>
+  );
+}
+
+// Card principal do cockpit: título, selo opcional, resumo curto sempre visível
+// e conteúdo (incluindo blocos colapsáveis) abaixo.
+function OperationCard({
+  title,
+  pill,
+  summary,
+  children,
+}: {
+  title: string;
+  pill?: React.ReactNode;
+  summary?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <article className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+            {title}
+          </h2>
+          {pill}
+        </div>
+        {summary ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-500">{summary}</p>
+        ) : null}
+      </div>
+      {children}
+    </article>
+  );
+}
+
+// Bloco colapsável nativo (<details>): reduz o mural de texto sem esconder nada.
+// Sem JS de cliente — o navegador expande/recolhe nativamente.
+function Disclosure({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        {label}
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">{children}</div>
+    </details>
   );
 }
 
@@ -117,531 +200,333 @@ export default async function CockpitPage() {
         </section>
       );
 
-    // Tenant resolvido via membership real (RLS da Lane 3). Mostra a operação
-    // pelo NOME do tenant — sem expor id/slug crus (anti-console) — e a
-    // FRONTEIRA DE PERMISSÃO honesta do papel real do operador (Lane 8). A base
-    // agentic permanece vazia e honesta.
+    // Tenant resolvido via membership real (RLS da Lane 3). Cockpit Productization
+    // V1: apresentado como tela de produto (topo + cards + detalhes colapsáveis).
     case "tenant_found": {
       const boundary = getPermissionBoundary(context.role);
       // Agent Registry Shell (Lane 9): superfície de EXISTÊNCIA de agentes,
       // declarativa e vazia. Conteúdo puro (sem query, sem agente, sem runner,
-      // sem MCP, sem tool, sem memória). Renderizado apenas no estado autenticado
-      // com tenant real — o operador vê que a área existe e que está vazia.
+      // sem MCP, sem tool, sem memória).
       const registry = getAgentRegistryShell();
       // Agent Definition / Read-only Configuration Layer (Lane 10): capacidades
-      // planejadas job-anchored (lidera pelo resultado, não por nomes de agentes).
-      // Também puro/declarativo; tudo "Planejado — não ativo".
+      // planejadas job-anchored. Puro/declarativo; tudo "Planejado — não ativo".
       const definition = getAgentDefinitionConfig();
       // Agent Capability Boundary Layer (Lane 11): para cada capacidade planejada,
-      // o LIMITE honesto (poderá / ainda não pode / dependência) antes de operar.
-      // Puro/declarativo; nenhuma execução, nenhum agente, nenhum MCP/tool/memória.
+      // o LIMITE honesto (poderá / ainda não pode / dependência).
       const capabilityBoundary = getAgentCapabilityBoundary();
       // Tool / Memory Boundary Layer (Lane 12): limite futuro de ferramentas e
-      // memória, read-only. Preserva a arquitetura de memória já definida na base
-      // (Raw Event / Reflective / Retrieval Evidence / Memory Governance /
-      // Context-Evidence Trace) e mantém RAG separado de memória operacional.
-      // Puro/declarativo; nenhuma tool conectada, nenhuma memória ativa, sem
-      // vector store/embedding, sem MCP/runner, nenhum agente lê/escreve memória.
+      // memória, read-only. Mantém RAG separado de memória operacional.
       const toolMemoryBoundary = getToolMemoryBoundary();
-      // First Controlled Agent Operation / Dry-run (Lane 13): a primeira operação
-      // agentic, em modo dry-run/pré-visualização. Recebe apenas o estado já
-      // carregado (nome do tenant + rótulo do papel) — nenhuma consulta nova,
-      // nenhum dado lido, nenhuma tool/memória acessada, nenhum agente em
-      // produção. A conclusão é honesta: bloqueada para execução real até gates
-      // futuros. Sem side effect e sem botão que prometa execução.
+      // First Controlled Agent Operation / Dry-run (Lane 13): primeira operação
+      // agentic em modo dry-run/pré-visualização. Recebe apenas o estado já
+      // carregado — nenhuma consulta nova, nenhum dado lido, nenhuma tool/memória.
       const controlledOperation = getControlledAgentOperation({
         tenantName: context.tenant.name,
         roleLabel: boundary.label,
       });
-      // Controlled Run Record / Run State Boundary (Lane 14): transforma o
-      // dry-run da Lane 13 em um modelo visual/declarativo de run governado,
-      // exibido ANTES de qualquer persistência real. Recebe apenas o estado já
-      // carregado (nome do tenant + rótulo do papel) — nenhuma consulta nova,
-      // nenhum dado lido, nenhuma tool/memória acessada, NENHUM run gravado em
-      // banco. Mostra honestamente run mode/status, insumos, resultado bloqueado,
-      // ausência de persistência e os requisitos futuros (schema, RLS, write
-      // policy, evidence trace, rollback/audit). Sem side effect e sem botão que
-      // prometa persistir/executar um run real.
+      // Controlled Run Record / Run State Boundary (Lane 14): modelo visual de run
+      // governado, exibido ANTES de qualquer persistência real. NENHUM run gravado.
       const runRecord = getControlledRunRecord({
         tenantName: context.tenant.name,
         roleLabel: boundary.label,
       });
+      // Controlled Run Records Read-only Integration (Lane 18): leitura real dos
+      // últimos registros persistidos para o tenant atual. Usa a sessão
+      // autenticada e RLS; filtra por tenant atual; não escreve, não cria botão,
+      // não persiste, não chama API externa e não usa service role.
+      const persistedRunRecords = await getControlledRunRecordsReadonly({
+        tenantId: context.tenant.id,
+        limit: 5,
+      });
+
       return (
-        <section className="flex flex-col gap-4">
-          {operator?.email ? (
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Operador: {operator.email}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Operação de {context.tenant.name}
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Você está vinculado a este tenant. É aqui que sua operação
-              acontece, e o que você pode ver, aprovar e operar é determinado
-              pelo seu papel neste vínculo (membership).
-            </p>
-          </div>
-
-          {/* Papel real do operador + fronteira de permissão honesta. O papel
-              vem do dado real da membership (RLS read-only); a fronteira não
-              inventa nenhuma ação que o cockpit ainda não execute. */}
-          <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Seu papel nesta operação
-            </p>
-            <p className="text-base font-medium text-zinc-800 dark:text-zinc-200">
-              {boundary.label}
-            </p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-500">
-              {boundary.summary}
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                O que você pode fazer
-              </h2>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
-                {boundary.can.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                O que você ainda não pode fazer
-              </h2>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {boundary.cannotYet.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Agent Registry Shell — superfície de existência honesta. Sem
-              botão, sem ação inoperante, sem agente real, sem console técnico:
-              apenas estado vazio, fronteira de execução e capacidades futuras. */}
-          <section
-            aria-labelledby="agent-registry-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <h2
-                id="agent-registry-title"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                {registry.title}
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {registry.subtitle}
-              </p>
-            </div>
-
-            {/* Estado vazio honesto: nenhum agente, nada simulado. */}
-            <div className="rounded-md border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
-              <p className="text-base font-medium text-zinc-800 dark:text-zinc-200">
-                {registry.emptyState.headline}
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {registry.emptyState.body}
-              </p>
-            </div>
-
-            {/* Fronteira de execução: o que esta área ainda não faz. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                O que esta área ainda não faz
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {registry.boundary.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          {/* Agent Definition / Read-only Configuration Layer (Lane 10).
-              Job-anchored: lidera pelo resultado/capacidade, não por nomes de
-              agentes. Tudo declarativo, planejado e NÃO ativo — nenhum agente
-              roda, nenhum MCP/runner/tool/memória, nenhuma execução, sem botão. */}
-          <section
-            aria-labelledby="agent-definition-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <h2
-                id="agent-definition-title"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                {definition.title}
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {definition.intro}
-              </p>
-            </div>
-
-            <ul className="flex flex-col gap-3">
-              {definition.capabilities.map((item) => (
-                <li
-                  key={item.capability}
-                  className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                      {item.capability}
-                    </span>
-                    <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                      {definition.status}
-                    </span>
-                  </div>
-                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                    {item.purpose}
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Limites desta fase — valem para todas as capacidades
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {definition.limits.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {definition.dependency}
-              </p>
-            </div>
-          </section>
-
-          {/* Agent Capability Boundary (Lane 11). Para cada capacidade planejada
-              (Lane 10), o limite honesto: o que PODERÁ fazer, o que ainda NÃO
-              pode e de que depende. Job-anchored; tudo declarativo e read-only —
-              nenhuma execução, nenhum agente, nenhum MCP/runner/tool/memória,
-              nenhum botão de ação. O limite é exibido antes de a capacidade existir. */}
-          <section
-            aria-labelledby="agent-capability-boundary-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <h2
-                id="agent-capability-boundary-title"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                {capabilityBoundary.title}
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {capabilityBoundary.intro}
-              </p>
-            </div>
-
-            <ul className="flex flex-col gap-4">
-              {capabilityBoundary.capabilities.map((item) => (
-                <li
-                  key={item.capability}
-                  className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                      {item.capability}
-                    </span>
-                    <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                      {capabilityBoundary.status}
-                    </span>
-                  </div>
-                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                    {item.purpose}
-                  </span>
-                  <dl className="flex flex-col gap-1 text-sm">
-                    <div className="flex flex-col gap-0.5">
-                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
-                        Poderá fazer
-                      </dt>
-                      <dd className="text-zinc-600 dark:text-zinc-400">
-                        {item.futureAbility}
-                      </dd>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
-                        Ainda não pode
-                      </dt>
-                      <dd className="text-zinc-500 dark:text-zinc-500">
-                        {item.notYet}
-                      </dd>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <dt className="text-xs uppercase tracking-wide text-zinc-500">
-                        Depende de
-                      </dt>
-                      <dd className="text-zinc-500 dark:text-zinc-500">
-                        {item.dependency}
-                      </dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-
-            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Ausência de execução — vale para todas as capacidades
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {capabilityBoundary.noExecution.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          {/* Tool / Memory Boundary (Lane 12). Limite futuro de ferramentas e
-              memória das capacidades planejadas (Lanes 10/11), read-only e
-              honesto. Preserva a arquitetura de memória da base: Raw Event
-              Memory, Reflective Memory, Retrieval Evidence Layer, Memory
-              Governance e Context/Evidence Trace — todas planejadas e não
-              ativas — e mantém RAG/conhecimento semântico SEPARADO de memória
-              operacional. Tudo declarativo: nenhuma tool conectada, nenhuma
-              memória ativa, sem vector store/embedding, sem MCP/runner, nenhum
-              agente lê/escreve memória, nenhum botão de ação. */}
-          <section
-            aria-labelledby="tool-memory-boundary-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <h2
-                id="tool-memory-boundary-title"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                {toolMemoryBoundary.title}
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {toolMemoryBoundary.intro}
-              </p>
-            </div>
-
-            {/* Ferramentas (tools) futuras — não conectadas, sem execução. */}
-            <div className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                  {toolMemoryBoundary.tools.title}
-                </span>
-                <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                  {toolMemoryBoundary.tools.status}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {toolMemoryBoundary.tools.intro}
-              </p>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {toolMemoryBoundary.tools.constraints.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Memória — fronteira/governança read-only, arquitetura preservada. */}
-            <div className="flex flex-col gap-3 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+        <div className="flex flex-col gap-6">
+          {/* TOPO — tenant, operador, papel, status da operação + logout. */}
+          <header className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                  {toolMemoryBoundary.memory.title}
-                </span>
+                <p className="text-xs uppercase tracking-wide text-zinc-500">
+                  Operação
+                </p>
+                <h1 className="text-xl font-semibold tracking-tight">
+                  {context.tenant.name}
+                </h1>
+              </div>
+              <StatusPill tone="warn">Planejada — sem execução real</StatusPill>
+            </div>
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                  Operador
+                </dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  {operator?.email ?? "—"}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                  Papel
+                </dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  {boundary.label}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                  Status da operação
+                </dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  Dry-run — sem persistência
+                </dd>
+              </div>
+            </dl>
+            <LogoutControl />
+          </header>
+
+          {/* ESTADO DA OPERAÇÃO — prominente, com a honestidade global. */}
+          <OperationCard
+            title="Estado da operação"
+            summary="Você está vinculado a este tenant. O que você pode ver, aprovar e operar é determinado pelo seu papel neste vínculo (membership)."
+          >
+            <p className="text-sm text-zinc-500 dark:text-zinc-500">
+              Não existe agente real, runner, scheduler, tool real ou memória
+              operacional ativa. Tudo abaixo é planejado e declarativo — nenhuma
+              execução acontece e nenhum dado é fabricado.
+            </p>
+            <div className="flex flex-col gap-1 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">
+                Seu papel nesta operação
+              </p>
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {boundary.label}
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {boundary.summary}
+              </p>
+            </div>
+            <Disclosure label="O que seu papel permite e ainda não permite">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    O que você pode fazer
+                  </h3>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+                    {boundary.can.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    O que você ainda não pode fazer
+                  </h3>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {boundary.cannotYet.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </Disclosure>
+          </OperationCard>
+
+          {/* GRADE DE CARDS PRINCIPAIS. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Agente planejado (Lanes 9 + 10). */}
+            <OperationCard
+              title="Agente planejado"
+              pill={<StatusPill>{definition.status}</StatusPill>}
+              summary={registry.emptyState.body}
+            >
+              <div className="rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  {registry.emptyState.headline}
+                </p>
+              </div>
+              <Disclosure label="Capacidades planejadas (job-anchored)">
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                  {definition.intro}
+                </p>
+                <ul className="flex flex-col gap-3">
+                  {definition.capabilities.map((item) => (
+                    <li
+                      key={item.capability}
+                      className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                          {item.capability}
+                        </span>
+                        <StatusPill>{definition.status}</StatusPill>
+                      </div>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                        {item.purpose}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Limites desta fase — valem para todas as capacidades
+                  </h4>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {definition.limits.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {definition.dependency}
+                  </p>
+                </div>
+              </Disclosure>
+              <Disclosure label="O que esta área ainda não faz">
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {registry.boundary.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Disclosure>
+            </OperationCard>
+
+            {/* Capacidades (Lane 11). */}
+            <OperationCard
+              title="Capacidades"
+              pill={<StatusPill>{capabilityBoundary.status}</StatusPill>}
+              summary={capabilityBoundary.intro}
+            >
+              <Disclosure label="Limites por capacidade (poderá / ainda não / depende)">
+                <ul className="flex flex-col gap-4">
+                  {capabilityBoundary.capabilities.map((item) => (
+                    <li
+                      key={item.capability}
+                      className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                          {item.capability}
+                        </span>
+                        <StatusPill>{capabilityBoundary.status}</StatusPill>
+                      </div>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                        {item.purpose}
+                      </span>
+                      <dl className="flex flex-col gap-1 text-sm">
+                        <div className="flex flex-col gap-0.5">
+                          <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                            Poderá fazer
+                          </dt>
+                          <dd className="text-zinc-600 dark:text-zinc-400">
+                            {item.futureAbility}
+                          </dd>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                            Ainda não pode
+                          </dt>
+                          <dd className="text-zinc-500 dark:text-zinc-500">
+                            {item.notYet}
+                          </dd>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <dt className="text-xs uppercase tracking-wide text-zinc-500">
+                            Depende de
+                          </dt>
+                          <dd className="text-zinc-500 dark:text-zinc-500">
+                            {item.dependency}
+                          </dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+              </Disclosure>
+              <Disclosure label="Ausência de execução — vale para todas as capacidades">
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {capabilityBoundary.noExecution.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Disclosure>
+            </OperationCard>
+
+            {/* Ferramentas e memória (Lane 12). */}
+            <OperationCard
+              title="Ferramentas e memória"
+              pill={<StatusPill>{toolMemoryBoundary.tools.status}</StatusPill>}
+              summary={toolMemoryBoundary.intro}
+            >
+              <Disclosure label={toolMemoryBoundary.tools.title}>
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.tools.intro}
+                </p>
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.tools.constraints.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Disclosure>
+              <Disclosure label="Camadas de memória e separação de RAG">
                 <p className="text-sm text-zinc-500 dark:text-zinc-500">
                   {toolMemoryBoundary.memory.intro}
                 </p>
-              </div>
-
-              <ul className="flex flex-col gap-3">
-                {toolMemoryBoundary.memory.layers.map((item) => (
-                  <li key={item.layer} className="flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                        {item.layer}
+                <ul className="flex flex-col gap-3">
+                  {toolMemoryBoundary.memory.layers.map((item) => (
+                    <li key={item.layer} className="flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                          {item.layer}
+                        </span>
+                        <StatusPill>{item.status}</StatusPill>
+                      </div>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                        {item.purpose}
                       </span>
-                      <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                        {item.status}
+                      <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                        {item.restriction}
                       </span>
-                    </div>
-                    <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                      {item.purpose}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-col gap-1 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      {toolMemoryBoundary.memory.ragSeparation.title}
                     </span>
-                    <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                      {item.restriction}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Separação explícita: RAG ≠ memória operacional. */}
-              <div className="flex flex-col gap-1 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                    {toolMemoryBoundary.memory.ragSeparation.title}
-                  </span>
-                  <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                    {toolMemoryBoundary.memory.ragSeparation.status}
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                  {toolMemoryBoundary.memory.ragSeparation.body}
-                </p>
-              </div>
-            </div>
-
-            {/* Relação com as capacidades planejadas. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {toolMemoryBoundary.capabilityRelation.title}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {toolMemoryBoundary.capabilityRelation.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Ausência de ativação — vale para tools e memória. */}
-            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Ausência de ativação — vale para ferramentas e memória
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {toolMemoryBoundary.noActivation.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          {/* First Controlled Agent Operation / Dry-run (Lane 13). A primeira
-              operação agentic do YZI OS, em modo dry-run/pré-visualização: mostra
-              capacidade analisada, status dry-run, insumos (leitura do estado já
-              existente), conclusão honesta (bloqueada para execução real até
-              lanes futuras) e ausência de side effects. Tudo declarativo: nenhum
-              agente em produção, nenhuma tool chamada, nenhuma memória acessada,
-              sem MCP/runner, sem chamada externa, sem escrita, sem botão que
-              prometa execução real. */}
-          <section
-            aria-labelledby="controlled-operation-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2
-                  id="controlled-operation-title"
-                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-                >
-                  {controlledOperation.title}
-                </h2>
-                <span className="rounded-full border border-amber-400/60 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/40 dark:text-amber-500">
-                  {controlledOperation.status}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {controlledOperation.intro}
-              </p>
-            </div>
-
-            {/* Capacidade analisada — job-anchored, pré-visualização controlada. */}
-            <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
-              <span className="text-xs uppercase tracking-wide text-zinc-500">
-                {controlledOperation.capabilityAnalyzed.label}
-              </span>
-              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                {controlledOperation.capabilityAnalyzed.capability}
-              </span>
-              <span className="text-sm text-zinc-500 dark:text-zinc-500">
-                {controlledOperation.capabilityAnalyzed.note}
-              </span>
-            </div>
-
-            {/* Insumos — leitura honesta do estado já existente, sem consulta nova. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {controlledOperation.inputs.title}
-              </h3>
-              <dl className="flex flex-col gap-1 text-sm">
-                {controlledOperation.inputs.items.map((item) => (
-                  <div key={item.label} className="flex flex-wrap gap-x-2">
-                    <dt className="text-zinc-500 dark:text-zinc-500">
-                      {item.label}:
-                    </dt>
-                    <dd className="text-zinc-700 dark:text-zinc-300">
-                      {item.value}
-                    </dd>
+                    <StatusPill>
+                      {toolMemoryBoundary.memory.ragSeparation.status}
+                    </StatusPill>
                   </div>
-                ))}
-              </dl>
-            </div>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {toolMemoryBoundary.memory.ragSeparation.body}
+                  </p>
+                </div>
+              </Disclosure>
+              <Disclosure label="Relação com capacidades e ausência de ativação">
+                <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  {toolMemoryBoundary.capabilityRelation.title}
+                </h4>
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.capabilityRelation.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Ausência de ativação — vale para ferramentas e memória
+                </h4>
+                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                  {toolMemoryBoundary.noActivation.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Disclosure>
+            </OperationCard>
 
-            {/* Conclusão — bloqueada para execução real até lanes futuras. */}
-            <div className="flex flex-col gap-1 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {controlledOperation.conclusion.title}
-              </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {controlledOperation.conclusion.body}
-              </p>
-            </div>
-
-            {/* Ausência de side effects — vale para toda a operação. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Ausência de efeitos — vale para toda a operação
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {controlledOperation.safety.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          {/* Controlled Run Record / Run State Boundary (Lane 14). Transforma o
-              dry-run da Lane 13 em um modelo visual/declarativo de run governado,
-              exibido ANTES de qualquer persistência real: estado do run (run mode
-              dry-run/preview/read-only; run status simulated/blocked_for_real_
-              execution/not_persisted; capability; tenant; operator role; side
-              effects none; persistence not persisted), insumos (input sources:
-              tenant context, role boundary, capability boundary, tool/memory
-              boundary — leitura do estado já existente), resultado (execução real
-              bloqueada até lanes futuras), ausência de persistência e requisitos
-              futuros (schema, RLS, write policy, evidence trace, rollback/audit).
-              Tudo declarativo: nenhum run gravado, nenhum SQL/schema/policy,
-              nenhuma tool/memória, sem MCP/runner, sem chamada externa, sem
-              escrita, sem botão que prometa persistir/executar run real. */}
-          <section
-            aria-labelledby="run-record-title"
-            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
-          >
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2
-                  id="run-record-title"
-                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-                >
-                  {runRecord.title}
-                </h2>
-                <span className="rounded-full border border-amber-400/60 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/40 dark:text-amber-500">
-                  {runRecord.status}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {runRecord.intro}
-              </p>
-            </div>
-
-            {/* Estado do run — run mode, run status, capability, tenant, papel,
-                side effects (none), persistence (not persisted). */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {runRecord.runState.title}
-              </h3>
+            {/* Run governado (Lanes 13 + 14). */}
+            <OperationCard
+              title="Run governado"
+              pill={<StatusPill tone="warn">{runRecord.status}</StatusPill>}
+              summary={runRecord.intro}
+            >
               <dl className="flex flex-col gap-1 text-sm">
                 {runRecord.runState.items.map((item) => (
                   <div key={item.label} className="flex flex-wrap gap-x-2">
@@ -654,56 +539,150 @@ export default async function CockpitPage() {
                   </div>
                 ))}
               </dl>
-            </div>
+              <Disclosure label="Detalhes do run governado">
+                <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+                  <span className="text-xs uppercase tracking-wide text-zinc-500">
+                    {controlledOperation.capabilityAnalyzed.label}
+                  </span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                    {controlledOperation.capabilityAnalyzed.capability}
+                  </span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {controlledOperation.capabilityAnalyzed.note}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {runRecord.inputSources.title}
+                  </h4>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {runRecord.inputSources.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {runRecord.result.title}
+                  </h4>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                    {runRecord.result.body}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {runRecord.persistence.title}
+                  </h4>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {runRecord.persistence.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {runRecord.futurePersistence.title}
+                  </h4>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {runRecord.futurePersistence.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Ausência de efeitos — vale para toda a operação
+                  </h4>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                    {controlledOperation.safety.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </Disclosure>
+            </OperationCard>
+          </div>
 
-            {/* Insumos do run (input sources) — leitura do estado já existente. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {runRecord.inputSources.title}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {runRecord.inputSources.items.map((item) => (
-                  <li key={item}>{item}</li>
+          {/* REGISTROS PERSISTIDOS (Lane 18) — leitura real, largura total,
+              sempre visível. Estado vazio e estado de erro honestos preservados.
+              Sem botão, sem insert/update/delete, sem persistência nova, sem
+              agente/tool/memória/runner/scheduler/MCP e sem chamada externa. */}
+          <OperationCard
+            title="Registros persistidos"
+            summary="Leitura real e somente leitura dos últimos registros deste tenant. Esta seção não executa agente, não chama tool, não escreve na tabela e não cria side effects externos."
+          >
+            {persistedRunRecords.status === "error" ? (
+              <div className="rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                <p
+                  role="alert"
+                  className="text-sm text-zinc-500 dark:text-zinc-500"
+                >
+                  {persistedRunRecords.message}
+                </p>
+              </div>
+            ) : persistedRunRecords.records.length === 0 ? (
+              <div className="rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                  Nenhum registro persistido ainda.
+                </p>
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {persistedRunRecords.records.map((record) => (
+                  <li
+                    key={record.id}
+                    className="flex flex-col gap-2 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                        {record.capabilityKey}
+                      </span>
+                      <StatusPill>{record.runMode}</StatusPill>
+                      <StatusPill>{record.runStatus}</StatusPill>
+                    </div>
+                    <dl className="grid gap-1 text-sm sm:grid-cols-2">
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="text-zinc-500 dark:text-zinc-500">
+                          Persistence:
+                        </dt>
+                        <dd className="text-zinc-700 dark:text-zinc-300">
+                          {record.persistenceStatus}
+                        </dd>
+                      </div>
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="text-zinc-500 dark:text-zinc-500">
+                          Side effects:
+                        </dt>
+                        <dd className="text-zinc-700 dark:text-zinc-300">
+                          {record.sideEffects}
+                        </dd>
+                      </div>
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="text-zinc-500 dark:text-zinc-500">
+                          Operator role:
+                        </dt>
+                        <dd className="text-zinc-700 dark:text-zinc-300">
+                          {record.operatorRole}
+                        </dd>
+                      </div>
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="text-zinc-500 dark:text-zinc-500">
+                          Created at:
+                        </dt>
+                        <dd className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
+                          {record.createdAt}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                      {record.resultSummary}
+                    </p>
+                  </li>
                 ))}
               </ul>
-            </div>
-
-            {/* Resultado — execução real bloqueada até lanes futuras. */}
-            <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {runRecord.result.title}
-              </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                {runRecord.result.body}
-              </p>
-            </div>
-
-            {/* Persistência — o que ainda NÃO acontece (ausência explícita). */}
-            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {runRecord.persistence.title}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {runRecord.persistence.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Requisitos futuros para persistência real — cada um com gate. */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {runRecord.futurePersistence.title}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
-                {runRecord.futurePersistence.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-          <LogoutControl />
-        </section>
+            )}
+          </OperationCard>
+        </div>
       );
     }
 
