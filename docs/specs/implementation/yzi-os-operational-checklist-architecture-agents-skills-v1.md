@@ -23,7 +23,8 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | 10 | Agent Definition (read-only, job-anchored) | concluída — capacidades planejadas "Planejado — não ativo" |
 | 11 | Agent Capability Boundary | concluída — limites read-only por capacidade (poderá / ainda não pode / depende de) |
 | 12 | Tool / Memory Boundary | concluída — fronteira read-only de tools/memória; arquitetura de memória preservada (Raw Event/Reflective/Retrieval Evidence/Memory Governance/Context-Evidence Trace, não ativas); RAG separado |
-| 13+ | (não abertas) | candidata provável: First Controlled Agent Operation (só após Tool/Memory Boundary, já fechado) |
+| 13 | First Controlled Agent Operation / Dry-run | concluída — primeira operação agentic controlada em dry-run (read-only, sem side effect); conclusão bloqueada para execução real até lanes futuras |
+| 14+ | (não abertas) | candidata provável: evolução governada da operação além do dry-run (runner/tool/memória/side effect só sob gates próprios) |
 
 ---
 
@@ -40,8 +41,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | Agent Definition | capacidades planejadas job-anchored, read-only | `platform/src/lib/agents/agent-definition.ts` |
 | Agent Capability Boundary | limites read-only por capacidade (poderá / ainda não pode / depende de) | `platform/src/lib/agents/agent-capability-boundary.ts` |
 | Tool / Memory Boundary | fronteira read-only de tools/memória; arquitetura de memória preservada; RAG separado | `platform/src/lib/agents/tool-memory-boundary.ts` |
+| First Controlled Agent Operation | primeira operação agentic em dry-run, read-only, sem side effect; recebe só estado já carregado | `platform/src/lib/agents/controlled-agent-operation.ts` |
 
-**Ainda NÃO existe:** agente real · execução agentic · MCP · runner · scheduler · tools reais · memória operacional ativa · vector store/embeddings · tabela de memória · tabela `agents` · policy de escrita · role model amplo · service role no frontend.
+**Ainda NÃO existe:** agente real de produção · execução agentic real · MCP · runner · scheduler · tools reais · memória operacional ativa · vector store/embeddings · tabela de memória · tabela `agents` · tabela de runs · side effect externo · policy de escrita · role model amplo · service role no frontend.
 
 ---
 
@@ -118,9 +120,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 
 ## 8. Próxima ordem sugerida
 
-1. **Lane 12 concluída:** Tool/Memory Boundary fechado e validado (read-only; memória como boundary; RAG separado).
-2. **Lane 13 provável:** First Controlled Agent Operation — primeira operação agentic controlada, só agora que o boundary de tool/memória está fechado; sob governança e fronteira de papel, sem memória operacional ainda ativa.
-3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 13`.
+1. **Lane 13 concluída:** First Controlled Agent Operation em dry-run, validada (read-only; sem side effect; conclusão bloqueada para execução real).
+2. **Lane 14 provável:** evolução governada da operação além do dry-run — qualquer runner, tool real, memória operacional ou side effect entra só sob gate próprio.
+3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 14`.
 
 ---
 

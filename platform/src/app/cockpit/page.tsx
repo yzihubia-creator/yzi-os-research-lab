@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-boundary";
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
+import { getControlledAgentOperation } from "@/lib/agents/controlled-agent-operation";
 import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
@@ -141,6 +142,16 @@ export default async function CockpitPage() {
       // Puro/declarativo; nenhuma tool conectada, nenhuma memória ativa, sem
       // vector store/embedding, sem MCP/runner, nenhum agente lê/escreve memória.
       const toolMemoryBoundary = getToolMemoryBoundary();
+      // First Controlled Agent Operation / Dry-run (Lane 13): a primeira operação
+      // agentic, em modo dry-run/pré-visualização. Recebe apenas o estado já
+      // carregado (nome do tenant + rótulo do papel) — nenhuma consulta nova,
+      // nenhum dado lido, nenhuma tool/memória acessada, nenhum agente em
+      // produção. A conclusão é honesta: bloqueada para execução real até gates
+      // futuros. Sem side effect e sem botão que prometa execução.
+      const controlledOperation = getControlledAgentOperation({
+        tenantName: context.tenant.name,
+        roleLabel: boundary.label,
+      });
       return (
         <section className="flex flex-col gap-4">
           {operator?.email ? (
@@ -487,6 +498,90 @@ export default async function CockpitPage() {
               </h3>
               <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
                 {toolMemoryBoundary.noActivation.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* First Controlled Agent Operation / Dry-run (Lane 13). A primeira
+              operação agentic do YZI OS, em modo dry-run/pré-visualização: mostra
+              capacidade analisada, status dry-run, insumos (leitura do estado já
+              existente), conclusão honesta (bloqueada para execução real até
+              lanes futuras) e ausência de side effects. Tudo declarativo: nenhum
+              agente em produção, nenhuma tool chamada, nenhuma memória acessada,
+              sem MCP/runner, sem chamada externa, sem escrita, sem botão que
+              prometa execução real. */}
+          <section
+            aria-labelledby="controlled-operation-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="controlled-operation-title"
+                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  {controlledOperation.title}
+                </h2>
+                <span className="rounded-full border border-amber-400/60 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/40 dark:text-amber-500">
+                  {controlledOperation.status}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {controlledOperation.intro}
+              </p>
+            </div>
+
+            {/* Capacidade analisada — job-anchored, pré-visualização controlada. */}
+            <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                {controlledOperation.capabilityAnalyzed.label}
+              </span>
+              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {controlledOperation.capabilityAnalyzed.capability}
+              </span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-500">
+                {controlledOperation.capabilityAnalyzed.note}
+              </span>
+            </div>
+
+            {/* Insumos — leitura honesta do estado já existente, sem consulta nova. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {controlledOperation.inputs.title}
+              </h3>
+              <dl className="flex flex-col gap-1 text-sm">
+                {controlledOperation.inputs.items.map((item) => (
+                  <div key={item.label} className="flex flex-wrap gap-x-2">
+                    <dt className="text-zinc-500 dark:text-zinc-500">
+                      {item.label}:
+                    </dt>
+                    <dd className="text-zinc-700 dark:text-zinc-300">
+                      {item.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Conclusão — bloqueada para execução real até lanes futuras. */}
+            <div className="flex flex-col gap-1 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {controlledOperation.conclusion.title}
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {controlledOperation.conclusion.body}
+              </p>
+            </div>
+
+            {/* Ausência de side effects — vale para toda a operação. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Ausência de efeitos — vale para toda a operação
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {controlledOperation.safety.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
