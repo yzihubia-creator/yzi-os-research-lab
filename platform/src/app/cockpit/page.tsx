@@ -5,6 +5,7 @@ import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-bounda
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
 import { getAgentRegistryShell } from "@/lib/agents/agent-registry-shell";
 import { getControlledAgentOperation } from "@/lib/agents/controlled-agent-operation";
+import { getControlledRunRecord } from "@/lib/agents/controlled-run-record";
 import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
@@ -149,6 +150,19 @@ export default async function CockpitPage() {
       // produção. A conclusão é honesta: bloqueada para execução real até gates
       // futuros. Sem side effect e sem botão que prometa execução.
       const controlledOperation = getControlledAgentOperation({
+        tenantName: context.tenant.name,
+        roleLabel: boundary.label,
+      });
+      // Controlled Run Record / Run State Boundary (Lane 14): transforma o
+      // dry-run da Lane 13 em um modelo visual/declarativo de run governado,
+      // exibido ANTES de qualquer persistência real. Recebe apenas o estado já
+      // carregado (nome do tenant + rótulo do papel) — nenhuma consulta nova,
+      // nenhum dado lido, nenhuma tool/memória acessada, NENHUM run gravado em
+      // banco. Mostra honestamente run mode/status, insumos, resultado bloqueado,
+      // ausência de persistência e os requisitos futuros (schema, RLS, write
+      // policy, evidence trace, rollback/audit). Sem side effect e sem botão que
+      // prometa persistir/executar um run real.
+      const runRecord = getControlledRunRecord({
         tenantName: context.tenant.name,
         roleLabel: boundary.label,
       });
@@ -582,6 +596,107 @@ export default async function CockpitPage() {
               </h3>
               <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
                 {controlledOperation.safety.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* Controlled Run Record / Run State Boundary (Lane 14). Transforma o
+              dry-run da Lane 13 em um modelo visual/declarativo de run governado,
+              exibido ANTES de qualquer persistência real: estado do run (run mode
+              dry-run/preview/read-only; run status simulated/blocked_for_real_
+              execution/not_persisted; capability; tenant; operator role; side
+              effects none; persistence not persisted), insumos (input sources:
+              tenant context, role boundary, capability boundary, tool/memory
+              boundary — leitura do estado já existente), resultado (execução real
+              bloqueada até lanes futuras), ausência de persistência e requisitos
+              futuros (schema, RLS, write policy, evidence trace, rollback/audit).
+              Tudo declarativo: nenhum run gravado, nenhum SQL/schema/policy,
+              nenhuma tool/memória, sem MCP/runner, sem chamada externa, sem
+              escrita, sem botão que prometa persistir/executar run real. */}
+          <section
+            aria-labelledby="run-record-title"
+            className="flex flex-col gap-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id="run-record-title"
+                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  {runRecord.title}
+                </h2>
+                <span className="rounded-full border border-amber-400/60 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-500/40 dark:text-amber-500">
+                  {runRecord.status}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {runRecord.intro}
+              </p>
+            </div>
+
+            {/* Estado do run — run mode, run status, capability, tenant, papel,
+                side effects (none), persistence (not persisted). */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {runRecord.runState.title}
+              </h3>
+              <dl className="flex flex-col gap-1 text-sm">
+                {runRecord.runState.items.map((item) => (
+                  <div key={item.label} className="flex flex-wrap gap-x-2">
+                    <dt className="text-zinc-500 dark:text-zinc-500">
+                      {item.label}:
+                    </dt>
+                    <dd className="text-zinc-700 dark:text-zinc-300">
+                      {item.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Insumos do run (input sources) — leitura do estado já existente. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {runRecord.inputSources.title}
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {runRecord.inputSources.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Resultado — execução real bloqueada até lanes futuras. */}
+            <div className="flex flex-col gap-1 border-l-2 border-zinc-200 pl-3 dark:border-zinc-800">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {runRecord.result.title}
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                {runRecord.result.body}
+              </p>
+            </div>
+
+            {/* Persistência — o que ainda NÃO acontece (ausência explícita). */}
+            <div className="flex flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {runRecord.persistence.title}
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {runRecord.persistence.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Requisitos futuros para persistência real — cada um com gate. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {runRecord.futurePersistence.title}
+              </h3>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-zinc-500 dark:text-zinc-500">
+                {runRecord.futurePersistence.items.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

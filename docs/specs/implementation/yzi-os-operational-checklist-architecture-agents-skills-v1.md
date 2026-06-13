@@ -24,7 +24,8 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | 11 | Agent Capability Boundary | concluída — limites read-only por capacidade (poderá / ainda não pode / depende de) |
 | 12 | Tool / Memory Boundary | concluída — fronteira read-only de tools/memória; arquitetura de memória preservada (Raw Event/Reflective/Retrieval Evidence/Memory Governance/Context-Evidence Trace, não ativas); RAG separado |
 | 13 | First Controlled Agent Operation / Dry-run | concluída — primeira operação agentic controlada em dry-run (read-only, sem side effect); conclusão bloqueada para execução real até lanes futuras |
-| 14+ | (não abertas) | candidata provável: evolução governada da operação além do dry-run (runner/tool/memória/side effect só sob gates próprios) |
+| 14 | Controlled Run Record / Run State Boundary | concluída — modelo visual/declarativo de run governado pré-persistência (run mode/status, insumos, resultado bloqueado, persistence not persisted, requisitos futuros schema/RLS/write policy/evidence trace/rollback-audit); nenhum run persistido |
+| 15+ | (não abertas) | candidata provável: primeira persistência governada de runs (schema + RLS + write policy + evidence trace + rollback/audit, sob gates próprios; runner/tool/memória/side effect só sob gate próprio) |
 
 ---
 
@@ -42,8 +43,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | Agent Capability Boundary | limites read-only por capacidade (poderá / ainda não pode / depende de) | `platform/src/lib/agents/agent-capability-boundary.ts` |
 | Tool / Memory Boundary | fronteira read-only de tools/memória; arquitetura de memória preservada; RAG separado | `platform/src/lib/agents/tool-memory-boundary.ts` |
 | First Controlled Agent Operation | primeira operação agentic em dry-run, read-only, sem side effect; recebe só estado já carregado | `platform/src/lib/agents/controlled-agent-operation.ts` |
+| Controlled Run Record / Run State Boundary | run governado pré-persistência, read-only e não persistido (run mode/status, insumos, resultado bloqueado, requisitos futuros de persistência); recebe só estado já carregado | `platform/src/lib/agents/controlled-run-record.ts` |
 
-**Ainda NÃO existe:** agente real de produção · execução agentic real · MCP · runner · scheduler · tools reais · memória operacional ativa · vector store/embeddings · tabela de memória · tabela `agents` · tabela de runs · side effect externo · policy de escrita · role model amplo · service role no frontend.
+**Ainda NÃO existe:** agente real de produção · execução agentic real · MCP · runner · scheduler · tools reais · memória operacional ativa · vector store/embeddings · tabela de memória · tabela `agents` · tabela de runs · persistência de run · evidence trace persistido · write policy/RLS de runs · rollback/audit de runs · side effect externo · role model amplo · service role no frontend.
 
 ---
 
@@ -120,9 +122,9 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 
 ## 8. Próxima ordem sugerida
 
-1. **Lane 13 concluída:** First Controlled Agent Operation em dry-run, validada (read-only; sem side effect; conclusão bloqueada para execução real).
-2. **Lane 14 provável:** evolução governada da operação além do dry-run — qualquer runner, tool real, memória operacional ou side effect entra só sob gate próprio.
-3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 14`.
+1. **Lane 14 concluída:** Controlled Run Record / Run State Boundary, validada (run governado pré-persistência; read-only; persistence not persisted; sem SQL/schema/policy/side effect).
+2. **Lane 15 provável:** primeira persistência governada de runs — schema + RLS + write policy + evidence trace + rollback/audit, sob gates próprios; runner/tool/memória/side effect só sob gate próprio.
+3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 15`.
 
 ---
 
