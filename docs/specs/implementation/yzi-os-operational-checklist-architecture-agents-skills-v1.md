@@ -133,3 +133,18 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 ---
 
 `YZI_OS_OPERATIONAL_CHECKLIST_ARCHITECTURE_AGENTS_SKILLS_CREATED`
+
+---
+
+## 9. Post-SQL human application checkpoint
+
+1. SQL da Lane 16 informado como aplicado manualmente pelo humano:
+   `docs/specs/implementation/sql/lane-16-runs-evidence-manual-sql-pack-v1.sql`.
+2. Evidence documental:
+   `docs/specs/implementation/evidence/lane-16-runs-sql-human-application-evidence-v1.md`.
+3. Validacao pos-SQL humana pendente:
+   tabela `public.controlled_run_records`, RLS, policies, indices, ausencia de trigger/scheduler/runner/function, ausencia de tool/agente/memoria operacional, cockpit sem leitura/escrita, rollback disponivel.
+4. Agente nao executa SQL, nao usa MCP, nao chama Supabase/API externa e nao altera schema.
+5. Lane 18 permanece candidata, nao aberta e sem execution program.
+
+`POST_SQL_HUMAN_APPLICATION_RECORDED_LANE_18_NOT_OPENED`

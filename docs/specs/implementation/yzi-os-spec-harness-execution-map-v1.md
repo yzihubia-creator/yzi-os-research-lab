@@ -183,3 +183,13 @@ Harness é governança de execução: restringe o que pode ser executado, como �
 **Aplicação manual humana (futura) do SQL da Lane 16, sob o gate da Lane 17 — e então decidir sobre a abertura da Lane 18 (não aberta).**
 
 O Bloco 15–17 está concluído de forma documental/manual: contrato (Lane 15), SQL pack `NOT_EXECUTED` (Lane 16) e gate humano de aplicação (Lane 17). **Nenhum SQL foi executado e não houve push.** O próximo passo real é **humano**: aplicar manualmente, no Supabase SQL Editor, o pack `sql/lane-16-runs-sql-execution-pack-manual-v1.sql` após cumprir o checklist pré-execução da Lane 17, e então preencher o checklist pós-execução. A **Lane 18 permanece não aberta**, sem execution program, e só pode ser aberta **após** o SQL aplicado manualmente e validado, mediante a frase `AUTORIZO ABERTURA DA LANE 18` (provável escopo: primeira integração read-only do cockpit com `controlled_runs` tenant-scoped via RLS, sem write automático). Guia de processo de ponta a ponta: `yzi-os-operational-checklist-architecture-agents-skills-v1.md`.
+
+## 9. Post-SQL human application checkpoint
+
+O humano informou que aplicou manualmente o SQL da Lane 16 em Supabase a partir de
+`sql/lane-16-runs-evidence-manual-sql-pack-v1.sql`. Registro documental:
+`evidence/lane-16-runs-sql-human-application-evidence-v1.md`.
+
+Status deste checkpoint: SQL aplicado pelo humano; validacao pos-SQL humana ainda pendente; Codex/Claude
+nao executaram SQL, nao usaram MCP, nao chamaram Supabase/API externa e nao alteraram codigo do
+cockpit. A Lane 18 permanece apenas candidata, nao aberta e sem execution program.
