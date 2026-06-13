@@ -25,7 +25,10 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 | 12 | Tool / Memory Boundary | concluída — fronteira read-only de tools/memória; arquitetura de memória preservada (Raw Event/Reflective/Retrieval Evidence/Memory Governance/Context-Evidence Trace, não ativas); RAG separado |
 | 13 | First Controlled Agent Operation / Dry-run | concluída — primeira operação agentic controlada em dry-run (read-only, sem side effect); conclusão bloqueada para execução real até lanes futuras |
 | 14 | Controlled Run Record / Run State Boundary | concluída — modelo visual/declarativo de run governado pré-persistência (run mode/status, insumos, resultado bloqueado, persistence not persisted, requisitos futuros schema/RLS/write policy/evidence trace/rollback-audit); nenhum run persistido |
-| 15+ | (não abertas) | candidata provável: primeira persistência governada de runs (schema + RLS + write policy + evidence trace + rollback/audit, sob gates próprios; runner/tool/memória/side effect só sob gate próprio) |
+| 15 | Persistent Run Evidence Contract | concluída (documental) — contrato mínimo de run persistível (estados + 13 campos + invariantes); `persisted` futuro não usado; sem SQL/banco/código |
+| 16 | Runs SQL Manual Pack | concluída (NOT_EXECUTED) — SQL pack manual (`controlled_runs` + RLS enable/force + SELECT tenant-scoped + default-deny de escrita + rollback); nenhum SQL executado, nenhum MCP, nenhum seed |
+| 17 | Human SQL Application Gate / Pre-Execution Checklist | concluída (gate documental) — checklist pré/pós-execução humana + critérios da Lane 18; nenhuma aplicação de SQL |
+| 18+ | (não abertas) | candidata provável: primeira integração read-only do cockpit com `controlled_runs` (tenant-scoped via RLS, sem write automático) — só após SQL da Lane 16 aplicado manualmente e validado |
 
 ---
 
@@ -122,9 +125,10 @@ Guia operacional curto: o que existe, quem faz o quê e a ordem daqui para frent
 
 ## 8. Próxima ordem sugerida
 
-1. **Lane 14 concluída:** Controlled Run Record / Run State Boundary, validada (run governado pré-persistência; read-only; persistence not persisted; sem SQL/schema/policy/side effect).
-2. **Lane 15 provável:** primeira persistência governada de runs — schema + RLS + write policy + evidence trace + rollback/audit, sob gates próprios; runner/tool/memória/side effect só sob gate próprio.
-3. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 15`.
+1. **Bloco 15–17 concluído (documental/manual, nenhum SQL executado):** contrato de persistência (L15), SQL pack `NOT_EXECUTED` (L16) e gate humano de aplicação (L17). Readiness: `LANE_15_17_RUN_PERSISTENCE_PREPARATION_CLOSED_NO_SQL_EXECUTED_NO_PUSH`.
+2. **Próximo passo (humano):** aplicar manualmente o pack `sql/lane-16-runs-sql-execution-pack-manual-v1.sql` no Supabase SQL Editor, após o checklist pré-execução da Lane 17, e preencher o checklist pós-execução. Nenhum agente/MCP aplica SQL.
+3. **Lane 18 provável:** primeira integração read-only do cockpit com `controlled_runs` (tenant-scoped via RLS, sem write automático) — **só após** SQL aplicado manualmente e validado.
+4. Nada disso abre sem a frase `AUTORIZO ABERTURA DA LANE 18`.
 
 ---
 
