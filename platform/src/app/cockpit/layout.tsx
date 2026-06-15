@@ -1,30 +1,46 @@
 import type { Metadata } from "next";
 
-// Layout do cockpit (Lane 4, Step 6, gate L4-G4). Apenas o invólucro mínimo e
-// navegável do esqueleto — sem dashboard, sem navegação complexa, sem design
-// system, sem componentes globais. O root layout já provê <html>/<body>; este
-// layout aninhado usa um <section> (convenção Next.js 16). Server Component
-// (sem `use client`); não busca dados, não lê env, não consome Supabase.
+// App shell do cockpit — YZIHUB Command Center V1.
+//
+// Invólucro premium e estratégico do YZI OS (não mais "esqueleto"). Escuro,
+// calmo e denso de sentido, conforme
+// docs/yzi-os-active/01-brand-positioning/visual-direction.md — NÃO TailAdmin,
+// não admin genérico. O dark é explícito (zinc-950) para o cockpit ter a mesma
+// presença premium independente do tema do sistema. Server Component (sem
+// `use client`); não busca dados, não lê env, não consome Supabase.
 
 export const metadata: Metadata = {
-  title: "Cockpit — YZI OS (skeleton)",
+  title: "YZIHUB — Command Center | YZI OS",
   description:
-    "Esqueleto navegável do cockpit YZI OS. Ainda não é o produto completo.",
+    "Centro de comando estratégico da YZIHUB no YZI OS: estado da empresa, próximas ações e recomendações da YZI.",
 };
 
 export default function CockpitLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <section className="flex min-h-screen flex-1 flex-col bg-zinc-50 font-sans text-zinc-900 dark:bg-black dark:text-zinc-50">
-      <header className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-        <p className="text-sm font-medium tracking-tight">YZI OS — Cockpit</p>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Esqueleto navegável. Ainda não é o produto completo — sem dashboard,
-          métricas, CRUD ou billing.
-        </p>
+    <section className="flex min-h-screen flex-1 flex-col bg-zinc-950 font-sans text-zinc-100 antialiased">
+      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-400 to-violet-500 text-[0.7rem] font-bold text-zinc-950"
+          >
+            YZI
+          </span>
+          <div className="flex flex-col leading-tight">
+            <p className="text-sm font-semibold tracking-tight text-zinc-100">
+              YZI OS · Command Center
+            </p>
+            <p className="text-xs text-zinc-500">
+              Sistema operacional estratégico — decisão + ação contínua
+            </p>
+          </div>
+        </div>
       </header>
-      <main className="flex flex-1 flex-col gap-6 px-6 py-8">{children}</main>
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-8">
+        {children}
+      </main>
     </section>
   );
 }
