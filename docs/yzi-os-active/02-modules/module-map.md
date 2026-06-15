@@ -100,15 +100,16 @@ Dashboard · CRM · Leads · Chat · Follow-ups · Gestão Financeira · Calend�
 - **NÃO deve virar:** só uma agenda de eventos.
 
 ### Radar
-- **Papel estratégico:** inteligência de mercado e oportunidades externas.
-- **Decisão que ajuda:** o que está mudando lá fora e como agir.
-- **Ação que permite:** transformar tendência em campanha, conteúdo ou abordagem.
-- **Consome:** sinais externos (mercado, concorrência, tendências).
-- **Produz:** oportunidades e riscos acionáveis priorizados.
-- **Como a YZI usa:** busca contexto externo e propõe movimentos.
-- **Relação:** alimenta Tráfego Pago, Conteúdo IA e Recomendações.
+- **Papel estratégico:** inteligência de demanda, busca, mercado e oportunidade — reduz achismo antes de investir em tráfego, conteúdo e ações comerciais.
+- **Decisão que ajuda:** onde existe demanda, o que as pessoas procuram e qual oportunidade comercial priorizar.
+- **Ação que permite:** indicar qual conteúdo criar, qual campanha testar, qual página hub/silo estruturar e qual lead ou parceiro acionar.
+- **Consome:** sinais externos (busca, tendências, temas/bairros/produtos/serviços/lançamentos em alta, SERP, concorrência) cruzados com dados internos.
+- **Produz:** oportunidades comerciais acionáveis priorizadas (sinal + intenção + fit + ação + conteúdo + campanha + silo/hub/spokes).
+- **Como a YZI usa:** lê o Radar e prepara/executa a próxima ação dentro de créditos e escopo.
+- **Relação:** alimenta Conteúdo IA, Tráfego Pago, CRM/Follow-ups, Relatórios e Recomendações, YZI Assistant e o Growth Plan.
 - **Plano mínimo:** Growth.
-- **NÃO deve virar:** feed de notícias sem ação.
+- **NÃO deve virar:** Google Trends, feed de tendências, dashboard de gráficos, gerador de posts, ferramenta isolada de SEO ou módulo de vaidade.
+- **Definição completa:** [`radar-module-definition.md`](./radar-module-definition.md).
 
 ### Tráfego Pago
 - **Papel estratégico:** aquisição paga de oportunidades.
