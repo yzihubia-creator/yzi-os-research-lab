@@ -1,22 +1,29 @@
-# YZI OS — Plano de Fundação do Design System (v1)
+# YZI OS — Plano de Fundação do Design System + Workflow Pencil (v1)
 
 **Fonte ativa.** Deriva de [`decision-brand-foundation-v1.md`](../05-decisions/decision-brand-foundation-v1.md), [`brand-positioning.md`](./brand-positioning.md), [`brand-dna.md`](./brand-dna.md), [`visual-direction.md`](./visual-direction.md) e [`design-system-principles.md`](./design-system-principles.md), com o cockpit de [`../04-implementation/yzihub-command-center-v1.md`](../04-implementation/yzihub-command-center-v1.md), [`../04-implementation/radar-opportunity-card-v1.md`](../04-implementation/radar-opportunity-card-v1.md) e [`../04-implementation/real-estate-first-vertical-simulation-v1.md`](../04-implementation/real-estate-first-vertical-simulation-v1.md).
 
-> Plano de arquitetura visual. **Não** implementa: sem código, UI, CSS, Tailwind, tokens reais, componente, Figma, MCP, evidence ou lane. As skills de `.agents/skills/` são lidas como **metodologia**, nunca executadas/instaladas/modificadas.
+> Plano de arquitetura visual. **Não** implementa: sem código, UI, CSS, Tailwind, tokens reais, componente, Figma, MCP, evidence ou lane. As skills de `.agents/skills/` são lidas como **metodologia**, nunca executadas/instaladas/modificadas. **Pencil** entra apenas como workflow futuro — não instalado, não rodado, sem `.pen` agora.
 
 ---
 
 ## 1. Decisão
 
-**Nenhuma nova tela estratégica do YZI OS deve ser criada antes de existir uma autoridade visual** — um Design System Foundation consolidado e um `DESIGN.md` próprio. Isso impede telas genéricas e protege o cockpit do anti-padrão TailAdmin/dashboard.
+**Nenhuma nova tela estratégica do YZI OS deve ser criada antes de existir:**
+- o **`DESIGN.md`** do YZI OS (autoridade visual única);
+- uma **linguagem mínima de componentes**;
+- e, **opcionalmente**, um **protótipo visual validado em Pencil/`.pen`** antes da implementação.
+
+Isso impede telas genéricas e protege o cockpit do anti-padrão TailAdmin/dashboard.
 
 ## 2. Objetivo
 
-Criar um plano curto para consolidar o **DNA visual**, os **princípios de UI**, os **componentes base** e o futuro **`DESIGN.md`** do YZI OS, antes de qualquer Command Center de vertical.
+Consolidar o **DNA visual**, os **princípios de UI**, os **componentes base**, o futuro **`DESIGN.md`** e um **workflow opcional de Pencil** — antes de qualquer Command Center de vertical.
 
-## 3. Referência DESIGN.md
+## 3. Referências conceituais
 
-`getdesign.md/framer/design-md` é usado **apenas como padrão conceitual**: a ideia de um arquivo único de **autoridade visual para IA**, que orienta estética, componentes, linguagem e comportamento de UI para a IA não gerar telas genéricas. **Não copiar** o design, a estética nem o produto do Framer.
+- **`getdesign.md/framer/design-md`** — inspira o **formato `DESIGN.md`** como arquivo único de autoridade visual para IA (estética, componentes, linguagem, comportamento de UI), para a IA não gerar telas genéricas.
+- **Pencil CLI** (`docs.pencil.dev`) — inspira um fluxo de **prototipagem visual versionada em arquivos `.pen`**, para explorar telas antes de codar.
+- **Nenhuma das duas deve ser copiada esteticamente.** Não copiar Framer; não transformar o YZI OS em Framer; não tornar Pencil dependência de runtime/produção.
 
 ## 4. Inventário das skills
 
@@ -44,30 +51,48 @@ Consolidados das fontes ativas:
 - **Auditoria técnica secundária** (drawer), nunca protagonista.
 - **Premium, escuro, calmo, preciso.**
 - **Densidade com hierarquia** (muito valor, pouco ruído).
-- **Estado é cidadão de primeira classe** (carregando, vazio, executado).
 - **Nada de TailAdmin** nem template de admin genérico.
+- **Nada de card wall genérico** — peso visual conforme a importância.
 
 ## 7. Componentes base a definir depois
 
 Antes do Real Estate Command Center: App Shell · Command Center Block · Radar Surface · Opportunity Card · Territory Map · Signal Badge · Action Queue · Authorization Panel · YZI Recommendation Panel · Semantic Search Box · Asset Intake Card · Status Badge · Financial/Commission Summary · Audit Drawer.
 
-## 8. Entregáveis de design system (sequência)
+## 8. Workflow Pencil futuro
+
+Pencil é definido como:
+- **ferramenta opcional de prototipagem visual** (canvas versionado em `.pen`);
+- usado para explorar **Command Center, Radar Surface e Opportunity Cards** antes de codar;
+- **etapa entre o `DESIGN.md` e a implementação** em `platform/`.
+
+Pencil **NÃO** é: runtime do YZI OS · dependência de produção · substituto do design system · implementação final.
+
+**Workflow sugerido (futuro):**
+A. Criar `DESIGN.md`.
+B. Criar a linguagem de componentes.
+C. Criar protótipo visual em `.pen`, **se fizer sentido**.
+D. Validar visualmente o protótipo contra os princípios.
+E. **Só depois** implementar em `platform/`.
+
+## 9. Entregáveis de design system (sequência)
 
 A. **`design-system-foundation-plan-v1.md`** — este documento.
 B. **`DESIGN.md`** — autoridade visual única do YZI OS para a IA.
-C. **`component-language-v1.md`** (ou `yzi-os-design-system-foundation-v1.md`) — linguagem dos componentes base.
-D. **`real-estate-command-center-v1.md`** — primeira tela de vertical, já sob a autoridade visual.
-E. **Só então** implementação em `platform/` (tokens reais, componentes, código).
+C. **`yzi-os-design-system-foundation-v1.md`** (ou `component-language-v1.md`) — linguagem dos componentes base.
+D. **Protótipo Pencil/`.pen` opcional** — validação visual antes de codar.
+E. **`real-estate-command-center-v1.md`** — primeira tela de vertical, já sob a autoridade visual.
+F. **Implementação em `platform/`** (tokens reais, componentes, código).
 
-## 9. O que NÃO fazer
+## 10. O que NÃO fazer
 
 - Não desenhar tela antes do `DESIGN.md`.
+- Não usar Pencil antes da autoridade visual; não gerar `.pen` agora; não instalar Pencil agora.
 - Não copiar Framer; não copiar TailAdmin; não criar dashboard genérico.
 - Não transformar o Radar em gráfico/texto gigante.
 - Não usar UI bonita sem função operacional.
 - Não criar biblioteca de componentes em código agora.
 - Não mexer no sistema atual (`platform/`, Café com Pam).
 
-## 10. Próximo passo recomendado
+## 11. Próximo passo recomendado
 
 Criar **depois** (não agora): `docs/yzi-os-active/01-brand-positioning/DESIGN.md`, a autoridade visual única do YZI OS. Nada fora de `docs/yzi-os-active/` sem autorização explícita.
