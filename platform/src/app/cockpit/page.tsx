@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-boundary";
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
@@ -158,6 +159,118 @@ function YziMark({ label = "YZI" }: { label?: string }) {
   );
 }
 
+const placeholderModules = [
+  {
+    name: "Dashboard",
+    state: "em preparação",
+    detail: "Visão consolidada do cockpit quando os módulos ativos estiverem prontos.",
+  },
+  {
+    name: "CRM",
+    state: "bloqueado",
+    detail: "Sem pipeline operacional exposto nesta superfície.",
+  },
+  {
+    name: "Financeiro",
+    state: "em preparação",
+    detail: "Dependente de tenant ativo e leitura operacional válida.",
+  },
+  {
+    name: "Agenda",
+    state: "bloqueado",
+    detail: "Agenda institucional sem eventos reais inventados aqui.",
+  },
+  {
+    name: "Radar",
+    state: "em preparação",
+    detail: "Placeholder para sinais futuros quando houver fonte confiável.",
+  },
+  {
+    name: "Tráfego Pago",
+    state: "bloqueado",
+    detail: "Canal futuro, sem mídia simulada ou números fictícios.",
+  },
+  {
+    name: "Assistente YZI",
+    state: "em preparação",
+    detail: "A superfície já mostra o centro, mas a capacidade real ainda é limitada.",
+  },
+] as const;
+
+function ModulePreviewCard({
+  name,
+  state,
+  detail,
+}: {
+  name: string;
+  state: "em preparação" | "bloqueado";
+  detail: string;
+}) {
+  const tone =
+    state === "em preparação"
+      ? "border-indigo-400/20 bg-indigo-400/[0.03] text-indigo-200"
+      : "border-amber-400/20 bg-amber-400/[0.03] text-amber-200";
+
+  return (
+    <article className={`flex flex-col gap-2 rounded-xl border p-4 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-zinc-100">{name}</h3>
+        <span className="rounded-full border border-white/10 px-2 py-0.5 text-[0.6rem] uppercase tracking-wide text-zinc-400">
+          {state}
+        </span>
+      </div>
+      <p className="text-xs leading-relaxed text-zinc-400">{detail}</p>
+    </article>
+  );
+}
+
+function OperationalHeader({
+  title,
+  status,
+  description,
+  operator,
+  action,
+}: {
+  title: string;
+  status: string;
+  description: string;
+  operator?: string | null;
+  action?: ReactNode;
+}) {
+  return (
+    <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[0.65rem] uppercase tracking-[0.16em] text-zinc-500">
+            Cockpit operacional
+          </span>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+            {title}
+          </h1>
+          <p className="max-w-2xl text-sm leading-relaxed text-zinc-400">
+            {description}
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className="rounded-full border border-indigo-400/20 bg-indigo-400/[0.04] px-3 py-1 text-[0.65rem] uppercase tracking-wide text-indigo-200">
+            {status}
+          </span>
+          {operator ? (
+            <span className="text-xs text-zinc-500">Operador: {operator}</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-white/10 px-3 py-1 text-[0.65rem] uppercase tracking-wide text-zinc-500">
+          Dados reais dependem de tenant e módulos ativos
+        </span>
+        {action}
+      </div>
+    </header>
+  );
+}
+
 // --- Página -----------------------------------------------------------------
 
 export default async function CockpitPage() {
@@ -167,47 +280,39 @@ export default async function CockpitPage() {
   switch (context.status) {
     case "no_session":
       return (
-        <section className="flex flex-col gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
-            Entre para acessar sua operação.
-          </h1>
-          <p className="text-zinc-400">
-            O Command Center do YZI OS exige uma sessão autenticada. Faça login
-            para continuar.
-          </p>
-          <Link
-            href="/login"
-            className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
-          >
-            Ir para o login
-          </Link>
+        <section className="flex flex-col gap-4">
+          <OperationalHeader
+            title="Acesso necessário"
+            status="sem sessão"
+            description="O cockpit exige autenticação. Nenhum dado é exibido sem sessão válida."
+            action={
+              <Link
+                href="/login"
+                className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
+              >
+                Ir para o login
+              </Link>
+            }
+          />
         </section>
       );
 
     case "no_membership":
       return (
         <section className="flex flex-col gap-4">
-          {operator?.email ? (
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Operador: {operator.email}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
-              Você ainda não pertence a um tenant.
-            </h1>
-            <p className="text-zinc-400">
-              Esta conta autenticada não está associada a nenhum tenant. Nenhum
-              dado foi inventado para preencher esta tela. Quando você tiver um
-              vínculo (membership) a um tenant, seu Command Center aparecerá aqui.
-            </p>
-            <p className="text-sm text-zinc-500">
-              O vínculo (membership) determina o que você poderá ver, aprovar e
-              operar. Sem ele, não há operação a supervisionar — e o sistema não
-              cria pertencimento que você não tem.
+          <OperationalHeader
+            title="Sessão sem pertencimento"
+            status="sem membership"
+            description="A conta está autenticada, mas ainda não está vinculada a um tenant operacional."
+            operator={operator?.email}
+            action={<LogoutButton />}
+          />
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <p className="text-sm leading-relaxed text-zinc-400">
+              Não há tenant ativo para compor a experiência. O cockpit permanece
+              honesto: sem vínculo, não há operação para exibir.
             </p>
           </div>
-          <LogoutButton />
         </section>
       );
 
@@ -246,23 +351,32 @@ export default async function CockpitPage() {
 
       return (
         <div className="flex flex-col gap-6">
-          {/* BARRA DE CONTEXTO — tenant, operador, papel + logout + honestidade. */}
-          <header className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">
-                {context.tenant.name} · {boundary.label}
-              </p>
-              <p className="text-xs text-zinc-500">
-                Operador: {operator?.email ?? "—"}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[0.65rem] uppercase tracking-wide text-zinc-500">
-                Seed controlado · pré-visualização
-              </span>
-              <LogoutButton />
-            </div>
-          </header>
+          <OperationalHeader
+            title={context.tenant.name}
+            status={`tenant encontrado · ${boundary.label}`}
+            description="O cockpit mostra um ponto de partida operacional, com dados reais e áreas ainda em preparação."
+            operator={operator?.email}
+            action={<LogoutButton />}
+          />
+
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {placeholderModules.map((module) => (
+              <ModulePreviewCard
+                key={module.name}
+                name={module.name}
+                state={module.state}
+                detail={module.detail}
+              />
+            ))}
+          </section>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <p className="text-sm leading-relaxed text-zinc-400">
+              Estes blocos são institucionais e não representam módulos reais
+              ativados nesta fase. Eles apenas sinalizam a forma futura da
+              superfície, sem inventar métricas, leads, receita ou campanhas.
+            </p>
+          </div>
 
           {/* OPERAÇÃO REAL — contexto operacional vindo da RPC segura
               `yzi_get_tenant_operating_context` (RLS, sem service role). É o
@@ -811,28 +925,28 @@ export default async function CockpitPage() {
 
     case "error":
       return (
-        <section className="flex flex-col gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
-            Não foi possível carregar sua operação.
-          </h1>
-          <p role="alert" className="text-zinc-400">
-            Ocorreu uma falha ao confirmar sua sessão ou seu vínculo. Tente
-            novamente. Nenhum dado foi exibido para não inventar um estado.
-          </p>
-          <div className="flex gap-2">
-            <Link
-              href="/cockpit"
-              className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
-            >
-              Tentar novamente
-            </Link>
-            <Link
-              href="/login"
-              className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
-            >
-              Entrar de novo
-            </Link>
-          </div>
+        <section className="flex flex-col gap-4">
+          <OperationalHeader
+            title="Falha de leitura"
+            status="erro"
+            description="Não foi possível confirmar a sessão ou o vínculo atual. Nada foi inventado."
+            action={(
+              <div className="flex gap-2">
+                <Link
+                  href="/cockpit"
+                  className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
+                >
+                  Tentar novamente
+                </Link>
+                <Link
+                  href="/login"
+                  className="w-fit rounded-md border border-white/15 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-white/30"
+                >
+                  Entrar de novo
+                </Link>
+              </div>
+            )}
+          />
         </section>
       );
   }
