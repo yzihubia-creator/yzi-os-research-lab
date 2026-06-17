@@ -1,18 +1,9 @@
 import type { Metadata } from "next";
 
-// App shell do cockpit — YZIHUB Command Center V1.
-//
-// Invólucro premium e estratégico do YZI OS (não mais "esqueleto"). Escuro,
-// calmo e denso de sentido, conforme
-// docs/yzi-os-active/01-brand-positioning/visual-direction.md — NÃO TailAdmin,
-// não admin genérico. O dark é explícito (zinc-950) para o cockpit ter a mesma
-// presença premium independente do tema do sistema. Server Component (sem
-// `use client`); não busca dados, não lê env, não consome Supabase.
-
 export const metadata: Metadata = {
-  title: "YZIHUB — Command Center | YZI OS",
+  title: "Cockpit | YZI OS",
   description:
-    "Centro de comando estratégico da YZIHUB no YZI OS: estado da empresa, próximas ações e recomendações da YZI.",
+    "Entrada operacional mínima do YZI OS para sessão, tenant e módulos institucionais.",
 };
 
 export default function CockpitLayout({
@@ -24,16 +15,16 @@ export default function CockpitLayout({
         <div className="flex items-center gap-3">
           <span
             aria-hidden
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-400 to-violet-500 text-[0.7rem] font-bold text-zinc-950"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-zinc-100 text-[0.7rem] font-bold text-zinc-950"
           >
             YZI
           </span>
           <div className="flex flex-col leading-tight">
             <p className="text-sm font-semibold tracking-tight text-zinc-100">
-              YZI OS · Command Center
+              YZI OS · Cockpit
             </p>
             <p className="text-xs text-zinc-500">
-              Sistema operacional estratégico — decisão + ação contínua
+              Shell operacional mínimo para módulos em ativação
             </p>
           </div>
         </div>

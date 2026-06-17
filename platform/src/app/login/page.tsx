@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { AuthPanel } from "@/components/yzi-os/auth-panel";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 
 // Login mínimo da Lane 4 migrado para Google OAuth (gate L4-G2). Apenas um
@@ -53,12 +54,22 @@ export default async function LoginPage({
   const message = messageFor(error);
 
   return (
-    <main>
-      <h1>Entrar</h1>
-      <form action={signInWithGoogle}>
-        <button type="submit">Entrar com Google</button>
-      </form>
-      {message ? <p role="alert">{message}</p> : null}
-    </main>
+    <AuthPanel
+      eyebrow="YZI OS · acesso controlado"
+      title="Entrar com Google"
+      description="O acesso ao cockpit é controlado por Google OAuth. Nenhum tenant, lead ou dado operacional é mostrado nesta tela."
+      note="Use sua conta Google autorizada para continuar até o Command Center. Se a autenticação falhar, a mensagem abaixo preserva apenas o estado necessário para orientar a tentativa."
+      errorMessage={message}
+      primaryAction={
+        <form action={signInWithGoogle} className="flex flex-col gap-3">
+          <button
+            type="submit"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-indigo-400 px-4 py-3 text-sm font-semibold text-zinc-950 transition-opacity hover:opacity-90"
+          >
+            Entrar com Google
+          </button>
+        </form>
+      }
+    />
   );
 }
