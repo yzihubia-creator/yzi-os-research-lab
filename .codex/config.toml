@@ -1,0 +1,8 @@
+# MCP Supabase is disabled by default.
+# Enable only with explicit human authorization.
+# SQL remains manual by default.
+# Do not use service role.
+#
+# Example only (inactive):
+# [mcp_servers.supabase]
+# url = "https://mcp.supabase.com/mcp?project_ref=thwsltjcjrvtidhnfukc"

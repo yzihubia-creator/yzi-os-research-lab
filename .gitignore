@@ -40,3 +40,4 @@ coverage/
 .vercel/
 
 # docs/, prototype/, .claude/, .agents/ and _extracted/ stay versioned intentionally.
+.claude/settings.local.json
