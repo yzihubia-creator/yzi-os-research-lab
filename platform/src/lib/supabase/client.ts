@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Client Supabase para o browser. Usa exclusivamente valores públicos
 // (URL do projeto + anon/publishable key). Service role é proibida em
@@ -16,7 +17,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
   }
 
   if (!browserClient) {
-    browserClient = createClient(url, anonKey);
+    browserClient = createBrowserClient(url, anonKey);
   }
 
   return browserClient;

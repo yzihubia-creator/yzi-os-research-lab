@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { getAgentCapabilityBoundary } from "@/lib/agents/agent-capability-boundary";
 import { getAgentDefinitionConfig } from "@/lib/agents/agent-definition";
@@ -8,7 +7,8 @@ import { getControlledAgentOperation } from "@/lib/agents/controlled-agent-opera
 import { getControlledRunRecord } from "@/lib/agents/controlled-run-record";
 import { getControlledRunRecordsReadonly } from "@/lib/agents/controlled-run-records-readonly";
 import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
-import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
+import { LogoutButton } from "@/components/yzi-os/logout-button";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 import { getTenantOperatingContext } from "@/lib/yzi-os/operating-context";
@@ -34,31 +34,6 @@ import {
 // (sem banco, sem execução real), sempre rotulado. Auth/tenant/logout intactos.
 // Server Component (sem `use client`). NENHUM service role, SQL, MCP, API externa
 // ou automação real é introduzido — ações são preview / aguardam autorização.
-
-// Logout do operador (Lane 7, Batch 7.3) — preservado. Server Action simétrica ao
-// login: encerra a sessão via `supabase.auth.signOut()` (limpa cookies pelo
-// adapter @supabase/ssr) e redireciona para /login. Usa EXCLUSIVAMENTE valores
-// públicos (URL + anon key); NUNCA service role, SQL, token, cookie ou OAuth code.
-async function signOutOperator(): Promise<void> {
-  "use server";
-
-  const supabase = await createServerSupabaseClient();
-  await supabase.auth.signOut();
-  redirect("/login");
-}
-
-function LogoutControl() {
-  return (
-    <form action={signOutOperator}>
-      <button
-        type="submit"
-        className="w-fit rounded-md border border-white/15 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:border-white/30 hover:text-zinc-100"
-      >
-        Encerrar sessão
-      </button>
-    </form>
-  );
-}
 
 // --- Primitivos de apresentação (cockpit premium, escuro) -------------------
 // Puramente visuais, sem estado e sem `use client`.
@@ -232,7 +207,7 @@ export default async function CockpitPage() {
               cria pertencimento que você não tem.
             </p>
           </div>
-          <LogoutControl />
+          <LogoutButton />
         </section>
       );
 
@@ -285,7 +260,7 @@ export default async function CockpitPage() {
               <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[0.65rem] uppercase tracking-wide text-zinc-500">
                 Seed controlado · pré-visualização
               </span>
-              <LogoutControl />
+              <LogoutButton />
             </div>
           </header>
 
