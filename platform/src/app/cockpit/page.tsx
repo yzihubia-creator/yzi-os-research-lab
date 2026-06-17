@@ -11,6 +11,8 @@ import { getToolMemoryBoundary } from "@/lib/agents/tool-memory-boundary";
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPermissionBoundary } from "@/lib/tenant/role-boundary";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
+import { getTenantOperatingContext } from "@/lib/yzi-os/operating-context";
+import { YziChatPanel } from "@/components/yzi-os/yzi-chat-panel";
 import {
   yzihubCommandCenterSeed as seed,
   type HonestState,
@@ -128,6 +130,49 @@ function Panel({
   );
 }
 
+// Célula de estatística para o bloco de dados REAIS (contexto operacional).
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+      <span className="text-[0.65rem] uppercase tracking-wide text-zinc-500">
+        {label}
+      </span>
+      <span className="text-sm font-medium text-zinc-100">{value}</span>
+    </div>
+  );
+}
+
+// Flag de runtime honesta: mostra explicitamente o que está (des)habilitado.
+function RuntimeFlag({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.65rem] uppercase tracking-wide ${
+        on
+          ? "border-emerald-400/40 text-emerald-300"
+          : "border-white/15 text-zinc-500"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`h-1.5 w-1.5 rounded-full ${on ? "bg-emerald-400" : "bg-zinc-600"}`}
+      />
+      {label}: {on ? "habilitado" : "desabilitado"}
+    </span>
+  );
+}
+
+// Formata centavos (media_budget_cents) em BRL, com fallback seguro.
+function formatCents(cents: number): string {
+  try {
+    return (cents / 100).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+  } catch {
+    return `R$ ${(cents / 100).toFixed(2)}`;
+  }
+}
+
 // Marca compacta da YZI — presença reconhecível e discreta.
 function YziMark({ label = "YZI" }: { label?: string }) {
   return (
@@ -214,6 +259,11 @@ export default async function CockpitPage() {
         limit: 5,
       });
 
+      // DADOS REAIS — primeira integração com as RPCs seguras do backend
+      // (BACKEND_FOUNDATION_V1_2_MINIMAL_SAFE_RPC_OK). Lido sob RLS, sem service
+      // role, sem SQL raw, sem MCP. Distinto do seed controlado abaixo.
+      const operating = await getTenantOperatingContext(context.tenant.id);
+
       const creditsPct = Math.min(
         100,
         Math.round((seed.credits.used / seed.credits.total) * 100),
@@ -238,6 +288,93 @@ export default async function CockpitPage() {
               <LogoutControl />
             </div>
           </header>
+
+          {/* OPERAÇÃO REAL — contexto operacional vindo da RPC segura
+              `yzi_get_tenant_operating_context` (RLS, sem service role). É o
+              primeiro dado NÃO-seed da tela; rotulado como real e separado. */}
+          <section className="flex flex-col gap-4 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.03] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col gap-0.5">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-300/90">
+                  Contexto operacional · dados reais
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Lido agora do backend via RPC segura (RLS, sem service role).
+                  Diferente do seed controlado exibido mais abaixo.
+                </p>
+              </div>
+              <span className="rounded-full border border-emerald-400/30 px-2.5 py-0.5 text-[0.6rem] uppercase tracking-wide text-emerald-300/80">
+                yzi_get_tenant_operating_context
+              </span>
+            </div>
+
+            {operating.status === "error" ? (
+              <p role="alert" className="text-sm text-zinc-400">
+                {operating.message}
+              </p>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Stat label="Tenant" value={operating.context.tenant.name} />
+                  <Stat label="Papel" value={operating.context.membership.role} />
+                  <Stat
+                    label="Status do vínculo"
+                    value={operating.context.membership.status}
+                  />
+                  <Stat label="Plano" value={operating.context.credits.planKey} />
+                  <Stat
+                    label="Saldo de créditos"
+                    value={String(operating.context.credits.creditsBalance)}
+                  />
+                  <Stat
+                    label="Orçamento de mídia"
+                    value={formatCents(operating.context.credits.mediaBudgetCents)}
+                  />
+                  <Stat
+                    label="Sessões de chat ativas"
+                    value={String(operating.context.counts.activeChatSessions)}
+                  />
+                  <Stat
+                    label="Ações pendentes"
+                    value={String(operating.context.counts.pendingActionRequests)}
+                  />
+                  <Stat
+                    label="Recomendações abertas"
+                    value={String(operating.context.counts.openRecommendations)}
+                  />
+                  <Stat
+                    label="Sinais de radar novos"
+                    value={String(operating.context.counts.newRadarSignals)}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <RuntimeFlag
+                    label="Execução externa"
+                    on={operating.context.runtime.externalExecutionEnabled}
+                  />
+                  <RuntimeFlag
+                    label="Resposta da YZI"
+                    on={operating.context.runtime.agentResponseEnabled}
+                  />
+                  <RuntimeFlag
+                    label="Consumo de crédito"
+                    on={operating.context.runtime.creditConsumptionEnabled}
+                  />
+                  <RuntimeFlag
+                    label="Autorização p/ efeitos"
+                    on={
+                      operating.context.runtime
+                        .authorizationRequiredForSideEffects
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* CHAT MÍNIMO REAL — cria sessão + registra mensagem do usuário via
+              RPCs seguras. A YZI ainda NÃO responde (estado honesto). */}
+          <YziChatPanel tenantId={context.tenant.id} />
 
           {/* 1 + 3 (topo): ESTADO DA EMPRESA + RECOMENDAÇÃO PRINCIPAL DA YZI. */}
           <div className="grid gap-4 lg:grid-cols-5">
@@ -687,9 +824,11 @@ export default async function CockpitPage() {
 
           {/* Nota de honestidade global. */}
           <p className="text-center text-[0.7rem] text-zinc-600">
-            Dados operacionais acima são seed controlado da YZIHUB (sem banco, sem
-            execução real). Ações são preview e só ocorrem após autorização,
-            dentro de permissões, créditos e escopo.
+            Exceto o bloco “Contexto operacional · dados reais” e a “Conversa com
+            a YZI” (que usam RPC segura + RLS, sem service role), os dados
+            operacionais acima são seed controlado da YZIHUB (sem banco, sem
+            execução real). A YZI ainda não responde; ações são preview e só
+            ocorrem após autorização, dentro de permissões, créditos e escopo.
           </p>
         </div>
       );
