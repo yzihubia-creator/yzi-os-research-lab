@@ -12,7 +12,6 @@ import {
   YziSurface,
 } from "@/components/yzi-os/yzi-primitives";
 import {
-  ActionsIcon,
   AssetsIcon,
   AuthorizationIcon,
   ChannelsIcon,
@@ -20,9 +19,9 @@ import {
   DashboardIcon,
   OpportunityIcon,
   RadarIcon,
-  SearchIcon,
   SettingsIcon,
   SidebarToggleIcon,
+  TrafficIcon,
   YziAssistantIcon,
   YziMarkIcon,
 } from "@/components/yzi-os/yzi-icons";
@@ -37,44 +36,44 @@ type NavGroup = { eyebrow: string; items: NavItem[] };
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    eyebrow: "Operação",
+    eyebrow: "Início",
     items: [
-      { href: "/cockpit", label: "Command Center", icon: CommandCenterIcon },
+      { href: "/cockpit", label: "Início", icon: CommandCenterIcon },
+    ],
+  },
+  {
+    eyebrow: "Descobrir",
+    items: [
       { href: "/cockpit/radar", label: "Radar", icon: RadarIcon },
       {
         href: "/cockpit/oportunidades",
         label: "Oportunidades",
         icon: OpportunityIcon,
       },
-      { href: "/cockpit/acoes", label: "Ações", icon: ActionsIcon },
+    ],
+  },
+  {
+    eyebrow: "Planejar & Agir",
+    items: [
+      { href: "/cockpit/trafego-pago", label: "Tráfego", icon: TrafficIcon },
       {
         href: "/cockpit/autorizacoes",
-        label: "Autorizações",
+        label: "Aprovações",
         icon: AuthorizationIcon,
       },
     ],
   },
   {
-    eyebrow: "Análise",
+    eyebrow: "Medir",
     items: [
-      { href: "/cockpit/dashboard", label: "Dashboards", icon: DashboardIcon },
-      { href: "/cockpit/canais", label: "Canais", icon: ChannelsIcon },
+      { href: "/cockpit/dashboard", label: "Resultados", icon: DashboardIcon },
     ],
   },
   {
-    eyebrow: "Inteligência",
+    eyebrow: "Base",
     items: [
-      {
-        href: "/cockpit/busca-semantica",
-        label: "Busca Semântica",
-        icon: SearchIcon,
-      },
-      { href: "/cockpit/ativos", label: "Ativos", icon: AssetsIcon },
-    ],
-  },
-  {
-    eyebrow: "Sistema",
-    items: [
+      { href: "/cockpit/canais", label: "Conexões", icon: ChannelsIcon },
+      { href: "/cockpit/ativos", label: "Biblioteca", icon: AssetsIcon },
       {
         href: "/cockpit/configuracoes",
         label: "Configurações",
