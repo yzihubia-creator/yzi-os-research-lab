@@ -1,26 +1,220 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Canonical source: docs/yzi-os-active/01-brand-positioning/visual-brandbook-yzi-os-v1/styles.css */
+
+  /* Canonical environment and surfaces */
+  --bg-base: #090c12;
+  --bg-deep: #0b0f17;
+  --surface-base: #11161f;
+  --surface-elev: #161d29;
+  --surface-over: #1c2533;
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Canonical text */
+  --text-primary: #eaeef5;
+  --text-secondary: #93a0b5;
+  --text-faint: #5c697e;
+
+  /* Canonical semantic accents */
+  --action: #3fe0c5;
+  --action-soft: rgba(63, 224, 197, 0.13);
+  --opportunity: #5fd79b;
+  --opportunity-soft: rgba(95, 215, 155, 0.13);
+  --authorization: #a78bfa;
+  --authorization-soft: rgba(167, 139, 250, 0.14);
+  --risk: #e8b14c;
+  --risk-soft: rgba(232, 177, 76, 0.14);
+  --risk-high: #e07856;
+  --trust: #5e9bf0;
+  --trust-soft: rgba(94, 155, 240, 0.13);
+  --preview: #74829a;
+  --preview-soft: rgba(116, 130, 154, 0.12);
+  --blocked: #c46b5a;
+  --blocked-soft: rgba(196, 107, 90, 0.12);
+
+  /* Canonical type stack. No external font download. */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "SF Mono", ui-monospace, "Consolas",
+    "Roboto Mono", monospace;
+
+  /* Canonical radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+
+  /* App tokens for React primitives. These are the tokens new code should use. */
+  --yzi-bg-base: var(--bg-base);
+  --yzi-bg-deep: var(--bg-deep);
+  --yzi-surface-base: var(--surface-base);
+  --yzi-surface-elevated: var(--surface-elev);
+  --yzi-surface-overlay: var(--surface-over);
+  --yzi-border-subtle: var(--border-subtle);
+  --yzi-border-strong: var(--border-strong);
+  --yzi-text-primary: var(--text-primary);
+  --yzi-text-secondary: var(--text-secondary);
+  --yzi-text-faint: var(--text-faint);
+  --yzi-accent-action: var(--action);
+  --yzi-accent-action-soft: var(--action-soft);
+  --yzi-accent-opportunity: var(--opportunity);
+  --yzi-accent-opportunity-soft: var(--opportunity-soft);
+  --yzi-accent-authorization: var(--authorization);
+  --yzi-accent-authorization-soft: var(--authorization-soft);
+  --yzi-accent-risk: var(--risk);
+  --yzi-accent-risk-soft: var(--risk-soft);
+  --yzi-accent-risk-high: var(--risk-high);
+  --yzi-accent-trust: var(--trust);
+  --yzi-accent-trust-soft: var(--trust-soft);
+  --yzi-state-preview: var(--preview);
+  --yzi-state-preview-soft: var(--preview-soft);
+  --yzi-state-blocked: var(--blocked);
+  --yzi-state-blocked-soft: var(--blocked-soft);
+  --yzi-presence: var(--action);
+  --yzi-presence-soft: var(--action-soft);
+  --yzi-presence-trust: var(--trust);
+  --yzi-radius-sm: var(--r-sm);
+  --yzi-radius-md: var(--r-md);
+  --yzi-radius-lg: var(--r-lg);
+
+  /* Elevation and presence derived from the canonical specimen shadows. */
+  --yzi-shadow-elevated: 0 24px 60px -28px rgba(0, 0, 0, 0.8);
+  --yzi-shadow-overlay: 0 14px 30px -16px rgba(0, 0, 0, 0.8);
+  --yzi-glow-presence: 0 0 0 1px rgba(63, 224, 197, 0.16),
+    0 22px 70px -34px rgba(63, 224, 197, 0.5);
+  --yzi-glow-action: 0 6px 18px -8px rgba(63, 224, 197, 0.6);
+
+  /* Sidebar, responsiveness and motion from the executable visual contract. */
+  --sidebar-width: 64px;
+  --sidebar-expanded: 240px;
+  --bp-sm: 640px;
+  --bp-md: 1024px;
+  --bp-lg: 1440px;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 150ms;
+  --duration-moderate: 300ms;
+  --duration-calm: 400ms;
+
+  /* Compatibility aliases. Keep only as bridges to canonical/app tokens. */
+  --background: var(--yzi-bg-base);
+  --foreground: var(--yzi-text-primary);
+  --yzi-bg: var(--yzi-bg-base);
+  --yzi-bg-elevated: var(--yzi-surface-elevated);
+  --yzi-surface: var(--yzi-surface-base);
+  --yzi-surface-soft: rgba(255, 255, 255, 0.02);
+  --yzi-border: var(--yzi-border-subtle);
+  --yzi-accent: var(--yzi-accent-action);
+  --yzi-accent-2: var(--yzi-accent-trust);
+  --yzi-text: var(--yzi-text-primary);
+  --yzi-text-muted: var(--yzi-text-secondary);
+  --yzi-radius: var(--yzi-radius-md);
+  --yzi-glow: var(--yzi-glow-presence);
+
+  /* Legacy color aliases used by current components. */
+  --color-yzi-base: var(--yzi-bg-base);
+  --color-yzi-deep: var(--yzi-bg-deep);
+  --color-yzi-surface: var(--yzi-surface-base);
+  --color-yzi-elevated: var(--yzi-surface-elevated);
+  --color-yzi-over: var(--yzi-surface-overlay);
+  --color-yzi-border: var(--yzi-border-subtle);
+  --color-yzi-border-strong: var(--yzi-border-strong);
+  --color-yzi-text: var(--yzi-text-primary);
+  --color-yzi-muted: var(--yzi-text-secondary);
+  --color-yzi-faint: var(--yzi-text-faint);
+  --color-yzi-accent: var(--yzi-accent-action);
+  --color-yzi-accent-strong: var(--yzi-accent-action);
+  --color-yzi-accent-2: var(--yzi-accent-trust);
+  --color-yzi-opportunity: var(--yzi-accent-opportunity);
+  --color-yzi-authorize: var(--yzi-accent-authorization);
+  --color-yzi-risk: var(--yzi-accent-risk);
+  --color-yzi-trust: var(--yzi-accent-trust);
+  --color-yzi-preview: var(--yzi-state-preview);
+  --color-yzi-blocked: var(--yzi-state-blocked);
+  --radius-yzi-sm: var(--yzi-radius-sm);
+  --radius-yzi: var(--yzi-radius-md);
+  --radius-yzi-lg: var(--yzi-radius-lg);
+  --ease-yzi: var(--ease-standard);
+  --ease-yzi-soft: var(--ease-standard);
+  --animate-yzi-breathe: yzi-breathe 4.5s var(--ease-standard) infinite;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
-  --font-mono: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-yzi-base: var(--yzi-bg-base);
+  --color-yzi-deep: var(--yzi-bg-deep);
+  --color-yzi-surface: var(--yzi-surface-base);
+  --color-yzi-elevated: var(--yzi-surface-elevated);
+  --color-yzi-over: var(--yzi-surface-overlay);
+  --color-yzi-border: var(--yzi-border-subtle);
+  --color-yzi-border-strong: var(--yzi-border-strong);
+  --color-yzi-text: var(--yzi-text-primary);
+  --color-yzi-muted: var(--yzi-text-secondary);
+  --color-yzi-faint: var(--yzi-text-faint);
+  --color-yzi-accent: var(--yzi-accent-action);
+  --color-yzi-accent-strong: var(--yzi-accent-action);
+  --color-yzi-accent-2: var(--yzi-accent-trust);
+  --color-yzi-opportunity: var(--yzi-accent-opportunity);
+  --color-yzi-authorize: var(--yzi-accent-authorization);
+  --color-yzi-risk: var(--yzi-accent-risk);
+  --color-yzi-trust: var(--yzi-accent-trust);
+  --color-yzi-preview: var(--yzi-state-preview);
+  --color-yzi-blocked: var(--yzi-state-blocked);
+  --radius-yzi-sm: var(--yzi-radius-sm);
+  --radius-yzi: var(--yzi-radius-md);
+  --radius-yzi-lg: var(--yzi-radius-lg);
+  --ease-yzi: var(--ease-standard);
+  --ease-yzi-soft: var(--ease-standard);
+  --animate-yzi-breathe: yzi-breathe 4.5s var(--ease-standard) infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.yzi-environment {
+  background:
+    radial-gradient(
+      1200px 700px at 78% -10%,
+      rgba(63, 224, 197, 0.06),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 600px at 10% 110%,
+      rgba(94, 155, 240, 0.05),
+      transparent 55%
+    ),
+    var(--yzi-bg-base);
+}
+
+@keyframes yzi-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
 }

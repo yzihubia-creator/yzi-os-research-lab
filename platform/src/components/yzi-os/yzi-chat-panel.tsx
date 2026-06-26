@@ -3,19 +3,19 @@
 import { useState, useTransition } from "react";
 
 import {
+  YziAlert,
+  YziButton,
+  YziPanel,
+  YziStatusBadge,
+} from "@/components/yzi-os/yzi-primitives";
+import {
   sendYziUserChatMessageAction,
   startYziChatSessionAction,
 } from "@/lib/yzi-os/actions";
 import type { YziChatMessage } from "@/lib/yzi-os/types";
 
-// Chat mínimo REAL do cockpit (Client Component). Cria a sessão e registra a
-// mensagem do usuário via Server Actions → RPCs seguras (RLS, sem service role,
-// sem SQL, sem MCP). HONESTIDADE OBRIGATÓRIA: a YZI ainda NÃO responde — nada é
-// sintetizado como se fosse IA real. Nenhum efeito externo, nenhum consumo de
-// crédito. Apenas a mensagem persistida do próprio usuário aparece na tela.
-
 const PENDING_RESPONSE_NOTICE =
-  "Mensagem registrada. A resposta da YZI ainda não está habilitada nesta fase.";
+  "Mensagem registrada. Resposta da YZI indisponível nesta fase.";
 
 export function YziChatPanel({ tenantId }: { tenantId: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function YziChatPanel({ tenantId }: { tenantId: string }) {
         return;
       }
       setSessionId(result.session.id);
-      setNotice("Sessão de conversa iniciada (modo decidir).");
+      setNotice("Sessão iniciada.");
     });
   }
 
@@ -67,35 +67,35 @@ export function YziChatPanel({ tenantId }: { tenantId: string }) {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-indigo-400/30 bg-indigo-400/[0.04] p-5">
+    <YziPanel variant="presence" className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-0.5">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-indigo-300">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--yzi-accent-action)]">
             Conversa com a YZI · real
           </h2>
-          <p className="text-xs text-zinc-500">
-            Cria sessão e registra sua mensagem no backend via RPC segura (RLS).
-            A YZI ainda não responde nesta fase.
+          <p className="text-xs text-[var(--yzi-text-faint)]">
+            Registra mensagens reais. A YZI ainda não responde nesta fase.
           </p>
         </div>
-        <span className="rounded-full border border-indigo-400/30 px-2.5 py-0.5 text-[0.65rem] uppercase tracking-wide text-indigo-300/80">
+        <YziStatusBadge tone={sessionId ? "action" : "preview"}>
           {sessionId ? "sessão ativa" : "sem sessão"}
-        </span>
+        </YziStatusBadge>
       </div>
 
-      {/* Mensagens já registradas (somente do usuário — a YZI não responde). */}
       {messages.length > 0 ? (
         <ul className="flex flex-col gap-2">
           {messages.map((message, index) => (
             <li
               key={message.id ?? `local-${index}`}
-              className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-3"
+              className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-3"
             >
-              <span className="text-[0.65rem] uppercase tracking-wide text-zinc-500">
+              <span className="text-[0.65rem] uppercase tracking-wide text-[var(--yzi-text-faint)]">
                 Você
                 {message.createdAt ? ` · ${message.createdAt}` : ""}
               </span>
-              <p className="text-sm text-zinc-200">{message.content}</p>
+              <p className="text-sm text-[var(--yzi-text-primary)]">
+                {message.content}
+              </p>
             </li>
           ))}
         </ul>
@@ -116,49 +116,40 @@ export function YziChatPanel({ tenantId }: { tenantId: string }) {
               : "Inicie a conversa para registrar mensagens."
           }
           disabled={pending}
-          className="w-full resize-y rounded-lg border border-white/15 bg-zinc-950/40 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-400/50 focus:outline-none disabled:opacity-60"
+          className="w-full resize-y rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm text-[var(--yzi-text-primary)] placeholder:text-[var(--yzi-text-faint)] focus:border-[color:rgba(63,224,197,0.42)] focus:outline-none disabled:opacity-60"
         />
 
         <div className="flex flex-wrap items-center gap-3">
           {sessionId ? (
-            <button
+            <YziButton
               type="button"
+              variant="primary"
+              size="sm"
               onClick={handleSend}
               disabled={pending}
-              className="rounded-md bg-indigo-400/90 px-3 py-1.5 text-xs font-medium text-zinc-950 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? "Registrando…" : "Enviar mensagem"}
-            </button>
+            </YziButton>
           ) : (
-            <button
+            <YziButton
               type="button"
+              variant="authorization"
+              size="sm"
               onClick={handleStart}
               disabled={pending}
-              className="rounded-md border border-indigo-400/40 px-3 py-1.5 text-xs font-medium text-indigo-200 transition-colors hover:border-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? "Iniciando…" : "Iniciar conversa"}
-            </button>
+            </YziButton>
           )}
-          <span className="text-[0.65rem] text-zinc-500">
+          <span className="text-[0.65rem] text-[var(--yzi-text-faint)]">
             Execução externa, automação e consumo de crédito desabilitados.
           </span>
         </div>
       </div>
 
-      {notice ? (
-        <p className="rounded-lg border border-indigo-400/20 bg-indigo-400/[0.04] px-3 py-2 text-xs text-indigo-200/90">
-          {notice}
-        </p>
-      ) : null}
+      {notice ? <YziAlert tone="info">{notice}</YziAlert> : null}
 
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-xs text-amber-300"
-        >
-          {error}
-        </p>
-      ) : null}
-    </section>
+      {error ? <YziAlert tone="risk">{error}</YziAlert> : null}
+    </YziPanel>
   );
 }

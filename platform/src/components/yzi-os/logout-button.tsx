@@ -3,14 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { LogoutIcon } from "@/components/yzi-os/yzi-icons";
+import {
+  YziAlert,
+  YziButton,
+} from "@/components/yzi-os/yzi-primitives";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function LogoutButton({
   className = "",
   label = "Sair",
+  iconOnly = false,
 }: {
   className?: string;
   label?: string;
+  iconOnly?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -37,20 +44,40 @@ export function LogoutButton({
     }
   }
 
-  return (
-    <div className="flex flex-col items-start gap-1.5">
-      <button
+  if (iconOnly) {
+    return (
+      <YziButton
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={handleLogout}
         disabled={pending}
-        className={`w-fit rounded-md border border-white/15 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:border-white/30 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+        title={label}
+        aria-label={label}
+        className={`h-9 w-9 p-0 ${className}`}
       >
+        <LogoutIcon className="h-4.5 w-4.5" />
+      </YziButton>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <YziButton
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={handleLogout}
+        disabled={pending}
+        className={className}
+      >
+        <LogoutIcon className="h-3.5 w-3.5" />
         {pending ? "Saindo..." : label}
-      </button>
+      </YziButton>
       {error ? (
-        <p role="alert" className="text-[0.65rem] text-amber-300">
+        <YziAlert tone="blocked" className="px-2 py-1 text-[0.65rem]">
           {error}
-        </p>
+        </YziAlert>
       ) : null}
     </div>
   );
