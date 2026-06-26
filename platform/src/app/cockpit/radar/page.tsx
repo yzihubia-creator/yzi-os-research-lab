@@ -1,10 +1,5 @@
-import {
-  getCockpitModule,
-  ModulePlaceholderPage,
-} from "@/components/yzi-os/cockpit-modules";
+import { RadarV0 } from "@/components/yzi-os/radar-v0";
 
 export default function RadarPage() {
-  return (
-    <ModulePlaceholderPage moduleInfo={getCockpitModule("/cockpit/radar")} />
-  );
+  return <RadarV0 />;
 }
