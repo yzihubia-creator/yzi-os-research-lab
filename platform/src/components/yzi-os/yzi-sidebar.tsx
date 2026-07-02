@@ -43,6 +43,21 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    eyebrow: "Módulos",
+    items: [
+      {
+        href: "/cockpit/yzi-imob/studio",
+        label: "Conteúdo IA",
+        icon: DashboardIcon,
+      },
+      {
+        href: "/cockpit/yzi-imob/imoveis",
+        label: "Imóveis",
+        icon: AssetsIcon,
+      },
+    ],
+  },
+  {
     eyebrow: "Descobrir",
     items: [
       { href: "/cockpit/radar", label: "Radar", icon: RadarIcon },
