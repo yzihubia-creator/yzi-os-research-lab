@@ -13,6 +13,7 @@ import {
 } from "@/components/yzi-os/yzi-primitives";
 import {
   AssetsIcon,
+  AuditIcon,
   AuthorizationIcon,
   ChannelsIcon,
   CommandCenterIcon,
@@ -73,6 +74,11 @@ const NAV_GROUPS: NavGroup[] = [
     eyebrow: "Base",
     items: [
       { href: "/cockpit/canais", label: "Conexões", icon: ChannelsIcon },
+      {
+        href: "/cockpit/uso-creditos",
+        label: "Uso & Créditos",
+        icon: AuditIcon,
+      },
       { href: "/cockpit/ativos", label: "Biblioteca", icon: AssetsIcon },
       {
         href: "/cockpit/configuracoes",
