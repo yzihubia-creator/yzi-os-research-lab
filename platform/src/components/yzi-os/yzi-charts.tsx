@@ -303,7 +303,7 @@ export function YziDonutChart({ slices }: { slices: DonutSlice[] }) {
             className="flex items-center gap-1.5 text-xs text-[var(--yzi-text-secondary)]"
           >
             <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${LEVEL_DOT[slice.level]}`} />
-            <span className="text-[var(--yzi-text-primary)]">{slice.count}</span>
+            <span className="tabular-nums text-[var(--yzi-text-primary)]">{slice.count}</span>
             {slice.label}
           </span>
         ))}
