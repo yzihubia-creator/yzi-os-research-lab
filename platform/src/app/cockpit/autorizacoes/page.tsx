@@ -1,12 +1,5 @@
-import {
-  getCockpitModule,
-  ModulePlaceholderPage,
-} from "@/components/yzi-os/cockpit-modules";
+import { ApprovalsV0 } from "@/components/yzi-os/approvals-v0";
 
 export default function AutorizacoesPage() {
-  return (
-    <ModulePlaceholderPage
-      moduleInfo={getCockpitModule("/cockpit/autorizacoes")}
-    />
-  );
+  return <ApprovalsV0 />;
 }
