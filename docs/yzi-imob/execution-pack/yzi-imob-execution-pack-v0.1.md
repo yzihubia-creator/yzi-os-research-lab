@@ -53,6 +53,7 @@ Antes de criar qualquer tela grande:
 - `yzi-imob-orchestrator-v0.1.md` — camada documentária de orquestração.
 - `yzi-imob-skill-graph-v0.1.md` — grafo operacional de commands/subagentes.
 - `yzi-imob-ai-runtime-credits-boundary-v0.1.md` — boundary de Claude API, créditos, uso por tenant e segurança de chaves.
+- `yzi-imob-tool-registry-spec-v0.1.md` — especificação das tools permitidas, contratos, policies e estados.
 
 ## Nota sobre materialização de skills/subagentes
 
