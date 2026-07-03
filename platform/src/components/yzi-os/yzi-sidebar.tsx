@@ -60,6 +60,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Site",
         icon: CommandCenterIcon,
       },
+      {
+        href: "/cockpit/yzi-imob/catalogo",
+        label: "Catálogo",
+        icon: AuditIcon,
+      },
     ],
   },
   {
