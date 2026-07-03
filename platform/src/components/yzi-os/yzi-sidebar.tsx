@@ -55,6 +55,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Imóveis",
         icon: AssetsIcon,
       },
+      {
+        href: "/cockpit/yzi-imob/site",
+        label: "Site",
+        icon: CommandCenterIcon,
+      },
     ],
   },
   {
