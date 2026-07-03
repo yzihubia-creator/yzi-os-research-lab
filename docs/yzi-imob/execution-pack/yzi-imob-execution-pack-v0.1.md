@@ -52,6 +52,7 @@ Antes de criar qualquer tela grande:
 - `yzi-imob-executable-task-template-v0.1.md` — template padrão de task.
 - `yzi-imob-orchestrator-v0.1.md` — camada documentária de orquestração.
 - `yzi-imob-skill-graph-v0.1.md` — grafo operacional de commands/subagentes.
+- `yzi-imob-ai-runtime-credits-boundary-v0.1.md` — boundary de Claude API, créditos, uso por tenant e segurança de chaves.
 
 ## Nota sobre materialização de skills/subagentes
 
