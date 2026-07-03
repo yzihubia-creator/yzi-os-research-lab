@@ -50,6 +50,8 @@ Antes de criar qualquer tela grande:
 - `yzi-imob-skills-map-v0.1.md` — skills operacionais.
 - `yzi-imob-subagents-map-v0.1.md` — subagentes e responsabilidades.
 - `yzi-imob-executable-task-template-v0.1.md` — template padrão de task.
+- `yzi-imob-orchestrator-v0.1.md` — camada documentária de orquestração.
+- `yzi-imob-skill-graph-v0.1.md` — grafo operacional de commands/subagentes.
 
 ## Nota sobre materialização de skills/subagentes
 
