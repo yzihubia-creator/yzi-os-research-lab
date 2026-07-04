@@ -1,4 +1,4 @@
-// YZI IMOB Runtime — Runtime API (Runtime Foundation, unidade 1).
+// YZI IMOB Runtime — Runtime API (Runtime Foundation, unidade 1 + 2).
 //
 // ENTRADA ÚNICA do runtime (Runtime Architecture §4: "entrada única para
 // intenções; todo request carrega tenant_id"). NÃO é endpoint REST, NÃO é rota
@@ -6,10 +6,14 @@
 // pipeline arquitetural e retorna um objeto honesto.
 //
 //   Runtime API → Intent Router → Workflow Selector → Policy → Context Builder
-//                → YZI Orchestrator → STOP (READY_FOR_APPROVAL)
+//                → YZI Orchestrator → Tool Registry → Approval Descriptor
+//                → STOP (READY_FOR_APPROVAL)
 //
-// Invariante: nenhuma ação real, nenhuma tool executada, nenhum approval criado,
-// nenhum banco tocado. Qualquer bloqueio para de forma honesta e explícita.
+// Unidade 2 estende o pipeline com o estágio Tool Registry (Tool Registry Spec
+// §2: fica entre Orchestrator e Approval Queue) — aplicado aos dois workflows
+// existentes, não apenas ao novo. Invariante: nenhuma ação real, nenhuma tool
+// executada, nenhum approval criado, nenhum banco tocado. Qualquer bloqueio
+// para de forma honesta e explícita.
 
 import { buildContext } from "./context-builder";
 import { routeIntent } from "./intent-router";
@@ -104,19 +108,37 @@ export function runYziImobRuntime(request: RuntimeRequest): RuntimeResult {
       });
   }
 
-  // 5) YZI Orchestrator — decide próxima ação e PARA (STOP).
+  // 5) YZI Orchestrator — decide próxima ação, consulta o Tool Registry
+  //    internamente (elegibilidade, nunca execução) e PARA (STOP).
   stages.push("orchestrator");
   const outcome = orchestrate({
     intent: selection.intent,
     workflow: selection.selected,
     policy,
     context,
+    request,
   });
   decisions.push(`orchestrator: status=${outcome.status} decision=${outcome.decision}`);
 
+  // 6) Tool Registry — estágio de evidência: a checagem já ocorreu dentro do
+  //    Orchestrator (posição arquitetural fixa, Tool Registry Spec §2); aqui
+  //    apenas registramos o estágio e, se o Registry bloqueou, paramos honestos.
+  if (outcome.status === "BLOCKED") {
+    return fail("tool_registry", outcome.error_state ?? "workflow_not_allowed", outcome.decision, {
+      intent: selection.intent,
+      workflow: selection.selected,
+      policy,
+      context,
+    });
+  }
+  stages.push("tool_registry");
+  decisions.push(
+    `tool_registry: tool=${outcome.approval.tool ?? "none"} would_submit=${outcome.approval.would_submit} descriptor=${outcome.approval.descriptor ? "generated" : "none"}`,
+  );
+
   return {
     status: outcome.status, // READY_FOR_APPROVAL
-    stopped_at: "orchestrator",
+    stopped_at: "tool_registry",
     intent: selection.intent,
     workflow: selection.selected,
     policy,

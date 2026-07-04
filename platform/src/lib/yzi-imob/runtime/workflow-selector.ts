@@ -11,9 +11,10 @@
 import type { IntentClassification, SelectedWorkflow, WorkflowId } from "./types";
 import { getWorkflowDefinition, WORKFLOW_REGISTRY } from "./workflows";
 
-/** Mapa intent → workflow desta unidade (apenas o read-only lookup). */
+/** Mapa intent → workflow (unidade 1: lookup; unidade 2: contact prepare). */
 const INTENT_TO_WORKFLOW: Partial<Record<string, WorkflowId>> = {
   property_lookup: "READ_ONLY_PROPERTY_LOOKUP",
+  property_contact_prepare: "PREPARE_PROPERTY_CONTACT",
 };
 
 /** Resultado da seleção: workflow escolhido + classificação enriquecida. */

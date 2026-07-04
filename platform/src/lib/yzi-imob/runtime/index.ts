@@ -1,4 +1,4 @@
-// YZI IMOB Runtime — Barrel (Runtime Foundation, unidade 1).
+// YZI IMOB Runtime — Barrel (Runtime Foundation, unidade 1 + 2).
 //
 // Superfície pública do menor Runtime executável possível. Reexporta os
 // contratos e a entrada única. Nenhum efeito de importação (módulos puros).
@@ -10,6 +10,12 @@ export { selectWorkflow, listKnownWorkflows } from "./workflow-selector";
 export { applyPolicy } from "./policy";
 export { buildContext } from "./context-builder";
 export { orchestrate } from "./orchestrator";
+export { checkToolEligibility, getToolMetadata } from "./tool-registry";
 export { WORKFLOW_REGISTRY, getWorkflowDefinition } from "./workflows";
 export { findMockProperty } from "./mock-data";
-export { demoReadOnlyPropertyLookup, DEMO_REQUEST } from "./example";
+export {
+  demoReadOnlyPropertyLookup,
+  DEMO_REQUEST,
+  demoPreparePropertyContact,
+  DEMO_REQUEST_PREPARE_CONTACT,
+} from "./example";

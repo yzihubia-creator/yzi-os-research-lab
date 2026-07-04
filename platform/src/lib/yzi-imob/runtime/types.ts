@@ -22,9 +22,20 @@
  * um acréscimo SKELETON explícito, não uma alteração de arquitetura.
  * TODO(spec): reconciliar `property_lookup` em uma futura revisão do
  *   Intent Router Spec (read-only intents) antes de sair do skeleton.
+ *
+ * LACUNA REGISTRADA #2 (unidade 2 — Approval-Only Vertical Slice): a spec §4/§5
+ * também não define um intent de preparo de CONTATO ancorado no IMÓVEL (apenas
+ * `lead_followup_prepare`, cujo workflow §5 é "Lead Context → Follow-up Draft →
+ * Approval" — ancorado no LEAD, não no imóvel). Como a tese do produto é
+ * property-centered (não CRM genérico), `property_contact_prepare` é outro
+ * acréscimo SKELETON explícito e honesto, análogo em forma a
+ * `lead_followup_prepare` mas com o imóvel como ativo central.
+ * TODO(spec): reconciliar `property_contact_prepare` com `lead_followup_prepare`
+ *   em uma futura revisão do Intent Router Spec.
  */
 export type IntentType =
   | "property_lookup" // SKELETON/ASSUNÇÃO — reconciliar com a spec (ver acima)
+  | "property_contact_prepare" // SKELETON/ASSUNÇÃO #2 — reconciliar com a spec (ver acima)
   | "property_register"
   | "property_update"
   | "property_publish_prepare"
@@ -43,11 +54,13 @@ export type IntentType =
 // ── Workflow ─────────────────────────────────────────────────────────────────
 
 /**
- * Identificador de workflow. Nesta unidade existe APENAS um workflow
- * implementado (`READ_ONLY_PROPERTY_LOOKUP`). A união cresce em unidades
- * futuras conforme os workflows do Intent Router Spec §5.
+ * Identificador de workflow. Unidade 1 implementou `READ_ONLY_PROPERTY_LOOKUP`;
+ * unidade 2 (Approval-Only Vertical Slice) adiciona `PREPARE_PROPERTY_CONTACT`
+ * — primeiro workflow que atravessa a fronteira de aprovação (sem executar). A
+ * união cresce em unidades futuras conforme os workflows do Intent Router
+ * Spec §5.
  */
-export type WorkflowId = "READ_ONLY_PROPERTY_LOOKUP";
+export type WorkflowId = "READ_ONLY_PROPERTY_LOOKUP" | "PREPARE_PROPERTY_CONTACT";
 
 // ── Tools e contexto (catálogo declarativo) ──────────────────────────────────
 
@@ -110,14 +123,21 @@ export type ActiveAssetType = "property" | "lead" | "deal" | "connection" | "non
 
 // ── Estados do runtime ───────────────────────────────────────────────────────
 
-/** Estágios do pipeline, para PARADA honesta e rastreável (diagrama da task). */
+/**
+ * Estágios do pipeline, para PARADA honesta e rastreável (diagrama da task).
+ * `tool_registry` foi adicionado na unidade 2: o Tool Registry Spec §2 posiciona
+ * o Registry ENTRE o Orchestrator e a Approval Queue — o runtime agora para
+ * ali (após validar elegibilidade da tool, nunca executá-la), para os dois
+ * workflows existentes.
+ */
 export type RuntimeStage =
   | "runtime_api"
   | "intent_router"
   | "workflow_selector"
   | "policy"
   | "context_builder"
-  | "orchestrator";
+  | "orchestrator"
+  | "tool_registry";
 
 /**
  * Status terminal honesto do runtime.
@@ -130,7 +150,8 @@ export type RuntimeStatus = "READY_FOR_APPROVAL" | "BLOCKED";
 
 /**
  * Estados de erro honestos — união do Intent Router Spec §12 com o subconjunto
- * aplicável do Context Builder Spec §13. Sem estados inventados.
+ * aplicável do Context Builder Spec §13 e do Tool Registry Spec §15
+ * (`tool_not_registered`, adicionado na unidade 2). Sem estados inventados.
  */
 export type RuntimeErrorState =
   | "tenant_missing"
@@ -145,7 +166,8 @@ export type RuntimeErrorState =
   | "approval_policy_missing"
   | "context_required"
   | "context_incomplete"
-  | "blocked_by_policy";
+  | "blocked_by_policy"
+  | "tool_not_registered";
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
@@ -269,6 +291,65 @@ export type BuiltContext = {
   error_state: RuntimeErrorState | null;
 };
 
+// ── Tool Registry (catálogo declarativo + elegibilidade — NÃO executa) ──────
+
+/**
+ * Metadados declarativos de uma tool — Tool Registry Spec v0.1 §4. Identidade +
+ * elegibilidade; nunca produz efeito externo (Spec §3: "Registry decide o que
+ * pode; o Executor faz o que foi aprovado").
+ */
+export type ToolMetadata = {
+  tool_name: RuntimeToolName;
+  description: string;
+  category: string;
+  /** Escopo — Spec §9: toda tool pertence a um tenant ou é global read-only. */
+  tenant_scope: "tenant" | "global_read_only";
+  side_effects: SideEffect;
+  risk_level: RiskLevel;
+  /** Workflows que esta tool serve — Spec §11. */
+  supported_workflows: readonly WorkflowId[];
+  /** Contexto exigido para a tool ficar elegível — Spec §10. */
+  required_context: readonly ContextSourceId[];
+  /** Approval Awareness — Spec §8: a tool já sabe, por contrato, se exige aprovação. */
+  approval_required: boolean;
+};
+
+/** Resultado da checagem de elegibilidade do Tool Registry (Spec §2, §15). */
+export type ToolEligibilityResult = {
+  eligible: boolean;
+  tool: ToolMetadata | null;
+  reason: string;
+  error_state: RuntimeErrorState | null;
+};
+
+// ── Approval Descriptor (contrato — NÃO cria, NÃO persiste) ──────────────────
+
+/**
+ * Descritor do que SERIA submetido à Approval Queue. Contrato mínimo exigido
+ * pela unidade 2 (Approval-Only Vertical Slice). `approval_id` é
+ * temporário/mock — determinístico, sem persistência, sem fila, sem banco.
+ * `created` é sempre `false`: a Approval Queue está fora do escopo desta
+ * unidade (não implementada).
+ */
+export type ApprovalDescriptor = {
+  /** Identificador temporário/mock — determinístico, nunca persistido. */
+  approval_id: string;
+  workflow_id: WorkflowId;
+  intent: IntentType;
+  tenant_id: string;
+  tool_id: RuntimeToolName;
+  risk_level: RiskLevel;
+  reason: string;
+  requested_action: string;
+  estimated_side_effect: SideEffect;
+  /** Conceitual — Tool Registry Spec §14: "sem tarifa ou algoritmo". */
+  estimated_usage: string;
+  /** Conceitual — Usage/Credits Engine fora do escopo desta unidade. */
+  estimated_credits: string;
+  /** Invariante honesta: nada foi criado/persistido. */
+  created: false;
+};
+
 // ── Handoff de aprovação (descritor — NÃO cria nada) ─────────────────────────
 
 /**
@@ -284,6 +365,8 @@ export type ApprovalHandoff = {
   tool: RuntimeToolName | null;
   side_effect: SideEffect;
   note: string;
+  /** Contrato mínimo do Approval Descriptor — presente quando `would_submit=true`. */
+  descriptor: ApprovalDescriptor | null;
 };
 
 // ── Evidência (trace honesto, sem efeito externo) ────────────────────────────

@@ -25,6 +25,17 @@ const LOOKUP_HINTS = [
   "status do imóvel",
 ];
 
+/** Palavras-chave mínimas que sugerem preparar contato/follow-up (unidade 2). */
+const CONTACT_PREPARE_HINTS = [
+  "preparar contato",
+  "preparar follow-up",
+  "preparar followup",
+  "preparar follow up",
+  "rascunho de contato",
+  "follow-up",
+  "followup",
+];
+
 function normalize(text: string): string {
   return text.trim().toLowerCase();
 }
@@ -77,12 +88,26 @@ export function routeIntent(request: RuntimeRequest): IntentClassification {
     };
   }
 
+  const looksLikeContactPrepare =
+    CONTACT_PREPARE_HINTS.some((hint) => haystack.includes(hint)) &&
+    request.active_asset_type === "property";
+
+  if (looksLikeContactPrepare) {
+    const intent_type: IntentType = "property_contact_prepare";
+    return {
+      ...base,
+      intent_type,
+      // Confiança conceitual do skeleton heurístico (ver TODO acima).
+      confidence: 0.55,
+    };
+  }
+
   // Intenção não reconhecida: estado honesto, sem adivinhar (Spec §8).
   return {
     ...base,
     blocking_reason:
-      "intent_unknown: nenhuma intenção read-only reconhecida no skeleton.",
+      "intent_unknown: nenhuma intenção read-only/contact-prepare reconhecida no skeleton.",
     next_question:
-      "Qual imóvel você quer consultar? (skeleton só reconhece consulta read-only)",
+      "Qual imóvel você quer consultar, ou para qual imóvel deseja preparar contato? (skeleton reconhece apenas consulta read-only e preparo de contato)",
   };
 }

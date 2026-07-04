@@ -1,8 +1,10 @@
-// YZI IMOB Runtime — Registro de Workflows (Runtime Foundation, unidade 1).
+// YZI IMOB Runtime — Registro de Workflows (Runtime Foundation, unidade 1 + 2).
 //
-// Catálogo declarativo dos workflows do runtime. Nesta unidade existe APENAS UM
-// workflow: READ_ONLY_PROPERTY_LOOKUP. Nenhum passo é executado aqui — o
-// registro apenas DECLARA o fluxo esperado; a execução é gated e fora do escopo.
+// Catálogo declarativo dos workflows do runtime. Unidade 1: READ_ONLY_PROPERTY_
+// LOOKUP (read-only, sem approval). Unidade 2: PREPARE_PROPERTY_CONTACT
+// (primeiro workflow que atravessa a fronteira de aprovação). Nenhum passo é
+// executado aqui — o registro apenas DECLARA o fluxo esperado; a execução é
+// gated e fora do escopo.
 //
 // Aderência: Dynamic Workflows, Tool-Based Runtime, Approval First, Evidence
 // First, Estados honestos. Deriva do Intent Router Spec §5 e Tool Registry §5/§11.
@@ -40,9 +42,44 @@ const READ_ONLY_PROPERTY_LOOKUP: WorkflowDefinition = {
   terminal_status: "READY_FOR_APPROVAL",
 };
 
+/**
+ * PREPARE_PROPERTY_CONTACT — primeiro workflow que atravessa a fronteira de
+ * aprovação (unidade 2, Approval-Only Vertical Slice).
+ *
+ * Fluxo esperado: Intent → Workflow → Policy → Context → Orchestrator →
+ * Tool Registry → Approval Descriptor → STOP.
+ *
+ * O único passo previsto usa `yzi_imob_prepare_followup` (Tool Registry §5,
+ * `prepare_action`, side_effect `draft_only`) — prepara um rascunho de contato
+ * sobre o imóvel, nunca envia. `requires_approval=true`: por princípio
+ * (Human-in-the-loop / Runtime Architecture §9), qualquer rascunho que possa
+ * originar contato real com cliente exige aprovação humana antes de avançar,
+ * mesmo sendo `draft_only`. O runtime PARA antes de qualquer execução ou
+ * criação de approval item — a Approval Queue está fora do escopo desta unidade.
+ */
+const PREPARE_PROPERTY_CONTACT: WorkflowDefinition = {
+  workflow_id: "PREPARE_PROPERTY_CONTACT",
+  title: "Preparar contato sobre o imóvel (draft, aprovação obrigatória)",
+  intents: ["property_contact_prepare"],
+  required_context: ["tenant", "user", "workflow", "policies", "runtime", "crm"],
+  allowed_tools: ["yzi_imob_prepare_followup"],
+  steps: [
+    {
+      id: "prepare_contact_followup",
+      label: "Preparar rascunho de contato/follow-up sobre o imóvel",
+      tool: "yzi_imob_prepare_followup",
+      side_effect: "draft_only",
+      requires_approval: true,
+    },
+  ],
+  risk_level: "medium",
+  terminal_status: "READY_FOR_APPROVAL",
+};
+
 /** Registro imutável de workflows disponíveis nesta unidade. */
 export const WORKFLOW_REGISTRY: Readonly<Record<WorkflowId, WorkflowDefinition>> = {
   READ_ONLY_PROPERTY_LOOKUP,
+  PREPARE_PROPERTY_CONTACT,
 };
 
 /**
