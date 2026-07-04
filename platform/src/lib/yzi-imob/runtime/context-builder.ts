@@ -1,0 +1,150 @@
+// YZI IMOB Runtime — Context Builder (Runtime Foundation, unidade 1).
+//
+// Responsabilidade ÚNICA: montar o MENOR contexto útil para o Orchestrator
+// decidir a próxima ação de um workflow JÁ classificado e autorizado. Não decide
+// ação, não chama tool, não executa. Context Builder Spec §1, §2, §3.
+//
+// Regra forte (Spec §1): `A YZI só deve ver o que é necessário para a próxima
+// decisão do workflow ativo.` Filtra por tenant; nunca inclui segredo; faltante
+// vira erro honesto, nunca preenchimento inventado (Spec §2, §7).
+
+import { findMockProperty, isLookupSupportedAsset } from "./mock-data";
+import type {
+  BuiltContext,
+  ContextBlock,
+  PolicyDecision,
+  RuntimeErrorState,
+  RuntimeRequest,
+  SelectedWorkflow,
+} from "./types";
+
+/**
+ * Monta o pacote de contexto para o workflow selecionado. Só monta os blocos
+ * exigidos pelo `required_context` do workflow (Spec §12). Usa APENAS dados
+ * mockados internos (nenhum banco/API). Retorna `complete=false` com
+ * `error_state` honesto quando não pode montar com segurança (Spec §7, §13).
+ */
+export function buildContext(
+  request: RuntimeRequest,
+  workflow: SelectedWorkflow,
+  policy: PolicyDecision,
+): BuiltContext {
+  const workflow_id = workflow.definition.workflow_id;
+  const blocks: ContextBlock[] = [];
+
+  // Ordem de prioridade conceitual — Context Builder Spec §6.
+  // 1 Core: identidade invariante do módulo (nunca cortada por orçamento).
+  blocks.push({
+    id: "core",
+    priority: 1,
+    provenance: "runtime:core-invariants",
+    freshness: "fresh",
+    summary:
+      "YZI IMOB — operação comercial centrada no imóvel. Multi-tenant; execução sempre gated por humano.",
+  });
+
+  // 2 Tenant: boundary + plano (aqui, mínimo honesto do skeleton).
+  blocks.push({
+    id: "tenant",
+    priority: 2,
+    provenance: `policy:tenant-check tenant_id=${request.tenant_id}`,
+    freshness: "fresh",
+    summary: `Tenant ativo="${request.tenant_id}"; boundary validado=${policy.tenant_ok}.`,
+  });
+
+  // 3 Workflow: passo atual, output contract e tools previstas.
+  blocks.push({
+    id: "workflow",
+    priority: 3,
+    provenance: `workflow-registry:${workflow_id}`,
+    freshness: "fresh",
+    summary: `Workflow=${workflow_id}; passo="${workflow.definition.steps[0]?.id ?? "n/a"}"; tools=${workflow.definition.allowed_tools.join(", ")}.`,
+  });
+
+  // 4 Approval: o que exige humano antes de executar (aqui: read-only).
+  blocks.push({
+    id: "approval",
+    priority: 4,
+    provenance: "policy:approval-awareness",
+    freshness: "fresh",
+    summary: policy.approval_required
+      ? "Este workflow exige aprovação humana antes de qualquer execução."
+      : "Workflow read-only — sem approval item; execução mesmo assim NÃO ocorre nesta unidade.",
+  });
+
+  // 5 Execution: ativo ativo (property) — resolvido de mock, filtrado por tenant.
+  const executionBlock = buildExecutionBlock(request);
+  if (executionBlock.block === null) {
+    return {
+      workflow_id,
+      blocks,
+      fingerprint: "",
+      complete: false,
+      error_state: executionBlock.error,
+    };
+  }
+  blocks.push(executionBlock.block);
+
+  // 6 Tool: tools permitidas e contrato resumido (via allowed_tools).
+  blocks.push({
+    id: "tool",
+    priority: 6,
+    provenance: "tool-registry:allowed-tools",
+    freshness: "fresh",
+    summary: `Tools permitidas (não executadas): ${workflow.definition.allowed_tools.join(", ")}.`,
+  });
+
+  return {
+    workflow_id,
+    blocks,
+    fingerprint: computeFingerprint(workflow_id, request.tenant_id, blocks),
+    complete: true,
+    error_state: null,
+  };
+}
+
+/** Monta o bloco de execução (ativo property) ou retorna erro honesto. */
+function buildExecutionBlock(request: RuntimeRequest):
+  | { block: ContextBlock; error: null }
+  | { block: null; error: RuntimeErrorState } {
+  if (!isLookupSupportedAsset(request.active_asset_type) || !request.active_asset_id) {
+    return { block: null, error: "asset_missing" };
+  }
+
+  const property = findMockProperty(request.tenant_id, request.active_asset_id);
+  if (!property) {
+    // Faltante vira erro, nunca preenchimento inventado (Spec §2).
+    return { block: null, error: "asset_missing" };
+  }
+
+  const missing =
+    property.missing_fields.length > 0
+      ? `faltantes=[${property.missing_fields.join(", ")}]`
+      : "faltantes=[nenhum]";
+
+  return {
+    block: {
+      id: "execution",
+      priority: 5,
+      provenance: `mock-data:property tenant_id=${property.tenant_id} property_id=${property.property_id}`,
+      freshness: "fresh",
+      summary: `Imóvel "${property.title}" (status=${property.status}); mídia=${property.media_count}; ${missing}; próxima ação="${property.next_action}".`,
+    },
+    error: null,
+  };
+}
+
+/**
+ * Fingerprint CONCEITUAL do contexto (Spec §11): assinatura textual de
+ * workflow + tenant + blocos/frescor. NÃO é hash criptográfico — serve à
+ * auditoria e reprodutibilidade do skeleton.
+ * TODO(runtime): definir esquema real de fingerprint em unidade futura.
+ */
+function computeFingerprint(
+  workflow_id: string,
+  tenant_id: string,
+  blocks: readonly ContextBlock[],
+): string {
+  const parts = blocks.map((b) => `${b.id}:${b.freshness}`).join("+");
+  return `fp:${workflow_id}:${tenant_id}:${parts}`;
+}
