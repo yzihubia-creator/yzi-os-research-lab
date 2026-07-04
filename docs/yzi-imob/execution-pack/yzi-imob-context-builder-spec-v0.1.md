@@ -1,85 +1,99 @@
 # YZI IMOB — Context Builder Spec v0.1
 
-Especificação documentária do Context Builder do runtime YZI IMOB. Complementa `yzi-imob-runtime-backend-architecture-v0.1.md`, `yzi-imob-ai-runtime-credits-boundary-v0.1.md` e `yzi-imob-tool-registry-spec-v0.1.md`. Nada aqui autoriza implementação.
+Especificação documentária do Context Builder do runtime YZI IMOB. Complementa `yzi-imob-runtime-backend-architecture-v0.1.md`, `yzi-imob-intent-router-workflow-selector-spec-v0.1.md`, `yzi-imob-tool-registry-spec-v0.1.md`, `yzi-imob-approval-queue-spec-v0.1.md` e `yzi-imob-ai-runtime-credits-boundary-v0.1.md`. Nada aqui autoriza implementação: sem código, SQL, API, Runtime ou banco.
 
-## 1. Decisão central
+## 1. Objetivo
 
-O Context Builder monta o **menor contexto útil** para a YZI executar uma tarefa. A YZI não deve receber banco cru, histórico completo, docs inteiros ou dados irrelevantes. Contexto demais degrada decisão, aumenta custo e aumenta risco.
+**Finalidade.** Montar o **menor contexto útil** para a YZI decidir a próxima ação de um workflow já classificado. É a camada oficial de **Context Engineering** do Runtime: transforma fontes cruas e dispersas em um pacote compacto, seguro, rastreável e auditável. **Papel:** recebe do Workflow Selector o `workflow_id` e o `required_context`; entrega ao YZI Orchestrator um pacote pronto para decisão. Não decide ação, não chama tool, não executa.
 
-Regra forte: `A YZI só deve ver o que é necessário para a próxima decisão.`
+Regra forte: `A YZI só deve ver o que é necessário para a próxima decisão do workflow ativo.`
 
-## 2. Papel no runtime
+## 2. Responsabilidades
 
-`Runtime API → Policy/Governance → Context Builder → YZI Orchestrator → Tool Registry → Executor → Evidence/Logs`
+**O que faz:** resolve as fontes exigidas pelo `required_context`; filtra tudo por `tenant_id` e permissões de `user_id`; compacta histórico/logs/payloads em summaries; monta os Context Blocks por prioridade; aplica orçamento de tokens; anexa proveniência e frescor a cada bloco; gera o fingerprint do contexto; retorna erro honesto quando não pode montar com segurança.
 
-O Context Builder não decide a ação final. Ele monta o pacote de contexto seguro e compacto para a YZI decidir.
+**O que nunca faz:** misturar dados de tenants diferentes; incluir API keys, tokens, service role ou segredos; decidir ação, chamar tool ou executar efeito externo; inventar dado ausente (faltante vira erro, não preenchimento); carregar histórico/documento inteiro quando o resumo basta; montar contexto sem `tenant_id` ativo.
 
-## 3. Boundary por tenant
+## 3. Posição no Runtime
 
-- Todo context pack pertence a um `tenant_id` e exige `user_id`.
-- Nenhum context pack mistura dados de tenants diferentes; contexto sem tenant ativo é bloqueado.
-- Dados globais só entram como regra/sistema, nunca como dado de cliente.
-- Permissões do usuário definem quais dados entram.
-- Tools permitidas entram como lista filtrada por tenant/plano/conexão.
+`Runtime API → Intent Router → Workflow Selector → Policy/Governance → Context Builder → YZI Orchestrator → Tool Registry → Approval Queue → Executor → Evidence → Memory`
 
-Regra forte: `Sem tenant_id, não existe context pack operacional.`
+Só age depois de intenção classificada, workflow selecionado e policy aplicada; entrega contexto ao Orchestrator e nunca pula etapas.
 
-## 4. Context Pack mínimo
+## 4. Context Sources
 
-`tenant_summary` · `user_role` · `module` · `route` · `task_intent` · `active_asset_type` · `active_asset_id` · `relevant_ids` · `current_state` · `allowed_tools` · `approval_policy` · `credit_policy` · `compact_memory` · `last_evidence` · `output_contract`
+Origens conceituais; cada uma só entra quando o `required_context` a exige.
 
-## 5. Tipos de contexto
+`Tenant` (identidade, plano, módulos, boundary) · `User` (papel, permissões) · `Conversation` (intenção + histórico recente) · `Lead` (lead ativo, origem, estágio) · `CRM` (imóvel, deal, pipeline, comissão) · `Workflow` (passo, output contract, tools) · `Policies` (regras críticas, boundary, approval) · `Memory` (decisões/aprendizados resumidos) · `Knowledge Base` (conhecimento de produto/domínio) · `Tool Registry` (tools permitidas + contratos) · `Approval Queue` (pendências e decisões humanas) · `Runtime` (rota, módulo, estado) · `Evidence` (última evidência relevante) · `Usage` (consumo relevante ao limite) · `Credits` (política e saldo do tenant)
 
-- `identity_context` — identidade do produto/módulo.
-- `policy_context` — regras críticas e tenant boundary.
-- `task_context` — intenção atual.
-- `asset_context` — imóvel, lead, deal, campanha, documento ou comissão ativo.
-- `tool_context` — tools permitidas e contratos resumidos.
-- `memory_context` — aprendizados/decisões resumidas.
-- `evidence_context` — última evidência relevante.
-- `approval_context` — o que exige humano antes de executar.
+## 5. Context Blocks
 
-## 6. Contexto por ativo (compacto)
+Cada bloco tem origem rastreável e frescor próprio.
 
-- **property**: `property_id`; status no fluxo; campos preenchidos; campos faltantes; mídia disponível; silo/site status; campanha/conteúdo status; leads relacionados resumidos; próxima ação sugerida.
-- **lead**: `lead_id`; origem; imóvel de interesse; intenção; histórico resumido; estágio no pipeline; próximos passos; restrições de contato.
-- **deal**: `deal_id`; property/lead vinculados; estágio; responsável; documento relacionado; comissão prevista; riscos.
-- **connection**: `connection_id`; provedor; status operacional; última validação; permissões disponíveis; tools habilitáveis; **sem token/segredo**.
+- **Core Context** — identidade do produto/módulo e regras invariantes.
+- **Tenant Context** — `tenant_id`, plano, módulos, boundary, créditos.
+- **Workflow Context** — `workflow_id`, passo atual, `output_contract`, tools previstas.
+- **Conversation Context** — intenção atual e histórico recente resumido.
+- **Knowledge Context** — conhecimento de produto/domínio necessário.
+- **Memory Context** — decisões e aprendizados resumidos.
+- **Tool Context** — tools permitidas e contratos resumidos (via Tool Registry).
+- **Approval Context** — o que exige humano antes de executar.
+- **Evidence Context** — última evidência relevante.
+- **Execution Context** — rota, módulo, ativo ativo, estado atual, próxima ação.
 
-## 7. Regras de compactação
+Contexto por ativo (compacto, dentro de Execution Context): **property** (`property_id`, status, campos preenchidos/faltantes, mídia, silo/campanha status, leads resumidos, próxima ação); **lead** (`lead_id`, origem, imóvel de interesse, estágio, restrições de contato); **deal** (`deal_id`, property/lead vinculados, estágio, comissão, riscos); **connection** (`connection_id`, provedor, status, permissões, tools habilitáveis, **sem token/segredo**).
 
-Compactar sempre: histórico longo; conversas; logs; evidências antigas; múltiplos imóveis/leads; respostas de tools.
+## 6. Prioridade dos blocos
 
-Preservar sempre: decisões humanas; aprovações/reprovações; `tenant_id`; IDs operacionais; estado atual; campos faltantes; riscos; próxima ação; evidência mais recente.
+Ordem conceitual — preservado primeiro, descartado por último sob restrição de orçamento:
 
-## 8. O que nunca entra no contexto
+`1 Core → 2 Tenant → 3 Workflow → 4 Approval → 5 Execution → 6 Tool → 7 Conversation → 8 Evidence → 9 Memory → 10 Knowledge`
 
-API keys; tokens; service role; secrets; logs brutos sensíveis; dados de outro tenant; histórico completo quando resumo basta; payload gigante de API; documentos jurídicos completos sem necessidade; dados pessoais desnecessários; informação marcada como fora do escopo.
+Regra forte: `Boundary, tenant e workflow nunca são cortados por orçamento; conhecimento e memória cedem primeiro.`
 
-## 9. Output contract
+## 7. Context Validation
 
-Toda execução recebe um contrato de saída. Exemplos: `screen_plan`; `copy_draft`; `property_page_draft`; `ad_brief`; `followup_draft`; `approval_request`; `learning_note`; `blocked_with_reason`.
+- **Incluir** quando: exigido pelo `required_context`, pertence ao tenant ativo, usuário tem permissão e o dado está fresco.
+- **Descartar** quando: irrelevante, redundante, expirado ou substituível por summary sem perda de decisão.
+- **Bloquear** quando: dado de outro tenant, segredo/credencial ou fonte fora do escopo do workflow.
+- **Retornar erro** quando: falta `tenant_id`; falta bloco obrigatório (tenant, workflow, policy, approval); excede orçamento mesmo após compactação; fonte desconhecida; contexto corrompido.
 
-A YZI responde no formato solicitado, não em texto solto quando o runtime exigir estrutura.
+## 8. Token Budget
 
-## 10. Relação com Tool Registry
+Conceitos, sem algoritmo: **priorização** (blocos entram na ordem da seção 6, orçamento gasto de cima para baixo); **compressão** (histórico, logs, payloads e listas longas viram summaries antes de entrar); **summaries** (cada fonte volumosa reduzida ao mínimo que preserva a decisão); **orçamento de contexto** (teto conceitual por execução; ultrapassá-lo aciona compactação e, persistindo, `context_overflow`). Preservar sempre: decisões humanas, aprovações, `tenant_id`, IDs operacionais, estado atual, campos faltantes, riscos, próxima ação, evidência mais recente.
 
-O Context Builder só inclui tools que o Tool Registry marcou como permitidas para tenant, plano, módulo, conexão, permissão e approval policy. Tools bloqueadas não entram no contexto.
+## 9. Provenance
 
-## 11. Error states
+Todo bloco carrega **origem rastreável**: de qual Context Source veio, sob qual `tenant_id`/`user_id`, e quando foi resolvido. Conceito arquitetural apenas — nenhum dado entra sem procedência declarada, sustentando auditoria e Evidence First.
 
-`tenant_missing` · `user_missing` · `permission_denied` · `asset_not_found` · `context_too_large` · `context_compaction_required` · `tool_context_unavailable` · `approval_policy_missing` · `credit_policy_missing` · `output_contract_missing` · `context_blocked`
+## 10. Freshness
 
-## 12. Fora do MVP
+Cada bloco declara **frescor**. Contexto antigo, expirado ou invalidado por evento posterior não pode passar por atual: `fresh` (válido para a decisão), `stale` (só com marcação explícita, nunca como estado real), `expired/invalid` (descartado ou vira erro, nunca silenciado).
 
-Long-term autonomous memory; retrieval automático complexo; RAG global multi-tenant; contexto cross-tenant; personalização profunda por usuário; documentos jurídicos completos no prompt; carregamento automático de todos os docs; self-modifying context policy.
+## 11. Context Fingerprint
 
-## 13. Próximas specs (ordem sugerida)
+O pacote final recebe um **fingerprint** conceitual — assinatura do conjunto de blocos, fontes, versões e frescor que o compuseram. Objetivo: **auditoria** (saber o que a YZI viu ao decidir), **reprodutibilidade** (reconstruir a decisão a partir do mesmo contexto) e **evidência** (vincular decisão e execução ao contexto de origem). Sem algoritmo ou hash específico.
 
-1. Approval Queue Spec;
-2. Usage/Credits Data Model;
-3. Context Builder Data Model;
-4. Tool Registry Data Model;
-5. Runtime API Skeleton;
-6. First read-only context tool;
-7. First approval-only action.
+## 12. Integrações
+
+- **Intent Router** — fornece a intenção classificada que delimita o contexto.
+- **Workflow Selector** — entrega `workflow_id` e `required_context`; monta-se exatamente o pedido.
+- **Tool Registry** — fonte das tools permitidas; só liberadas entram no Tool Context.
+- **Approval Queue** — fornece pendências e decisões humanas do Approval Context.
+- **Executor** — nunca chamado aqui; recebe contexto só indiretamente via Orchestrator.
+- **Evidence** — recebe fingerprint e proveniência para registro auditável.
+- **Memory** — fornece aprendizados resumidos (entrada); o que vira decisão volta adiante, fora desta camada.
+
+## 13. Error States
+
+`context_empty` · `context_incomplete` · `tenant_missing` · `workflow_missing` · `policy_missing` · `knowledge_missing` · `approval_missing` · `context_overflow` · `context_corrupted` · `unknown_source`
+
+Todo estado é honesto e explícito; nunca se entrega contexto parcial disfarçado de completo.
+
+## 14. Fora do MVP
+
+Sem implementação, SQL, Runtime, API, Redis, vetores, embeddings, cache, banco ou código. Também fora: retrieval automático complexo; RAG global multi-tenant; contexto cross-tenant; memória autônoma de longo prazo; self-modifying context policy; carregamento automático de todos os docs.
+
+## 15. Princípios e próximas specs
+
+Aderência: AI First · Multi-Tenant · Tenant Boundary · Context Engineering · Dynamic Workflows · Tool-Based Runtime · Approval First · Evidence First · Human-in-the-loop · Estados honestos. Compatível com a arquitetura consolidada. Próximas specs sugeridas: Context Builder Data Model → Usage/Credits Data Model → Tool Registry Data Model → Approval Queue Data Model → Runtime API Skeleton → First read-only context flow.

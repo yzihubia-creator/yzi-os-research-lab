@@ -53,8 +53,8 @@ Antes de criar qualquer tela grande:
 - `yzi-imob-orchestrator-v0.1.md` — camada documentária de orquestração.
 - `yzi-imob-skill-graph-v0.1.md` — grafo operacional de commands/subagentes.
 - `yzi-imob-ai-runtime-credits-boundary-v0.1.md` — boundary de Claude API, créditos, uso por tenant e segurança de chaves.
-- `yzi-imob-tool-registry-spec-v0.1.md` — especificação das tools permitidas, contratos, policies e estados.
-- `yzi-imob-context-builder-spec-v0.1.md` — especificação do menor contexto útil, context packs, compactação e output contracts.
+- `yzi-imob-tool-registry-spec-v0.1.md` — especificação das tools permitidas: metadata, capabilities, input/output contracts, approval awareness, required context/workflows/permissions/evidence, usage/credits e failure modes, alinhada à arquitetura consolidada do runtime.
+- `yzi-imob-context-builder-spec-v0.1.md` — especificação da camada de Context Engineering: context sources, context blocks e prioridade, validação, token budget, provenance, freshness, fingerprint e error states.
 - `yzi-imob-approval-queue-spec-v0.1.md` — especificação de aprovação humana, prepared actions, decisões, evidências e estados.
 - `yzi-imob-intent-router-workflow-selector-spec-v0.1.md` — especificação de classificação de intenção e seleção de workflow antes de contexto, tools e aprovação.
 
