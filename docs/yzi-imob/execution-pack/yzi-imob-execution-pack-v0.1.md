@@ -56,6 +56,7 @@ Antes de criar qualquer tela grande:
 - `yzi-imob-tool-registry-spec-v0.1.md` — especificação das tools permitidas, contratos, policies e estados.
 - `yzi-imob-context-builder-spec-v0.1.md` — especificação do menor contexto útil, context packs, compactação e output contracts.
 - `yzi-imob-approval-queue-spec-v0.1.md` — especificação de aprovação humana, prepared actions, decisões, evidências e estados.
+- `yzi-imob-intent-router-workflow-selector-spec-v0.1.md` — especificação de classificação de intenção e seleção de workflow antes de contexto, tools e aprovação.
 
 ## Nota sobre materialização de skills/subagentes
 
