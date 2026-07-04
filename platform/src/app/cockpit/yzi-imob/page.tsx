@@ -1,7 +1,8 @@
-import { redirect } from "next/navigation";
+import { YziImobHomeV2 } from "@/components/yzi-imob/yzi-imob-home-v2";
 
-// A vertical YZI IMOB abre direto no Estúdio Comercial nesta fase. Rota base
-// só evita um beco sem saída (404) em /cockpit/yzi-imob.
+// A vertical YZI IMOB abre pela YZI (entrada do sistema), não por um dashboard.
+// Home provisória do Workspace Shell v2. Sem dados reais; a proteção de sessão
+// permanece no layout do cockpit e no middleware.
 export default function YziImobIndexPage() {
-  redirect("/cockpit/yzi-imob/studio");
+  return <YziImobHomeV2 />;
 }

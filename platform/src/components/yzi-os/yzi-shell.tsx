@@ -11,6 +11,7 @@ import {
   YziSurface,
 } from "@/components/yzi-os/yzi-primitives";
 import { YziSidebar } from "@/components/yzi-os/yzi-sidebar";
+import { YziImobShellV2 } from "@/components/yzi-imob/yzi-imob-shell-v2";
 
 const CONTEXT_LABELS: Array<{ match: string; label: string }> = [
   { match: "/cockpit/dashboard", label: "Dashboards" },
@@ -49,6 +50,15 @@ export function YziShell({
   const pathname = usePathname();
   const capability = contextLabel(pathname);
   const initial = (operatorEmail?.trim()?.[0] ?? "Y").toUpperCase();
+
+  // A vertical YZI IMOB tem seu próprio casco visual (Workspace Shell v2). Aqui
+  // trocamos todo o chrome do YZI OS por ele; a auth continua no layout do
+  // cockpit e no middleware, intocada.
+  if (pathname === "/cockpit/yzi-imob" || pathname.startsWith("/cockpit/yzi-imob/")) {
+    return (
+      <YziImobShellV2 operatorEmail={operatorEmail}>{children}</YziImobShellV2>
+    );
+  }
 
   return (
     <div className="yzi-environment flex min-h-screen w-full text-[var(--yzi-text-primary)] antialiased">
