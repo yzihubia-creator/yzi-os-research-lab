@@ -36,6 +36,25 @@ aprovado ali o imóvel não existe publicamente. Publicação real (API/banco/
 site) segue fora de escopo — mock honesto continua até essas capabilities
 existirem.
 
+## Identificadores operacionais e responsável pelo imóvel
+
+Todo imóvel carrega `id_imovel` e um vínculo de responsável — sem isso a
+YZI não sabe com quem falar ao agendar visita, encaminhar lead ou preparar
+ação comercial. **Regra:** nenhum imóvel avança para publicação, visita,
+campanha ou atendimento sem responsável definido. Fluxo correto: `Imóvel
+cadastrado → corretor responsável vinculado → pronto para publicação →
+lead interessado → YZI consulta imóvel + responsável → agenda/encaminha
+com o corretor certo` — nunca a YZI descobrindo o corretor na hora da visita.
+
+Campos do vínculo no `DemoProperty` (mock honesto; entidade Corretor
+completa é unidade futura): `id_corretores`/`corretor_id`,
+`responsavel_imovel` (nome), status do vínculo (`vinculado`/`pendente`),
+especialidade/região (quando houver), contato operacional.
+
+**Sem responsável:** estado `missing_responsible_broker` — hero "Este
+imóvel ainda precisa de um responsável."; próxima ação "Vincular corretor
+responsável"; a YZI não prepara visita para esse imóvel.
+
 ## Arquitetura (3 camadas) e rota
 
 ```
@@ -56,14 +75,18 @@ de ser `disabled` e navega para `/imoveis/novo`. Mount chama
 
 ## Hero por estado
 
-| Estado | `PropertyStatus` | Hero |
+| Estado | `PropertyStatus` / vínculo | Hero |
 |---|---|---|
 | Novo imóvel | `id==="novo"` | "Vamos transformar este material em uma oferta pronta." |
+| Sem responsável | `missing_responsible_broker` | "Este imóvel ainda precisa de um responsável." |
 | Em preparação | `rascunho`,`organizando` | "Estou organizando este imóvel para publicação." |
 | Pendências | `pendencias` | "Existem bloqueios antes da publicação." |
 | Pronto | `aguardando`,`publicar`,`publicado` | "Está pronto para publicar quando você decidir." |
 
-Nome do imóvel (exceto Novo) + frase curta; sem métrica em destaque.
+`missing_responsible_broker` tem prioridade sobre os demais estados: sem
+responsável vinculado, o hero e a próxima ação são sempre sobre vincular o
+corretor, independente de `completeness`. Nome do imóvel (exceto Novo) +
+frase curta; sem métrica em destaque.
 
 ## Conteúdo — tabs
 
@@ -101,16 +124,21 @@ export type YziInspection = {
 `publication`/`creativeBrief` somem do tipo genérico — viram `nextAction` e
 item de `suggestions`. Impacto: `yzi-imob-inspector-v2.tsx` renderiza as 7
 seções (mantém o estado vazio `reading` sem entidade selecionada);
-`yzi-imob-catalog-mock.ts` → `toInspection()` monta o novo formato, cada
-`DemoProperty.inspection` ganha `checklist`, `score` (=`completeness`),
-`scoreLabel`, `nextAction` (=`nextStep`), `suggestions`. Nenhum outro
-consumidor hoje — único ponto de migração.
+`yzi-imob-catalog-mock.ts` → `DemoProperty` ganha `idImovel`, `responsavel`
+(`{ corretorId, nome, vinculo: "vinculado"|"pendente", especialidade?,
+contato }`); `toInspection()` monta o novo formato, cada
+`DemoProperty.inspection` ganha `checklist`, `score` (=`completeness`, 0
+quando sem responsável), `scoreLabel`, `nextAction` (=`nextStep`, ou
+"Vincular corretor responsável" quando `vinculo==="pendente"`),
+`suggestions`. Nenhum outro consumidor hoje — único ponto de migração.
 
-**Checklist** (4 itens, ecoa o Readiness Panel, derivado de
-`completeness`/`media`/`publication` do mock, nenhum estado novo): 1.
-Cadastro do imóvel — 2. Mídia organizada — 3. SEO / Site — 4. Publicação
-(nunca "pronto" sozinho; fica "aguardando aprovação" até autorização
-humana, mesmo com os outros 3 prontos — gate da seção "Publicação no Site").
+**Checklist** (5 itens, ecoa o Readiness Panel, derivado de
+`completeness`/`media`/`publication`/vínculo do mock, nenhum estado novo):
+1. Cadastro do imóvel — 2. **Corretor responsável vinculado** — 3. Mídia
+organizada — 4. SEO / Site — 5. Publicação (nunca "pronto" sozinho; fica
+"aguardando aprovação" até autorização humana). Item 2 é **gate**: sem ele,
+os itens 3–5 não avançam e a publicação/campanha/visita ficam bloqueadas
+(regra da seção anterior).
 
 ## Regras e fora de escopo
 
