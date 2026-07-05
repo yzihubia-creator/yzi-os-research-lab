@@ -60,11 +60,11 @@ responsável"; a YZI não prepara visita para esse imóvel.
 ```
 Hero (objetivo operacional)
 Workspace
-├── Conteúdo (tabs): Informações · Fotos · Vídeos · Documentos · SEO · Anúncios · IA
+├── Conteúdo (tabs): Informações · Base de Conhecimento · SEO · Anúncios · IA
 └── Inspector YZI (estrutura canônica, sempre igual)
 ```
 
-As 7 tabs sempre existem, mesmo sem a capability pronta. O Inspector é o
+As 5 tabs sempre existem, mesmo sem a capability pronta. O Inspector é o
 Inspector v2 do Shell, não um painel novo. Rota:
 `platform/src/app/cockpit/yzi-imob/imoveis/[id]/page.tsx`. `id==="novo"` →
 Novo imóvel (sem `DemoProperty`, form vazio); outro `id` sem match →
@@ -90,20 +90,38 @@ frase curta; sem métrica em destaque.
 
 ## Conteúdo — tabs
 
-**Informações** (única funcional): form "Dados básicos" — Nome, Tipo
-(apartamento/casa/terreno/comercial), Endereço, Bairro, Cidade, Valor, Área,
-Quartos, Banheiros (ocultos se Tipo=terreno), Descrição curta. Estado local,
-sem submit/persistência real. Demais tabs, "em breve" (mesmo padrão visual
-do botão desabilitado já existente — ícone + frase + capability
-responsável, nada simulado): **Fotos/Vídeos/Documentos** → Creative Studio;
-**SEO** → Site; **Anúncios** → Campaign Workspace; **IA** → "a YZI já está
-no Inspector — mais ações chegam aqui."
+Tabs: **Informações · Base de Conhecimento · SEO · Anúncios · IA**
+(consolida Fotos/Vídeos/Documentos numa única aba de upload).
+
+**Informações** (única funcional), dois blocos, estado local, sem
+submit/persistência real:
+
+1. **Dados básicos** — Nome, Tipo (apartamento/casa/terreno/comercial),
+   Endereço, Bairro, Cidade, Valor, Área, Quartos, Banheiros (ocultos se
+   Tipo=terreno).
+2. **Conhecimento da YZI** — o que alimenta site, SEO, atendimento,
+   criativos, campanhas, WhatsApp e landing pages. Campo principal:
+   *Descrição Comercial do Imóvel* (textarea, helper: "Escreva como se
+   estivesse apresentando este imóvel para um cliente. Quanto mais
+   contexto você fornecer, melhor a YZI poderá gerar anúncios, páginas,
+   campanhas e responder clientes."). Mais: diferenciais, perfil ideal do
+   comprador, objeções comuns, observações internas.
+
+**Base de Conhecimento** (não "Fotos"; "em breve", sem upload real):
+mostra as 9 categorias como grid honesto — Fotos, Vídeos, Drone, Plantas,
+Memorial, PDF, Contratos, Documentos, Arquivos adicionais — cada uma "0
+arquivos" até o Creative Studio existir. **SEO** → "em breve, entra com o
+Site". **Anúncios** → "em breve, entra com o Campaign Workspace". **IA** →
+"a YZI já está no Inspector — mais ações chegam aqui." Mesmo padrão visual
+do botão desabilitado já existente, nada simulado.
 
 ## Inspector — estrutura canônica
 
 Sempre 7 seções, qualquer entidade: **Resumo · Pendências · Checklist ·
-Score · Próxima ação · Sugestões · Histórico**. Novo tipo genérico
-(substitui `YziInspection` atual em `yzi-imob-workspace-context.tsx`):
+Readiness (rótulo por entidade: "Property Readiness", futuramente "Broker
+Readiness" etc.) · Próxima ação · Sugestões · Histórico**. Novo tipo
+genérico (substitui `YziInspection` atual em
+`yzi-imob-workspace-context.tsx`):
 
 ```ts
 export type YziInspection = {
@@ -126,7 +144,9 @@ item de `suggestions`. Impacto: `yzi-imob-inspector-v2.tsx` renderiza as 7
 seções (mantém o estado vazio `reading` sem entidade selecionada);
 `yzi-imob-catalog-mock.ts` → `DemoProperty` ganha `idImovel`, `responsavel`
 (`{ corretorId, nome, vinculo: "vinculado"|"pendente", especialidade?,
-contato }`); `toInspection()` monta o novo formato, cada
+contato }`), `knowledge` (`{ descricaoComercial, diferenciais,
+perfilComprador, objecoesComuns, observacoesInternas }`, todos opcionais,
+vazios por padrão); `toInspection()` monta o novo formato, cada
 `DemoProperty.inspection` ganha `checklist`, `score` (=`completeness`, 0
 quando sem responsável), `scoreLabel`, `nextAction` (=`nextStep`, ou
 "Vincular corretor responsável" quando `vinculo==="pendente"`),
