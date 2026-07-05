@@ -96,6 +96,49 @@
   --duration-moderate: 300ms;
   --duration-calm: 400ms;
 
+  /* Depth, glass and elevation from visual contract v1.1. Additive only. */
+  --yzi-env-gradient: linear-gradient(180deg, #0b0f17 0%, #090c12 100%);
+  --yzi-env-light: radial-gradient(
+    1100px 520px at 50% -8%,
+    rgba(63, 224, 197, 0.05),
+    transparent 60%
+  );
+  --yzi-glass-bg: rgba(17, 22, 31, 0.72);
+  --yzi-glass-overlay-bg: rgba(28, 37, 51, 0.78);
+  --yzi-glass-blur: 12px;
+  --yzi-glass-border: rgba(255, 255, 255, 0.09);
+  --yzi-edge-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --yzi-surface-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0) 42%
+  );
+  --yzi-elevation-rest: 0 10px 30px -24px rgba(0, 0, 0, 0.55);
+  --yzi-elevation-elevated: var(--yzi-shadow-elevated);
+  --yzi-elevation-overlay: var(--yzi-shadow-overlay);
+  --yzi-focus-ring: 0 0 0 3px var(--action-soft);
+
+  /* Atmosphere from visual contract v1.2. Additive only. */
+  --yzi-hero-light: radial-gradient(
+    900px 620px at 50% 12%,
+    rgba(63, 224, 197, 0.09),
+    rgba(63, 224, 197, 0.02) 45%,
+    transparent 70%
+  );
+  --yzi-vignette: radial-gradient(
+    140% 120% at 50% 40%,
+    transparent 55%,
+    rgba(4, 6, 10, 0.55) 100%
+  );
+  --yzi-noise-opacity: 0.03;
+  --yzi-glass-stroke-outer: rgba(255, 255, 255, 0.08);
+  --yzi-glass-stroke-inner: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --yzi-glass-reflection: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0) 28%
+  );
+
   /* Compatibility aliases. Keep only as bridges to canonical/app tokens. */
   --background: var(--yzi-bg-base);
   --foreground: var(--yzi-text-primary);
@@ -191,19 +234,337 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Visual contract v1.1: single volumetric action light over the deep base. */
 .yzi-environment {
-  background:
+  background: var(--yzi-env-light), var(--yzi-env-gradient);
+}
+
+.yzi-glass {
+  background: var(--yzi-glass-bg);
+  -webkit-backdrop-filter: blur(var(--yzi-glass-blur));
+  backdrop-filter: blur(var(--yzi-glass-blur));
+  border-color: var(--yzi-glass-border);
+  box-shadow: var(--yzi-edge-highlight);
+}
+
+.yzi-glass-overlay {
+  background: var(--yzi-glass-overlay-bg);
+  -webkit-backdrop-filter: blur(var(--yzi-glass-blur));
+  backdrop-filter: blur(var(--yzi-glass-blur));
+  border-color: var(--yzi-glass-border);
+  box-shadow: var(--yzi-edge-highlight), var(--yzi-elevation-overlay);
+}
+
+@supports not (
+  (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px))
+) {
+  .yzi-glass {
+    background: var(--yzi-surface-base);
+  }
+
+  .yzi-glass-overlay {
+    background: var(--yzi-surface-overlay);
+  }
+
+  .yzi-glass-panel {
+    background-color: var(--yzi-surface-elevated);
+  }
+}
+
+.yzi-sheen {
+  background-image: var(--yzi-surface-sheen),
+    linear-gradient(180deg, var(--surface-elev), var(--surface-base));
+}
+
+/* Visual contract v1.2: cinematic atmosphere. Light + vignette + near-invisible
+   noise as non-interactive layers behind the content. */
+.yzi-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.yzi-atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--yzi-vignette), var(--yzi-hero-light);
+  pointer-events: none;
+}
+
+.yzi-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: var(--yzi-noise-opacity);
+  pointer-events: none;
+}
+
+/* Visual contract v1.2: glass as material. Outer stroke, inner stroke, top
+   reflection, blur and elevation composed on a single surface. */
+.yzi-glass-panel {
+  background-color: var(--yzi-glass-bg);
+  background-image: var(--yzi-glass-reflection);
+  -webkit-backdrop-filter: blur(var(--yzi-glass-blur));
+  backdrop-filter: blur(var(--yzi-glass-blur));
+  border-color: var(--yzi-glass-stroke-outer);
+  box-shadow: var(--yzi-glass-stroke-inner), var(--yzi-edge-highlight),
+    var(--yzi-elevation-elevated);
+}
+
+.yzi-glass-panel:focus,
+.yzi-glass-panel:focus-within {
+  border-color: rgba(63, 224, 197, 0.42);
+  box-shadow: var(--yzi-glass-stroke-inner), var(--yzi-edge-highlight),
+    var(--yzi-elevation-elevated), var(--yzi-focus-ring);
+}
+
+/* YZI IMOB hero (scoped): evolution of the Material System for the vertical's
+   home. A colder, more premium petrol/ice atmosphere and a "lens" composer that
+   lets the hero light pass through instead of a dark card. Everything here is
+   composed from LOCAL scoped variables and additive material classes — no
+   global/canonical token VALUE changes — so the YZI OS Command Center and every
+   shared surface stay intact. Green/teal is removed from this surface entirely;
+   the cold light derives from the canonical trust hue pushed toward petrol/ice.
+   Precedent: v1.1/v1.2 added glass/atmosphere the same additive way. */
+.yzi-imob-hero {
+  --imob-cold: 96, 165, 230; /* petrol-blue light */
+  --imob-ice: 152, 196, 236; /* ice highlight */
+  --imob-deep: 58, 118, 172; /* cold fog */
+
+  /* Layered atmosphere: radial hero light + diagonal light + cold fog, all
+     near-invisible per DESIGN.md §6 (acentos com parcimônia). */
+  --yzi-hero-light: radial-gradient(
+      1300px 760px at 50% -4%,
+      rgba(var(--imob-cold), 0.11),
+      rgba(var(--imob-cold), 0.03) 46%,
+      transparent 70%
+    ),
+    linear-gradient(135deg, rgba(var(--imob-cold), 0.05), transparent 42%),
     radial-gradient(
-      1200px 700px at 78% -10%,
-      rgba(63, 224, 197, 0.06),
+      860px 860px at 84% 6%,
+      rgba(var(--imob-deep), 0.05),
       transparent 60%
+    );
+
+  /* Presence (orb dot) inherits the cold light, never teal, on this surface. */
+  --yzi-presence: rgb(var(--imob-cold));
+  --yzi-presence-soft: rgba(var(--imob-cold), 0.16);
+}
+
+/* Vertical scope: exposes the cold palette locals and the cold YZI presence to
+   every /cockpit/yzi-imob surface (home + internal workspaces), so internal
+   screens share the home's petrol/ice material. No canonical token VALUE
+   changes — the YZI OS Command Center remains teal. */
+.yzi-imob-scope {
+  --imob-cold: 96, 165, 230;
+  --imob-ice: 152, 196, 236;
+  --imob-deep: 58, 118, 172;
+  --yzi-presence: rgb(var(--imob-cold));
+  --yzi-presence-soft: rgba(var(--imob-cold), 0.16);
+}
+
+/* Sidebar active state, IMOB vertical only: cold glass, never the canonical
+   teal/action accent. Discreet inner stroke + ice text/icon, no green leak. */
+.yzi-imob-nav-active {
+  background-image: linear-gradient(
+    180deg,
+    rgba(var(--imob-cold), 0.16),
+    rgba(var(--imob-cold), 0.05)
+  );
+  border: 1px solid rgba(var(--imob-ice), 0.26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: rgb(var(--imob-ice));
+}
+
+/* Composer as a lens: translucent cold glass with a top reflection, a diagonal
+   reflection, outer + inner strokes, a subpixel top-light and a micro bottom
+   shadow over real elevation — physical thickness, never a black card. Additive
+   to the existing glass language (extends, does not replace .yzi-glass-panel). */
+.yzi-lens {
+  position: relative;
+  background-color: rgba(29, 43, 64, 0.44);
+  background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0) 34%
     ),
-    radial-gradient(
-      900px 600px at 10% 110%,
-      rgba(94, 155, 240, 0.05),
-      transparent 55%
+    linear-gradient(125deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 30%);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+  border: 1px solid var(--yzi-glass-stroke-outer);
+  box-shadow: var(--yzi-glass-stroke-inner),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 32px 74px -30px rgba(0, 0, 0, 0.82),
+    0 2px 10px -4px rgba(0, 0, 0, 0.5);
+  transition: border-color var(--duration-moderate) var(--ease-standard),
+    box-shadow var(--duration-moderate) var(--ease-standard);
+}
+
+.yzi-imob-hero .yzi-lens {
+  border-color: rgba(var(--imob-ice), 0.24);
+}
+
+.yzi-imob-hero .yzi-lens:focus-within {
+  border-color: rgba(var(--imob-ice), 0.4);
+  box-shadow: var(--yzi-glass-stroke-inner),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 32px 74px -30px rgba(0, 0, 0, 0.82),
+    0 0 0 3px rgba(var(--imob-cold), 0.14),
+    0 0 46px -12px rgba(var(--imob-cold), 0.4);
+}
+
+@supports not (
+  (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))
+) {
+  .yzi-lens {
+    background-color: var(--yzi-surface-elevated);
+  }
+}
+
+/* Quick-action chips live INSIDE the lens (contract §2 / Human Academy logic).
+   Hover displaces the light — a highlight sweeps across — rather than scaling. */
+.yzi-lens-chip {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(255, 255, 255, 0.045);
+  background-image: radial-gradient(
+    130% 130% at 0% 0%,
+    rgba(var(--imob-ice), 0.16),
+    rgba(255, 255, 255, 0) 46%
+  );
+  background-size: 220% 220%;
+  background-position: 0% 0%;
+  transition: background-position var(--duration-calm) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.yzi-lens-chip:hover {
+  background-position: 100% 100%;
+  background-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(var(--imob-ice), 0.3);
+  color: var(--yzi-text-primary);
+}
+
+/* Counter strip band: cold translucent glass with a soft top/bottom rule and
+   no side border — aligns to the content width like the Human Academy stats
+   band. Reads bluish, never flat gray, never a heavy boxed frame. */
+.yzi-imob-strip {
+  background-image: linear-gradient(
+      180deg,
+      rgba(var(--imob-cold), 0.07),
+      rgba(var(--imob-cold), 0.02)
     ),
-    var(--yzi-bg-base);
+    linear-gradient(rgba(13, 19, 29, 0.5), rgba(13, 19, 29, 0.5));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(var(--imob-ice), 0.14);
+  border-bottom: 1px solid rgba(var(--imob-ice), 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Cold presence orb for the vertical's home — YZI reads as the living entity. */
+.yzi-imob-orb {
+  color: rgb(var(--imob-ice));
+  border-color: rgba(var(--imob-ice), 0.3);
+  background: radial-gradient(
+      120% 120% at 50% 18%,
+      rgba(var(--imob-cold), 0.22),
+      transparent 70%
+    ),
+    var(--yzi-surface-elevated);
+  box-shadow: 0 0 0 1px rgba(var(--imob-cold), 0.18),
+    0 26px 72px -30px rgba(var(--imob-cold), 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.yzi-imob-hero-submit {
+  background-image: linear-gradient(
+    180deg,
+    rgb(var(--imob-ice)),
+    rgb(var(--imob-cold))
+  );
+  color: #06121f;
+  box-shadow: 0 8px 22px -8px rgba(var(--imob-cold), 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: filter var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.yzi-imob-hero-submit:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 28px -8px rgba(var(--imob-cold), 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.yzi-imob-hero-submit:active {
+  filter: brightness(0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Atendimento Kanban (scoped): thin, dark, cold-tinted scrollbar for the
+   horizontal column track. Replaces the native scrollbar (which renders as a
+   stark white/light bar on Windows over the dark surface) with a hairline
+   that matches the Material System instead of breaking it. Additive/scoped —
+   no other scroll surface is touched. */
+.yzi-imob-kanban-track {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--imob-ice), 0.22) transparent;
+}
+
+.yzi-imob-kanban-track::-webkit-scrollbar {
+  height: 6px;
+}
+
+.yzi-imob-kanban-track::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yzi-imob-kanban-track::-webkit-scrollbar-thumb {
+  background-color: rgba(var(--imob-ice), 0.22);
+  border-radius: 999px;
+}
+
+.yzi-imob-kanban-track::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(var(--imob-ice), 0.34);
+}
+
+/* Entrance: an elegant staggered settle that ENHANCES an already-visible
+   default. Only motion-capable clients hide-then-reveal, so reduced-motion and
+   headless/hidden-tab renders show content immediately (never ships blank). */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes yzi-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(7px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+  }
+
+  .yzi-rise {
+    animation: yzi-rise 0.72s var(--ease-standard) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yzi-environment *,
+  .yzi-environment *::before,
+  .yzi-environment *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @keyframes yzi-breathe {
