@@ -19,6 +19,7 @@ import {
 // não usa dados reais, não fala com Runtime/API/banco.
 
 const AREA_LABELS: Array<{ match: string; label: string }> = [
+  { match: "/cockpit/yzi-imob/growth/biblioteca", label: "Growth OS / Biblioteca" },
   { match: "/cockpit/yzi-imob/growth/conteudo", label: "Growth OS / Conteúdo" },
   { match: "/cockpit/yzi-imob/imoveis", label: "Imóveis" },
   { match: "/cockpit/yzi-imob/studio", label: "Creative Studio" },
