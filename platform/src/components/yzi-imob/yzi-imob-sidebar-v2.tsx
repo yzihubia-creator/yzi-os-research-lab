@@ -33,21 +33,21 @@ const GROUPS: Group[] = [
   {
     eyebrow: "Operação",
     items: [
-      { label: "Corretores", icon: BrokerIcon },
+      { label: "Corretores", icon: BrokerIcon, href: "/cockpit/yzi-imob/corretores" },
       { label: "Imóveis", icon: PropertyIcon, href: "/cockpit/yzi-imob/imoveis" },
-      { label: "Clientes", icon: ClientIcon },
-      { label: "Atendimento", icon: InboxIcon },
+      { label: "Clientes", icon: ClientIcon, href: "/cockpit/yzi-imob/clientes" },
+      { label: "Atendimento", icon: InboxIcon, href: "/cockpit/yzi-imob/atendimento" },
     ],
   },
   {
     eyebrow: "Marketing",
     items: [
       {
-        label: "Creative Studio",
+        label: "Creative Engine",
         icon: CreativeIcon,
         href: "/cockpit/yzi-imob/studio",
       },
-      { label: "Campanhas", icon: CampaignIcon },
+      { label: "Growth OS", icon: CampaignIcon, href: "/cockpit/yzi-imob/growth/briefing" },
       { label: "Site", icon: SiteIcon, href: "/cockpit/yzi-imob/site" },
     ],
   },
@@ -56,7 +56,7 @@ const GROUPS: Group[] = [
     items: [
       { label: "Radar", icon: RadarIcon },
       { label: "Insights", icon: InsightIcon },
-      { label: "Resultados", icon: ResultsIcon },
+      { label: "Resultados", icon: ResultsIcon, href: "/cockpit/yzi-imob/growth/resultados" },
     ],
   },
   {
@@ -107,13 +107,13 @@ function NavItem({
   );
 
   const shared = cx(
-    "group flex items-center rounded-[var(--yzi-radius-md)] transition-[background,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
+    "group flex items-center rounded-[var(--yzi-radius-md)] transition-[background,border-color,color,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
     collapsed ? "justify-center" : "gap-2 px-2 pr-3",
     active
-      ? "bg-[var(--yzi-accent-action-soft)] text-[var(--yzi-accent-action)]"
+      ? "yzi-imob-nav-active"
       : disabled
-        ? "text-[var(--yzi-text-faint)]"
-        : "text-[var(--yzi-text-secondary)] hover:bg-[rgba(255,255,255,0.03)] hover:text-[var(--yzi-text-primary)]",
+        ? "border border-transparent text-[var(--yzi-text-faint)]"
+        : "border border-transparent text-[var(--yzi-text-secondary)] hover:bg-[rgba(255,255,255,0.03)] hover:text-[var(--yzi-text-primary)]",
   );
 
   if (disabled) {
@@ -167,12 +167,12 @@ export function YziImobSidebarV2({
           className={cx(
             "group flex items-center rounded-[var(--yzi-radius-md)] px-1.5 py-1.5 transition-colors",
             collapsed ? "justify-center" : "gap-2.5",
-            homeActive ? "text-[var(--yzi-accent-action)]" : "text-[var(--yzi-text-primary)]",
+            homeActive ? "text-[rgb(var(--imob-ice))]" : "text-[var(--yzi-text-primary)]",
           )}
           title="YZI"
         >
-          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] text-[var(--yzi-accent-action)]">
-            <YziMarkIcon className="h-[22px] w-[22px]" />
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] text-[rgb(var(--imob-ice))]">
+            <YziMarkIcon className="h-[19px] w-[19px]" />
             <YziPresence
               state="ready"
               animated
@@ -181,8 +181,8 @@ export function YziImobSidebarV2({
           </span>
           {!collapsed ? (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="text-[0.95rem] font-semibold tracking-[0.04em]">YZI</span>
-              <span className="truncate text-[0.66rem] text-[var(--yzi-text-secondary)]">
+              <span className="text-[0.88rem] font-semibold tracking-[0.03em] text-[var(--yzi-text-primary)]">YZI</span>
+              <span className="truncate text-[0.62rem] text-[var(--yzi-text-faint)]">
                 operação imobiliária
               </span>
             </span>

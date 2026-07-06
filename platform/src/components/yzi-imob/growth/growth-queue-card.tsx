@@ -33,24 +33,23 @@ export function GrowthQueueCard({
       type="button"
       onClick={onSelect}
       className={cx(
-        "flex w-full gap-3 rounded-[var(--yzi-radius-md)] border p-3 text-left transition-colors",
+        "yzi-growth-card-hover flex w-full gap-3 rounded-[var(--yzi-radius-md)] border p-3.5 text-left",
         active
-          ? "border-[rgba(var(--imob-ice),0.34)] bg-[rgba(var(--imob-cold),0.08)]"
-          : "border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] hover:bg-[var(--yzi-surface-elevated)]",
+          ? "border-[rgba(var(--imob-ice),0.34)] bg-[rgba(var(--imob-cold),0.1)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+          : "border-[rgba(var(--imob-graphite),0.28)] bg-[rgba(17,22,31,0.72)]",
       )}
     >
       <GrowthThumbnail palette={palette} active={active} />
-      <span className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="flex items-start justify-between gap-2">
+      <span className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <span className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:justify-between">
           <span className="min-w-0">
-            <span className="block truncate text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">{title}</span>
-            <span className="block truncate text-[0.72rem] text-[var(--yzi-text-secondary)]">{subtitle}</span>
+            <span className="block truncate text-[0.88rem] font-semibold leading-snug text-[var(--yzi-text-primary)]">{title}</span>
+            <span className="mt-0.5 block truncate text-[0.72rem] leading-snug text-[var(--yzi-text-secondary)]">{subtitle}</span>
           </span>
           <GrowthStatusBadge status={status} accents={accents} />
         </span>
-        <span className="flex flex-wrap items-center gap-2 text-[0.68rem] text-[var(--yzi-text-faint)]">{meta}</span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[rgba(var(--imob-graphite),0.18)] pt-2 text-[0.68rem] leading-snug text-[var(--yzi-text-faint)]">{meta}</span>
       </span>
     </button>
   );
 }
-

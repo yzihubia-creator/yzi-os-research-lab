@@ -97,7 +97,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
   const reading = readingFor(pathname);
 
   return (
-    <aside className="hidden w-[320px] shrink-0 flex-col border-l border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] xl:flex">
+    <aside className="hidden w-[300px] shrink-0 flex-col border-l border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] min-[1480px]:flex min-[1720px]:w-[320px]">
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2.5">
           <YziPresence state="ready" animated />

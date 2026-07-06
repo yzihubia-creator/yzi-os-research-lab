@@ -36,8 +36,8 @@ export const MOCK_GROWTH_ASSET_COUNTERS: GrowthCounter[] = [
 export const GROWTH_ASSET_STATUS_ACCENT: GrowthStatusAccent = {
   Gerando: "amber",
   "Em revisão": "lilac",
-  Aprovado: "primary",
-  Falhou: "coldRed",
+  Aprovado: "coldGreen",
+  Falhou: "wine",
 };
 
 export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
@@ -56,7 +56,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     readiness: 92,
     usedData: ["bairro", "varanda", "metragem", "diferenciais", "preço sob consulta"],
     pendencies: ["Aprovação humana antes de uso em campanha"],
-    palette: ["primary", "lilac"],
+    palette: ["primary", "cyan"],
     headline: "Vista alta, rotina leve",
     supportingText: "Apartamento pronto para visita com varanda e acabamento premium.",
   },
@@ -94,7 +94,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     readiness: 100,
     usedData: ["localização", "data de visita", "perfil familiar"],
     pendencies: ["Canal ainda não conectado nesta unidade"],
-    palette: ["ice", "cyan"],
+    palette: ["coldGreen", "cyan"],
     headline: "Visita neste sábado",
     supportingText: "Story curto para captar interesse e levar ao atendimento.",
   },
@@ -113,7 +113,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     readiness: 24,
     usedData: ["bairro", "tipo do imóvel"],
     pendencies: ["Faltam diferenciais claros do imóvel", "Nenhum crédito consumido"],
-    palette: ["coldRed", "amber"],
+    palette: ["wine", "amber"],
     headline: "Oferta em ajuste",
     supportingText: "A peça precisa de mais informação para parecer pronta.",
   },
@@ -137,4 +137,3 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     supportingText: "Página de entrada com argumento claro para lead qualificado.",
   },
 ];
-

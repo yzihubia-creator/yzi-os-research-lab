@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 
-export type GrowthSurface = "briefing" | "conteudo" | "campanhas" | "biblioteca" | "resultados";
+export type GrowthSurface = "briefing" | "conteudo" | "biblioteca" | "campanhas" | "resultados";
 
 export type GrowthStatus =
   | "Gerando"

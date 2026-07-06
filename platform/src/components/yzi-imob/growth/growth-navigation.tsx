@@ -14,9 +14,6 @@ export const GROWTH_SURFACES: Array<WorkspaceTab & { id: GrowthSurface }> = [
   { id: "resultados", label: "Resultados" },
 ];
 
-// Cada surface Growth vive em sua própria rota. O caminho fica centralizado
-// aqui para que a navegação real (Link) e o restante do produto usem a
-// mesma fonte de verdade.
 export const GROWTH_ROUTE: Record<GrowthSurface, string> = {
   briefing: "/cockpit/yzi-imob/growth/briefing",
   conteudo: "/cockpit/yzi-imob/growth/conteudo",
@@ -25,11 +22,6 @@ export const GROWTH_ROUTE: Record<GrowthSurface, string> = {
   resultados: "/cockpit/yzi-imob/growth/resultados",
 };
 
-// Navegação própria do Growth OS: cada aba é um link real para a rota da
-// surface (nunca só um toggle de estado local — cada surface é uma página
-// própria, então a navegação precisa mudar a URL de verdade). A superfície
-// ativa é claramente principal (peso + sublinhado de gelo); as demais ficam
-// em texto secundário — evita aparência de menu genérico.
 export function GrowthNavigation({
   active,
   onChange,
@@ -38,7 +30,10 @@ export function GrowthNavigation({
   onChange?: (id: GrowthSurface) => void;
 }) {
   return (
-    <div role="tablist" className="flex flex-wrap items-center gap-0.5 border-b border-[color:var(--yzi-border-subtle)] pb-px">
+    <nav
+      aria-label="Growth OS"
+      className="flex flex-wrap items-center gap-1 rounded-[var(--yzi-radius-md)] border border-[rgba(var(--imob-ice),0.12)] bg-[rgba(var(--imob-deep),0.12)] p-1 shadow-[var(--yzi-edge-highlight)]"
+    >
       {GROWTH_SURFACES.map((tab) => {
         const isActive = active === tab.id;
         return (
@@ -49,22 +44,16 @@ export function GrowthNavigation({
             aria-selected={isActive}
             onClick={() => onChange?.(tab.id)}
             className={cx(
-              "relative -mb-px inline-flex items-center gap-1.5 px-3.5 pb-2.5 pt-1.5 text-[0.8rem] transition-colors",
+              "relative inline-flex min-h-9 items-center rounded-[var(--yzi-radius-sm)] px-3.5 text-[0.78rem] font-medium transition-[background,border-color,color] duration-[var(--duration-fast)]",
               isActive
-                ? "font-semibold text-[var(--yzi-text-primary)]"
-                : "text-[var(--yzi-text-secondary)] hover:text-[var(--yzi-text-primary)]",
+                ? "border border-[rgba(var(--imob-ice),0.25)] bg-[rgba(var(--imob-cold),0.13)] text-[var(--yzi-text-primary)]"
+                : "border border-transparent text-[var(--yzi-text-secondary)] hover:bg-[rgba(255,255,255,0.035)] hover:text-[var(--yzi-text-primary)]",
             )}
           >
             {tab.label}
-            {isActive ? (
-              <span
-                aria-hidden
-                className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-[rgba(var(--imob-ice),0.75)]"
-              />
-            ) : null}
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

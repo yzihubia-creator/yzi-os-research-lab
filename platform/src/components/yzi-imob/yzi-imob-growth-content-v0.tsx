@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  GROWTH_ASSET_STATUS_ACCENT,
   GrowthApprovalActions,
   GrowthCounterStrip,
   GrowthCreditPanel,
@@ -13,160 +14,32 @@ import {
   GrowthPreviewFrame,
   GrowthQueueCard,
   GrowthSurfaceHeader,
-  type GrowthSurface,
-  type GrowthStatusAccent,
-} from "@/components/yzi-imob/yzi-imob-growth-components";
+  MOCK_GROWTH_ASSET_COUNTERS,
+  MOCK_GROWTH_ASSETS,
+  MOCK_GROWTH_CREDIT_ROWS,
+  type GrowthCreativeItem,
+} from "@/components/yzi-imob/growth";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
-import type { YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 
-type CreativeStatus = "Gerando" | "Em revisão" | "Aprovado" | "Falhou";
-type CreativeFormat = "Reel" | "Story" | "Carrossel" | "Meta Feed" | "Site";
-
-type CreativeItem = {
-  id: string;
-  name: string;
-  property: string;
-  propertyId: string;
-  channel: string;
-  format: CreativeFormat;
-  status: CreativeStatus;
-  credits: string;
-  creditMode: "consumidos" | "reservados" | "não consumidos";
-  objective: string;
-  recommendedAction: string;
-  readiness: number;
-  usedData: string[];
-  pendencies: string[];
-  palette: [YziImobRole, YziImobRole];
-  headline: string;
-  supportingText: string;
-};
-
-const COUNTERS = [
-  { label: "Criativos", value: "12", detail: "mock operacional do tenant" },
-  { label: "Em revisão", value: "4", detail: "dependem de aprovação humana" },
-  { label: "Gerando", value: "3", detail: "estado visual simulado" },
-  { label: "Reservados", value: "84", detail: "créditos separados" },
-  { label: "Disponíveis", value: "1.144", detail: "saldo conceitual" },
-];
-
-const MOCK_CREATIVES: CreativeItem[] = [
-  {
-    id: "asset_altiplano_reel_01",
-    name: "Reel Premium",
-    property: "Apartamento Altiplano",
-    propertyId: "property_altiplano_001",
-    channel: "Instagram Reels",
-    format: "Reel",
-    status: "Em revisão",
-    credits: "18",
-    creditMode: "consumidos",
-    objective: "Gerar desejo por visita qualificada",
-    recommendedAction: "Aprovar para preparar a campanha",
-    readiness: 92,
-    usedData: ["bairro", "varanda", "metragem", "diferenciais", "preço sob consulta"],
-    pendencies: ["Aprovação humana antes de uso em campanha"],
-    palette: ["primary", "lilac"],
-    headline: "Vista alta, rotina leve",
-    supportingText: "Apartamento pronto para visita com varanda e acabamento premium.",
-  },
-  {
-    id: "asset_cabo_branco_carrossel_01",
-    name: "Carrossel Alto Padrão",
-    property: "Cobertura Cabo Branco",
-    propertyId: "property_cabo_branco_014",
-    channel: "Instagram Feed",
-    format: "Carrossel",
-    status: "Gerando",
-    credits: "12",
-    creditMode: "reservados",
-    objective: "Organizar argumentos de valor",
-    recommendedAction: "Aguardar conclusão do preview",
-    readiness: 68,
-    usedData: ["cobertura", "vista mar", "área gourmet", "suítes"],
-    pendencies: ["Preview ainda em preparação visual"],
-    palette: ["petrol", "primary"],
-    headline: "Cobertura com presença",
-    supportingText: "Sequência visual para destacar vista, planta e área social.",
-  },
-  {
-    id: "asset_manaira_story_01",
-    name: "Story Visita",
-    property: "Manaíra Residence",
-    propertyId: "property_manaira_009",
-    channel: "Instagram Stories",
-    format: "Story",
-    status: "Aprovado",
-    credits: "6",
-    creditMode: "consumidos",
-    objective: "Convidar para visita no fim de semana",
-    recommendedAction: "Preparar distribuição no canal escolhido",
-    readiness: 100,
-    usedData: ["localização", "data de visita", "perfil familiar"],
-    pendencies: ["Canal ainda não conectado nesta unidade"],
-    palette: ["ice", "cyan"],
-    headline: "Visita neste sábado",
-    supportingText: "Story curto para captar interesse e levar ao atendimento.",
-  },
-  {
-    id: "asset_jardim_oceania_meta_01",
-    name: "Meta Feed",
-    property: "Jardim Oceania",
-    propertyId: "property_jardim_oceania_004",
-    channel: "Meta Feed",
-    format: "Meta Feed",
-    status: "Falhou",
-    credits: "0",
-    creditMode: "não consumidos",
-    objective: "Testar oferta de captação",
-    recommendedAction: "Solicitar nova versão após revisar dados do imóvel",
-    readiness: 24,
-    usedData: ["bairro", "tipo do imóvel"],
-    pendencies: ["Faltam diferenciais claros do imóvel", "Nenhum crédito consumido"],
-    palette: ["coldRed", "amber"],
-    headline: "Oferta em ajuste",
-    supportingText: "A peça precisa de mais informação para parecer pronta.",
-  },
-  {
-    id: "asset_bessa_site_01",
-    name: "Destaque Site",
-    property: "Bessa Garden",
-    propertyId: "property_bessa_022",
-    channel: "Site",
-    format: "Site",
-    status: "Em revisão",
-    credits: "10",
-    creditMode: "consumidos",
-    objective: "Abrir seção de imóvel em página de campanha",
-    recommendedAction: "Aprovar após checar chamada principal",
-    readiness: 88,
-    usedData: ["fachada", "planta", "CTA", "benefícios do bairro"],
-    pendencies: ["Revisar CTA antes de publicar manualmente"],
-    palette: ["primary", "petrol"],
-    headline: "Bessa Garden",
-    supportingText: "Página de entrada com argumento claro para lead qualificado.",
-  },
-];
-
-const STATUS_ACCENT: GrowthStatusAccent = {
-  Gerando: "amber",
-  "Em revisão": "lilac",
-  Aprovado: "primary",
-  Falhou: "coldRed",
-};
-
-function creditLabel(item: CreativeItem) {
+function creditLabel(item: GrowthCreativeItem) {
   return `${item.credits} ${item.credits === "1" ? "crédito" : "créditos"} ${item.creditMode}`;
 }
 
+function formatIndicator(item: GrowthCreativeItem) {
+  if (item.format === "Reel") return "▶ 00:18";
+  if (item.format === "Story") return "▶ 00:09 · vertical";
+  if (item.format === "Carrossel") return "1/5";
+  if (item.format === "Meta Feed") return "1:1 / 4:5";
+  return "wide · landing";
+}
+
 export function YziImobGrowthContentV0() {
-  const [activeSurface, setActiveSurface] = useState<GrowthSurface>("conteudo");
-  const [selectedId, setSelectedId] = useState(MOCK_CREATIVES[0].id);
+  const [selectedId, setSelectedId] = useState(MOCK_GROWTH_ASSETS[0].id);
   const [actionMode, setActionMode] = useState<"none" | "version" | "adjust">("none");
   const { select } = useYziImobWorkspace();
 
   const selected = useMemo(
-    () => MOCK_CREATIVES.find((item) => item.id === selectedId) ?? MOCK_CREATIVES[0],
+    () => MOCK_GROWTH_ASSETS.find((item) => item.id === selectedId) ?? MOCK_GROWTH_ASSETS[0],
     [selectedId],
   );
 
@@ -207,35 +80,30 @@ export function YziImobGrowthContentV0() {
   }, [select, selected]);
 
   return (
-    <section className="flex min-h-full w-full flex-col gap-7 px-6 pb-10 pt-6 xl:px-8">
+    <section className="yzi-growth-surface flex min-h-full w-full flex-col gap-6 px-4 pb-10 pt-5 sm:px-6 min-[1720px]:px-8">
       <header className="flex flex-col gap-5">
-        <GrowthSurfaceHeader
-          title="Conteúdo"
-          subtitle="Criativos produzidos pela YZI para aprovação."
-        />
+        <GrowthSurfaceHeader title="Conteúdo" subtitle="Criativos produzidos pela YZI para aprovação." />
 
-        <GrowthCounterStrip counters={COUNTERS} />
+        <GrowthCounterStrip counters={MOCK_GROWTH_ASSET_COUNTERS} />
 
-        <GrowthNavigation active={activeSurface} onChange={setActiveSurface} />
-        <GrowthMockNotice active={activeSurface} />
+        <GrowthNavigation active="conteudo" />
+        <GrowthMockNotice active="conteudo" />
       </header>
 
-      <div className="grid min-h-0 grid-cols-1 gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid min-h-0 grid-cols-1 gap-4 min-[1720px]:grid-cols-[340px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">
-              Fila de criativos
-            </h2>
+            <h2 className="text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">Fila de criativos</h2>
             <span className="text-[0.68rem] text-[var(--yzi-text-faint)]">Dados mockados</span>
           </div>
           <div className="flex flex-col gap-2.5">
-            {MOCK_CREATIVES.map((item) => (
+            {MOCK_GROWTH_ASSETS.map((item) => (
               <GrowthQueueCard
                 key={item.id}
                 title={item.name}
                 subtitle={item.property}
                 status={item.status}
-                accents={STATUS_ACCENT}
+                accents={GROWTH_ASSET_STATUS_ACCENT}
                 palette={item.palette}
                 active={item.id === selected.id}
                 onSelect={() => {
@@ -245,6 +113,8 @@ export function YziImobGrowthContentV0() {
                 meta={
                   <>
                     <span>{item.format}</span>
+                    <span aria-hidden>·</span>
+                    <span>{formatIndicator(item)}</span>
                     <span aria-hidden>·</span>
                     <span>{item.channel}</span>
                     <span aria-hidden>·</span>
@@ -256,7 +126,7 @@ export function YziImobGrowthContentV0() {
           </div>
         </aside>
 
-        <div className="grid min-w-0 grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-w-0 grid-cols-1 gap-4 min-[1840px]:grid-cols-[minmax(0,1fr)_320px]">
           <main className="flex min-w-0 flex-col gap-4">
             <GrowthPreviewFrame
               channel={selected.channel}
@@ -283,21 +153,12 @@ export function YziImobGrowthContentV0() {
           <aside className="flex min-w-0 flex-col gap-4">
             <GrowthApprovalActions
               status={selected.status}
-              accents={STATUS_ACCENT}
+              accents={GROWTH_ASSET_STATUS_ACCENT}
               onVersion={() => setActionMode("version")}
               onAdjust={() => setActionMode("adjust")}
             />
 
-            {actionMode === "version" ? (
-              <GrowthCreditPanel
-                rows={[
-                  { label: "Saldo disponível", value: "1.144" },
-                  { label: "Custo estimado", value: "8 créditos" },
-                  { label: "Reservados", value: "84" },
-                  { label: "Saldo após confirmação", value: "1.136" },
-                ]}
-              />
-            ) : null}
+            {actionMode === "version" ? <GrowthCreditPanel rows={MOCK_GROWTH_CREDIT_ROWS} /> : null}
 
             {actionMode === "adjust" ? (
               <label className="flex flex-col gap-2">
@@ -317,14 +178,8 @@ export function YziImobGrowthContentV0() {
                   label: "Por que está pronta",
                   value: "Imóvel, objetivo, canal, formato, preview e custo estão visíveis para decisão.",
                 },
-                {
-                  label: "Dados do imóvel usados",
-                  value: `${selected.usedData.join(", ")}.`,
-                },
-                {
-                  label: "Canal recomendado",
-                  value: `${selected.channel}.`,
-                },
+                { label: "Dados do imóvel usados", value: `${selected.usedData.join(", ")}.` },
+                { label: "Canal recomendado", value: `${selected.channel}.` },
                 {
                   label: "Pendências",
                   value: (
@@ -348,3 +203,4 @@ export function YziImobGrowthContentV0() {
     </section>
   );
 }
+

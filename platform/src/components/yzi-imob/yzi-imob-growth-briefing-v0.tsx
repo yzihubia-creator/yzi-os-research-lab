@@ -9,7 +9,6 @@ import {
   GrowthNavigation,
   GrowthSurfaceHeader,
   GrowthTag,
-  type GrowthSurface,
 } from "@/components/yzi-imob/growth";
 import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
@@ -115,7 +114,6 @@ function BriefingItemCard({
 }
 
 export function YziImobGrowthBriefingV0() {
-  const [activeSurface, setActiveSurface] = useState<GrowthSurface>("briefing");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const { select } = useYziImobWorkspace();
@@ -163,7 +161,7 @@ export function YziImobGrowthBriefingV0() {
   };
 
   return (
-    <section className="flex min-h-full w-full flex-col gap-7 px-6 pb-10 pt-6 xl:px-8">
+    <section className="yzi-growth-surface flex min-h-full w-full flex-col gap-6 px-4 pb-10 pt-5 sm:px-6 min-[1720px]:px-8">
       <header className="flex w-full flex-col gap-5">
         <div className="flex w-full flex-col gap-4">
           <GrowthSurfaceHeader
@@ -182,11 +180,11 @@ export function YziImobGrowthBriefingV0() {
           />
         </div>
 
-        <GrowthNavigation active={activeSurface} onChange={setActiveSurface} />
-        <GrowthMockNotice active={activeSurface} ready={["briefing", "conteudo"]} />
+        <GrowthNavigation active="briefing" />
+        <GrowthMockNotice active="briefing" ready={["briefing", "conteudo"]} />
       </header>
 
-      <div className="grid min-h-0 grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_368px]">
+      <div className="grid min-h-0 grid-cols-1 gap-5 min-[1760px]:grid-cols-[minmax(0,1fr)_340px]">
         <main className="flex min-w-0 flex-col gap-8">
           <section className="yzi-lens flex flex-col gap-3.5 rounded-[var(--yzi-radius-lg)] p-6">
             <div className="flex items-start justify-between gap-3">

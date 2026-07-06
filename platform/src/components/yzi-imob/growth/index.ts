@@ -3,6 +3,7 @@ export * from "./growth-action-bar";
 export * from "./growth-collection-card";
 export * from "./growth-counter-strip";
 export * from "./growth-credit-panel";
+export * from "./growth-demo-media-card";
 export * from "./growth-empty-state";
 export * from "./growth-error-state";
 export * from "./growth-evidence-card";

@@ -9,9 +9,9 @@ export const MOCK_GROWTH_COLLECTION_COUNTERS: GrowthCounter[] = [
 ];
 
 export const GROWTH_COLLECTION_STATUS_ACCENT: GrowthStatusAccent = {
-  Aprovado: "primary",
+  Aprovado: "coldGreen",
   "Em uso": "cyan",
-  Arquivado: "neutral",
+  Arquivado: "graphite",
   "Pronto para campanha": "lilac",
 };
 
@@ -192,7 +192,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     ],
     reusableReason: "Há pouco patrimônio reaproveitável; faltam diferenciais do imóvel.",
     campaignOpportunity: "Revisar dados antes de enviar qualquer campanha.",
-    palette: ["coldRed", "amber"],
+    palette: ["wine", "amber"],
     items: [
       {
         id: "jardim_oceania_meta_feed",
@@ -206,7 +206,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         lastCampaign: "Nenhuma",
         headline: "Oferta em ajuste",
         supportingText: "Pacote arquivado até o imóvel ter diferenciais suficientes.",
-        palette: ["coldRed", "amber"],
+        palette: ["wine", "amber"],
       },
     ],
   },
@@ -301,4 +301,3 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     ],
   },
 ];
-

@@ -16,18 +16,18 @@ export function GrowthActionBar({ actions }: { actions: GrowthAction[] }) {
           disabled={action.disabled}
           onClick={action.onClick}
           className={cx(
-            "rounded-[var(--yzi-radius-sm)] border px-3 py-2 text-[0.78rem] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            "rounded-[var(--yzi-radius-sm)] border px-3 py-2 text-[0.78rem] transition-[background,border-color,color,transform] duration-[var(--duration-fast)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50",
             action.tone === "primary"
-              ? "border-[rgba(var(--imob-ice),0.34)] bg-[rgba(var(--imob-cold),0.14)] font-medium text-[var(--yzi-text-primary)] hover:bg-[rgba(var(--imob-cold),0.2)]"
+              ? "border-[rgba(var(--imob-ice),0.34)] bg-[rgba(var(--imob-cold),0.14)] font-medium text-[var(--yzi-text-primary)] hover:bg-[rgba(var(--imob-cold),0.22)]"
               : action.tone === "danger"
-                ? "hover:bg-[rgba(196,108,108,0.12)]"
-                : "border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)] hover:bg-[var(--yzi-surface-elevated)] hover:text-[var(--yzi-text-primary)]",
+                ? "hover:bg-[rgba(var(--imob-wine),0.14)]"
+                : "border-[rgba(var(--imob-graphite),0.3)] text-[var(--yzi-text-secondary)] hover:bg-[rgba(255,255,255,0.045)] hover:text-[var(--yzi-text-primary)]",
           )}
           style={
             action.tone === "danger"
               ? {
-                  color: imobRgba("coldRed", 0.96),
-                  borderColor: imobRgba("coldRed", 0.28),
+                  color: imobRgba("wine", 0.96),
+                  borderColor: imobRgba("wine", 0.34),
                 }
               : undefined
           }
@@ -51,7 +51,7 @@ export function GrowthApprovalActions({
   onAdjust: () => void;
 }) {
   return (
-    <section className="yzi-lens flex flex-col gap-4 rounded-[var(--yzi-radius-lg)] p-4">
+    <section className="yzi-growth-card flex flex-col gap-4 rounded-[var(--yzi-radius-lg)] border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-[0.95rem] font-semibold text-[var(--yzi-text-primary)]">Aprovação</h2>
@@ -73,4 +73,3 @@ export function GrowthApprovalActions({
     </section>
   );
 }
-

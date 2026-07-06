@@ -19,10 +19,13 @@ import {
 // não usa dados reais, não fala com Runtime/API/banco.
 
 const AREA_LABELS: Array<{ match: string; label: string }> = [
+  { match: "/cockpit/yzi-imob/growth/briefing", label: "Growth OS / Briefing" },
   { match: "/cockpit/yzi-imob/growth/biblioteca", label: "Growth OS / Biblioteca" },
   { match: "/cockpit/yzi-imob/growth/conteudo", label: "Growth OS / Conteúdo" },
+  { match: "/cockpit/yzi-imob/growth/campanhas", label: "Growth OS / Campanhas" },
+  { match: "/cockpit/yzi-imob/growth/resultados", label: "Growth OS / Resultados" },
   { match: "/cockpit/yzi-imob/imoveis", label: "Imóveis" },
-  { match: "/cockpit/yzi-imob/studio", label: "Creative Studio" },
+  { match: "/cockpit/yzi-imob/studio", label: "Creative Engine" },
   { match: "/cockpit/yzi-imob/site", label: "Site" },
   { match: "/cockpit/yzi-imob/catalogo", label: "Catálogo" },
   { match: "/cockpit/yzi-imob/runtime", label: "Runtime" },
@@ -81,7 +84,7 @@ function YziImobShellBody({
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         {/* Header slim — orientação, sem virar dashboard. */}
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 px-8">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 px-4 sm:px-6 min-[1720px]:px-8">
           <div className="flex items-center gap-2.5 text-[0.72rem]">
             <span
               aria-hidden
@@ -99,7 +102,7 @@ function YziImobShellBody({
             <button
               type="button"
               onClick={() => setInspectorOpen(true)}
-              className="hidden items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)] xl:inline-flex"
+              className="hidden items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)] min-[1480px]:inline-flex"
               title="Abrir Inspector da YZI"
             >
               <YziPresence state="ready" />

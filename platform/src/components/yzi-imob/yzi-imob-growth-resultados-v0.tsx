@@ -1,71 +1,121 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import { GrowthCounterStrip, GrowthInspectorPanel, GrowthNavigation, GrowthSurfaceHeader, type GrowthSurface } from "@/components/yzi-imob/growth";
-import { ComingSoonPanel } from "@/components/yzi-imob/yzi-imob-workspace-kit";
+import {
+  GrowthCounterStrip,
+  GrowthDemoMediaCard,
+  GrowthInspectorPanel,
+  GrowthNavigation,
+  GrowthSectionCard,
+  GrowthSurfaceHeader,
+  GrowthTag,
+} from "@/components/yzi-imob/growth";
+import { MOCK_DEMO_MEDIA } from "@/lib/yzi-imob/demo-media/mock-demo-media";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
 import { getLearnings } from "@/lib/yzi-imob/growth-intelligence/mock-brain";
 
+const DEMO_EXAMPLES = [
+  "Exemplo futuro: comparar criativo aprovado com leads gerados por campanha.",
+  "Exemplo futuro: registrar custo por lead somente quando a fonte real estiver conectada.",
+  "Exemplo futuro: transformar aprendizado de venda/perda em próxima recomendação.",
+];
+
+const RESULTS_PREVIEW_IDS = ["demo_altiplano_reel", "demo_cabo_branco_carrossel", "demo_bessa_site"];
+const RESULTS_PREVIEW_ITEMS = MOCK_DEMO_MEDIA.filter((item) => RESULTS_PREVIEW_IDS.includes(item.id));
+
 export function YziImobGrowthResultadosV0() {
-  const [activeSurface, setActiveSurface] = useState<GrowthSurface>("resultados");
   const { select } = useYziImobWorkspace();
-  const learnings = getLearnings();
+  const learnings = useMemo(() => getLearnings(), []);
+  const counters = [
+    { label: "Resultados reais", value: "0", detail: "dependem de integrações futuras" },
+    { label: "Campanhas medidas", value: "0", detail: "nenhuma campanha real executada" },
+    { label: "Fontes conectadas", value: "0", detail: "GA4, Search Console, Meta e Google ausentes" },
+    { label: "Aprendizados mock", value: String(learnings.length), detail: "vindos da simulação de briefing" },
+    { label: "Status", value: "Em construção", detail: "rota real, dashboard futuro" },
+  ];
 
   useEffect(() => {
     select({
       name: "Resultados",
-      subtitle: "Growth OS · Em construção",
+      subtitle: "Growth OS · Estado futuro honesto",
       statusLabel: "Em construção",
       situation:
-        "As métricas reais de resultado dependem de integrações que ainda não existem (GA4, Search Console, Meta, Google). Por enquanto, esta superfície só pode mostrar o que já foi aprendido em Briefing.",
-      pendencies: ["Integração com GA4 ainda não conectada", "Integração com Meta/Google Ads ainda não conectada"],
+        "Resultados reais dependem de integrações futuras. Esta rota existe para mostrar o lugar da leitura de performance, sem fingir métrica real.",
+      pendencies: [
+        "GA4 não conectado",
+        "Search Console não conectado",
+        "Meta Ads não conectado",
+        "Google Ads não conectado",
+      ],
       checklist: [
-        { label: "Aprendizados registrados no Briefing", done: learnings.length > 0 },
-        { label: "Métrica real de tráfego conectada", done: false },
-        { label: "Métrica real de campanha conectada", done: false },
+        { label: "Rota Growth OS disponível", done: true },
+        { label: "Aprendizados mockados disponíveis", done: learnings.length > 0 },
+        { label: "Fonte real de tráfego conectada", done: false },
+        { label: "Fonte real de campanha conectada", done: false },
       ],
       score: 0,
-      scoreLabel: "Progresso da integração real",
-      nextAction: "Aguardar a conexão das fontes de dados reais antes de exibir qualquer métrica como resultado real.",
-      suggestions: ["Nenhum resultado real está sendo medido nesta unidade.", "Dados de demonstração."],
-      history: [`${learnings.length} aprendizados registrados a partir de decisões simuladas no Briefing.`],
+      scoreLabel: "Maturidade de medição real",
+      nextAction: "Conectar fontes reais em uma unidade futura antes de exibir métricas como performance.",
+      suggestions: ["Não usar KPI mockado como resultado real.", "Manter exemplos claramente marcados como demonstração."],
+      history: learnings.map((learning) => learning.title),
     });
-  }, [select, learnings.length]);
+  }, [select, learnings]);
 
   return (
-    <section className="flex min-h-full w-full flex-col gap-7 px-6 pb-10 pt-6 xl:px-8">
+    <section className="yzi-growth-surface flex min-h-full w-full flex-col gap-6 px-4 pb-10 pt-5 sm:px-6 min-[1720px]:px-8">
       <header className="flex w-full flex-col gap-5">
         <div className="flex w-full flex-col gap-4">
           <GrowthSurfaceHeader
             title="Resultados"
-            subtitle="Leitura honesta de performance, evidências e aprendizados."
+            subtitle="Resultados em construção. Métricas reais dependem de integrações futuras."
           />
 
-          <GrowthCounterStrip
-            counters={[
-              { label: "Métricas reais", value: "0", detail: "Dependem de integrações futuras." },
-              { label: "Fonte de dados", value: "Nenhuma conectada", detail: "GA4, Search Console e Meta não conectados." },
-              {
-                label: "Aprendizados",
-                value: String(learnings.length),
-                detail: "Registrados a partir de decisões no Briefing.",
-              },
-              { label: "Campanhas medidas", value: "0", detail: "Nenhuma campanha real foi executada ainda." },
-              { label: "Status", value: "Em construção", detail: "Superfície ainda não disponível para uso real." },
-            ]}
-          />
+          <GrowthCounterStrip counters={counters} />
         </div>
 
-        <GrowthNavigation active={activeSurface} onChange={setActiveSurface} />
+        <GrowthNavigation active="resultados" />
       </header>
 
-      <div className="grid min-h-0 grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_368px]">
-        <main className="flex min-w-0 flex-col gap-5">
-          <ComingSoonPanel
-            label="Em construção — métricas reais dependem das integrações futuras."
-            note="Nenhuma fonte externa (GA4, Search Console, Meta ou Google) está conectada. Nada aqui representa performance real."
-          />
+      <div className="grid min-h-0 grid-cols-1 gap-4 min-[1760px]:grid-cols-[minmax(0,1fr)_330px]">
+        <main className="flex min-w-0 flex-col gap-4">
+          <section className="yzi-lens flex flex-col gap-3 rounded-[var(--yzi-radius-lg)] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-[1.1rem] font-semibold text-[var(--yzi-text-primary)]">Resultados em construção</h2>
+              <GrowthTag>Demonstração</GrowthTag>
+            </div>
+            <p className="max-w-3xl text-[0.86rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+              Esta tela não mostra dashboard real porque as fontes de performance ainda não estão conectadas. Quando
+              Meta, Google, GA4 ou Search Console forem autorizados por tenant, os números poderão aparecer com fonte,
+              período e evidência.
+            </p>
+          </section>
+
+          <GrowthSectionCard title="Exemplos discretos de leitura futura">
+            <ul className="flex flex-col gap-2">
+              {DEMO_EXAMPLES.map((example) => (
+                <li key={example} className="text-[0.82rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                  {example}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {RESULTS_PREVIEW_ITEMS.map((item) => (
+                <GrowthDemoMediaCard key={item.id} item={item} size="sm" />
+              ))}
+            </div>
+          </GrowthSectionCard>
+
+          <GrowthSectionCard title="Aprendizados disponíveis no mock">
+            <div className="flex flex-col divide-y divide-[color:var(--yzi-border-subtle)]">
+              {learnings.map((learning) => (
+                <div key={learning.id} className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">{learning.title}</p>
+                  <p className="mt-1 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">{learning.detail}</p>
+                </div>
+              ))}
+            </div>
+          </GrowthSectionCard>
         </main>
 
         <aside className="flex min-w-0 flex-col gap-4">
@@ -73,19 +123,23 @@ export function YziImobGrowthResultadosV0() {
             title="Inspector YZI"
             sections={[
               {
-                label: "O que esta superfície vai fazer",
-                value: "Mostrar performance real de conteúdo e campanhas, sempre citando a fonte e o período dos dados.",
+                label: "O que falta",
+                value: "Integrações reais de tráfego, busca e mídia. Sem elas, não existe performance confiável.",
               },
               {
-                label: "O que ainda não existe",
-                value: "Conexão com GA4, Search Console, Meta ou Google Ads. Nenhum número aqui vem de canal real.",
+                label: "O que posso mostrar agora",
+                value: "Apenas aprendizados de demonstração e o modelo de leitura futura.",
               },
               {
-                label: "Honestidade",
-                value: "Todos os dados desta tela são de demonstração. Nenhuma inteligência real está conectada.",
+                label: "Como evitar falso dashboard",
+                value: "Todo número real futuro deve ter fonte, período e vínculo com campanha ou conteúdo.",
+              },
+              {
+                label: "Próxima ação recomendada",
+                value: <p className="text-[var(--yzi-text-primary)]">Planejar integrações em unidade própria, com aprovação humana.</p>,
               },
             ]}
-            note="Dados de demonstração. Nenhuma métrica real foi medida."
+            note="Nenhum KPI real foi medido. Nenhuma integração externa foi chamada."
           />
         </aside>
       </div>

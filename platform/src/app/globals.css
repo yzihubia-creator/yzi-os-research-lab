@@ -362,6 +362,11 @@ body {
   --imob-cold: 96, 165, 230;
   --imob-ice: 152, 196, 236;
   --imob-deep: 58, 118, 172;
+  --imob-cyan: 92, 190, 204;
+  --imob-amber: 214, 164, 82;
+  --imob-green: 92, 184, 142;
+  --imob-wine: 142, 58, 72;
+  --imob-graphite: 95, 109, 126;
   --yzi-presence: rgb(var(--imob-cold));
   --yzi-presence-soft: rgba(var(--imob-cold), 0.16);
 }
@@ -458,8 +463,8 @@ body {
 .yzi-imob-strip {
   background-image: linear-gradient(
       180deg,
-      rgba(var(--imob-cold), 0.07),
-      rgba(var(--imob-cold), 0.02)
+      rgba(var(--imob-cold), 0.09),
+      rgba(var(--imob-cold), 0.025)
     ),
     linear-gradient(rgba(13, 19, 29, 0.5), rgba(13, 19, 29, 0.5));
   -webkit-backdrop-filter: blur(14px);
@@ -467,6 +472,44 @@ body {
   border-top: 1px solid rgba(var(--imob-ice), 0.14);
   border-bottom: 1px solid rgba(var(--imob-ice), 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.yzi-growth-surface {
+  background:
+    radial-gradient(980px 520px at 50% -16%, rgba(var(--imob-cold), 0.09), transparent 70%),
+    linear-gradient(180deg, rgba(12, 17, 27, 0.96), rgba(8, 11, 17, 1));
+}
+
+.yzi-growth-card {
+  background-color: rgba(18, 25, 36, 0.74);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 34%),
+    radial-gradient(760px 260px at 14% 0%, rgba(var(--imob-cold), 0.075), transparent 60%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  border-color: rgba(var(--imob-ice), 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 24px 58px -34px rgba(0, 0, 0, 0.78);
+}
+
+.yzi-growth-card-hover {
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.yzi-growth-card-hover:hover {
+  border-color: rgba(var(--imob-ice), 0.24);
+  background-color: rgba(22, 31, 44, 0.82);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 28px 70px -34px rgba(var(--imob-cold), 0.22),
+    0 24px 58px -34px rgba(0, 0, 0, 0.82);
 }
 
 /* Cold presence orb for the vertical's home — YZI reads as the living entity. */
