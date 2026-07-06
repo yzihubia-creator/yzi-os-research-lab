@@ -28,7 +28,6 @@ export function GrowthMockNotice({
 
   const labels: Record<import("./types").GrowthSurface, string> = {
     briefing: "Briefing",
-    estrategia: "Estratégia",
     conteudo: "Conteúdo",
     campanhas: "Campanhas",
     biblioteca: "Biblioteca",

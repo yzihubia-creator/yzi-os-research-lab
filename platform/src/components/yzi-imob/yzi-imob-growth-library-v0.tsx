@@ -431,7 +431,7 @@ export function YziImobGrowthLibraryV0() {
 
         <GrowthCounterStrip counters={COUNTERS} />
 
-        <GrowthNavigation active={activeSurface} onChange={setActiveSurface} libraryAvailable />
+        <GrowthNavigation active={activeSurface} onChange={setActiveSurface} />
         <GrowthMockNotice active={activeSurface} ready={["biblioteca"]} />
       </header>
 
