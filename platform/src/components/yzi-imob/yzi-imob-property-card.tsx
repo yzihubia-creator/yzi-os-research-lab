@@ -31,6 +31,10 @@ const CARD_FIELDS: CardField[] = [
     value: "Características informadas no formulário",
   },
   { label: "Metragem", value: "Área informada no formulário" },
+  {
+    label: "Nível de Ativação",
+    value: "Objetivo comercial definido no cadastro (L0–L4)",
+  },
   { label: "property_id", value: "Gerado no cadastro" },
   { label: "Corretor responsável", value: "broker_id vinculado ao imóvel" },
 ];
@@ -75,6 +79,9 @@ export function YziImobPropertyCard() {
         <YziStatusBadge tone="preview">status do cadastro</YziStatusBadge>
         <YziBadge tone="neutral" className="normal-case">
           tipo do imóvel
+        </YziBadge>
+        <YziBadge tone="neutral" className="normal-case">
+          nível de ativação
         </YziBadge>
       </div>
 
