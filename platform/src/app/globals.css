@@ -578,6 +578,79 @@ body {
   background-color: rgba(var(--imob-ice), 0.34);
 }
 
+/* IMOB scope: no native white scrollbar ever renders over the dark shell.
+   Every scroll surface inside the vertical (the central canvas included)
+   uses the thin cold-tinted thumb on a transparent track; the rails go
+   further and hide theirs entirely via .yzi-rail-scroll. */
+.yzi-imob-scope,
+.yzi-imob-scope * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--imob-ice), 0.22) transparent;
+}
+
+.yzi-imob-scope ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.yzi-imob-scope ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yzi-imob-scope ::-webkit-scrollbar-thumb {
+  background-color: rgba(var(--imob-ice), 0.22);
+  border-radius: 999px;
+}
+
+.yzi-imob-scope ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(var(--imob-ice), 0.34);
+}
+
+/* Shell rails (sidebar / inspector): the content stays reachable via wheel,
+   trackpad and keyboard, but the native scrollbar never renders — the rails
+   must read as fixed chrome, only the central canvas shows a scrollbar
+   (Linear/Notion behavior). */
+.yzi-rail-scroll,
+.yzi-imob-scope .yzi-rail-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.yzi-rail-scroll::-webkit-scrollbar,
+.yzi-imob-scope .yzi-rail-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chromium / WebKit */
+}
+
+/* Inspector (right panel): scrolls fully via wheel/trackpad/keyboard, no
+   content ever clipped, but no scrollbar renders. !important is deliberate —
+   it overrides the .yzi-imob-scope * width so no inherited rule can bring the
+   bar back. Applied directly to the scroll element, no inheritance. */
+.yzi-inspector-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -ms-overflow-style: none; /* legacy Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+.yzi-inspector-scroll::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
+
+.yzi-inspector-scroll::-webkit-scrollbar-thumb,
+.yzi-inspector-scroll::-webkit-scrollbar-track,
+.yzi-inspector-scroll::-webkit-scrollbar-corner {
+  display: none !important;
+  background: transparent !important;
+}
+
 /* Entrance: an elegant staggered settle that ENHANCES an already-visible
    default. Only motion-capable clients hide-then-reveal, so reduced-motion and
    headless/hidden-tab renders show content immediately (never ships blank). */

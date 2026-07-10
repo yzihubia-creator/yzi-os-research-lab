@@ -58,10 +58,31 @@ function readingFor(pathname: string): Reading {
 function InspectorSection({
   title,
   children,
+  collapsible = false,
 }: {
   title: string;
   children: React.ReactNode;
+  collapsible?: boolean;
 }) {
+  if (collapsible) {
+    // Seção secundária: colapsada por padrão para o Inspector caber em 100vh
+    // sem virar um segundo eixo de scroll (padrão de painel lateral fixo).
+    return (
+      <details className="group flex flex-col">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-0.5 text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--yzi-text-faint)] transition-colors hover:text-[var(--yzi-text-secondary)] [&::-webkit-details-marker]:hidden">
+          {title}
+          <span
+            aria-hidden
+            className="text-[0.6rem] transition-transform duration-[var(--duration-moderate)] ease-[var(--ease-standard)] group-open:rotate-90"
+          >
+            ›
+          </span>
+        </summary>
+        <div className="pt-2">{children}</div>
+      </details>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--yzi-text-faint)]">
@@ -97,7 +118,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
   const reading = readingFor(pathname);
 
   return (
-    <aside className="hidden w-[300px] shrink-0 flex-col border-l border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] min-[1480px]:flex min-[1720px]:w-[320px]">
+    <aside className="fixed inset-y-0 right-0 z-40 flex w-[min(360px,calc(100vw-1rem))] shrink-0 flex-col overflow-hidden border-l border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] shadow-[-24px_0_70px_-42px_rgba(0,0,0,0.92)] min-[1280px]:static min-[1280px]:z-auto min-[1280px]:w-[288px] min-[1280px]:shadow-none min-[1720px]:w-[320px]">
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2.5">
           <YziPresence state="ready" animated />
@@ -125,7 +146,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
         // Estrutura canônica do Entity Workspace Pattern v1 — sempre estas 7
         // seções, qualquer entidade. Nunca Runtime, workflow, intent, banco,
         // tool ou fingerprint.
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-2">
+        <div className="yzi-inspector-scroll flex flex-1 flex-col gap-4 px-5 py-2">
           <InspectorSection title="Resumo">
             <div className="flex flex-col gap-1">
               <span className="text-[1rem] font-semibold text-[var(--yzi-text-primary)]">
@@ -204,7 +225,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
             </div>
           </InspectorSection>
 
-          <InspectorSection title="Sugestões">
+          <InspectorSection title="Sugestões" collapsible>
             <ul className="flex flex-col gap-1.5">
               {inspection.suggestions.map((item) => (
                 <li
@@ -221,7 +242,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
             </ul>
           </InspectorSection>
 
-          <InspectorSection title="Histórico">
+          <InspectorSection title="Histórico" collapsible>
             <ul className="flex flex-col gap-1.5">
               {inspection.history.map((item) => (
                 <li
@@ -239,7 +260,7 @@ export function YziImobInspectorV2({ onClose }: { onClose: () => void }) {
           </InspectorSection>
         </div>
       ) : (
-        <div className="flex flex-1 flex-col gap-4 px-5 py-2">
+        <div className="yzi-inspector-scroll flex flex-1 flex-col gap-4 px-5 py-2">
           <p className="text-[0.72rem] font-medium uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
             {reading.situation}
           </p>
