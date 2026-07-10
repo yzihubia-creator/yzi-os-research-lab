@@ -651,6 +651,37 @@ body {
   background: transparent !important;
 }
 
+/* Main canvas (only surface with a visible scrollbar): track dissolves into
+   the canvas background, thumb is a barely-there slate — static, no hover/
+   active shift, no width change. Declared after .yzi-imob-scope so it wins
+   the tie on source order; scoped to the canvas element, not the whole scope.
+   Thumb color is the real --yzi-text-faint token (#5c697e) at low alpha. */
+.yzi-main-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--yzi-text-faint) 28%, transparent) var(--yzi-bg-base);
+}
+
+.yzi-main-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.yzi-main-scroll::-webkit-scrollbar-track {
+  background: var(--yzi-bg-base);
+}
+
+.yzi-main-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--yzi-text-faint) 28%, transparent);
+  border-radius: 999px;
+  border: 1px solid var(--yzi-bg-base);
+}
+
+.yzi-main-scroll::-webkit-scrollbar-thumb:hover,
+.yzi-main-scroll::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--yzi-text-faint) 28%, transparent);
+}
+
 /* Entrance: an elegant staggered settle that ENHANCES an already-visible
    default. Only motion-capable clients hide-then-reveal, so reduced-motion and
    headless/hidden-tab renders show content immediately (never ships blank). */

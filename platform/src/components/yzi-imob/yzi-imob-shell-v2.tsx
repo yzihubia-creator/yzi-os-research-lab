@@ -112,7 +112,7 @@ function YziImobShellBody({
         </header>
 
         {/* Canvas principal — uma tarefa por vez. */}
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="yzi-main-scroll relative flex min-h-0 flex-1 flex-col overflow-x-hidden">
           {children}
         </div>
       </main>
