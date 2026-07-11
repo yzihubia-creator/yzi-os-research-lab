@@ -238,6 +238,19 @@ export type WorkflowStep = {
   tool: RuntimeToolName | null;
   side_effect: SideEffect;
   requires_approval: boolean;
+  /**
+   * Unidade 3 (Persisted Run Slice) — gate nomeado que este step produz para
+   * aprovação, quando aplicável. Campo aditivo/opcional: não afeta o pipeline
+   * puro (o Orchestrator desta unidade só lê `steps[0]` e ignora este campo).
+   */
+  approval_gate?: string;
+  /**
+   * Unidade 3 — exige uma decisão `approved` registrada para este gate antes
+   * de o step ficar elegível (production lock). Verificado exclusivamente
+   * pela camada de persistência (`lib/yzi-imob/runtime/persistence.ts` +
+   * RPC), nunca pelo pipeline puro nem confiado a partir do cliente.
+   */
+  requires_approval_gate?: string;
 };
 
 /** Definição declarativa de um workflow do runtime. */

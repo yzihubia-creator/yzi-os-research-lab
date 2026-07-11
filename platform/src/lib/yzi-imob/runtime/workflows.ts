@@ -87,6 +87,13 @@ const PROPERTY_SEARCH: WorkflowDefinition = {
  * mesmo sendo `draft_only`. O runtime PARA antes de qualquer execução ou
  * criação de approval item — a Approval Queue está fora do escopo desta unidade.
  */
+/**
+ * Unidade 3 (Persisted Run Slice): o passo 2 declara o gate nomeado
+ * `contact_draft` como pré-condição. A verificação do lock de produção
+ * (existe decisão `approved` para este gate, nesta run, ligada ao
+ * `artifact_id`/hash exatos?) é feita pela camada de persistência — este
+ * registro só documenta o contrato declarativo, igual ao passo 1.
+ */
 const PREPARE_PROPERTY_CONTACT: WorkflowDefinition = {
   workflow_id: "PREPARE_PROPERTY_CONTACT",
   title: "Preparar contato sobre o imóvel (draft, aprovação obrigatória)",
@@ -100,6 +107,15 @@ const PREPARE_PROPERTY_CONTACT: WorkflowDefinition = {
       tool: "yzi_imob_prepare_followup",
       side_effect: "draft_only",
       requires_approval: true,
+      approval_gate: "contact_draft",
+    },
+    {
+      id: "release_contact_draft",
+      label: "Selar o rascunho de contato como versão final (sem envio)",
+      tool: null,
+      side_effect: "none",
+      requires_approval: false,
+      requires_approval_gate: "contact_draft",
     },
   ],
   risk_level: "medium",

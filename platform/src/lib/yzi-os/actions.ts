@@ -4,9 +4,19 @@ import {
   createYziChatSession,
   createYziUserChatMessage,
 } from "./chat";
+import { decideActionRequest } from "./run-decision";
+import {
+  advanceRunAfterApproval,
+  getPrepareContactRunState,
+  recordRunAdjustment,
+  startPrepareContactRun,
+} from "./runs";
 import type {
   CreateChatMessageResult,
   CreateChatSessionResult,
+  DecisionResult,
+  RunStateResult,
+  StartRunResult,
 } from "./types";
 
 // Server Actions da camada YZI OS — ponte fina entre o Client Component do chat
@@ -56,5 +66,123 @@ export async function sendYziUserChatMessageAction(input: {
     tenantId: input.tenantId,
     sessionId: input.sessionId,
     content,
+  });
+}
+
+// ── Persisted Run Slice (Unidade 3) — Server Actions ────────────────────
+//
+// Ponte fina entre o workspace do cockpit (`YziImobRunWorkspace`, Client
+// Component) e a camada de persistência (`runs.ts` / `run-decision.ts`). O
+// avanço do workflow (selar artefato ou criar novo attempt) é decidido AQUI,
+// no servidor, nunca pela UI: cada ação de decisão primeiro registra a
+// decisão via RPC e só então chama a função de avanço correspondente,
+// sempre relendo o estado do banco antes de retornar.
+
+/** Inicia a run `PREPARE_PROPERTY_CONTACT` para o imóvel informado. */
+export async function startPrepareContactRunAction(input: {
+  tenantId: string;
+  userId: string;
+  userRole: string;
+  activeAssetId: string;
+}): Promise<StartRunResult> {
+  if (!input.tenantId || !input.userId || !input.activeAssetId) {
+    return { status: "error", message: "Dados insuficientes para iniciar a run." };
+  }
+  return startPrepareContactRun(input);
+}
+
+/** Recarrega o estado da run a partir do banco (reload/estado inicial). */
+export async function refreshPrepareContactRunAction(input: {
+  tenantId: string;
+  runId?: string;
+}): Promise<RunStateResult> {
+  return getPrepareContactRunState(input);
+}
+
+/** Aprova o checkpoint e avança para o step 2 (selar artefato final). */
+export async function approveCheckpointAction(input: {
+  tenantId: string;
+  runId: string;
+  actionRequestId: string;
+}): Promise<DecisionResult> {
+  const decided = await decideActionRequest({
+    actionRequestId: input.actionRequestId,
+    decision: "approved",
+    decisionReason: null,
+    decisionNote: null,
+  });
+  if (decided.status === "error") {
+    return { status: "error", message: decided.message };
+  }
+  return advanceRunAfterApproval({
+    tenantId: input.tenantId,
+    runId: input.runId,
+    actionRequestId: input.actionRequestId,
+  });
+}
+
+/** Solicita ajuste: mantém a mesma base factual, anexa a nota do gestor. */
+export async function requestAdjustmentAction(input: {
+  tenantId: string;
+  userId: string;
+  userRole: string;
+  runId: string;
+  actionRequestId: string;
+  note: string;
+}): Promise<DecisionResult> {
+  const note = input.note.trim();
+  if (!note) {
+    return { status: "error", message: "Descreva o ajuste antes de enviar." };
+  }
+  const decided = await decideActionRequest({
+    actionRequestId: input.actionRequestId,
+    decision: "rejected",
+    decisionReason: "adjust",
+    decisionNote: note,
+  });
+  if (decided.status === "error") {
+    return { status: "error", message: decided.message };
+  }
+  return recordRunAdjustment({
+    tenantId: input.tenantId,
+    userId: input.userId,
+    userRole: input.userRole,
+    runId: input.runId,
+    previousActionRequestId: input.actionRequestId,
+    mode: "adjust",
+    note,
+  });
+}
+
+/** Solicita reformulação: descarta o rascunho anterior como autoridade. */
+export async function requestReworkAction(input: {
+  tenantId: string;
+  userId: string;
+  userRole: string;
+  runId: string;
+  actionRequestId: string;
+  note: string;
+}): Promise<DecisionResult> {
+  const note = input.note.trim();
+  if (!note) {
+    return { status: "error", message: "Descreva o motivo da reformulação antes de enviar." };
+  }
+  const decided = await decideActionRequest({
+    actionRequestId: input.actionRequestId,
+    decision: "rejected",
+    decisionReason: "rework",
+    decisionNote: note,
+  });
+  if (decided.status === "error") {
+    return { status: "error", message: decided.message };
+  }
+  return recordRunAdjustment({
+    tenantId: input.tenantId,
+    userId: input.userId,
+    userRole: input.userRole,
+    runId: input.runId,
+    previousActionRequestId: input.actionRequestId,
+    mode: "rework",
+    note,
   });
 }

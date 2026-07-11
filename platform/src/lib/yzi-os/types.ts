@@ -84,3 +84,106 @@ export type YziActionRequest = {
 export type CreateActionRequestResult =
   | { status: "prepared"; actionRequest: YziActionRequest }
   | { status: "error"; message: string };
+
+// ── Persisted Run Slice (Unidade 3) ──────────────────────────────────────
+//
+// Tipos do primeiro workflow persistido de ponta a ponta: PREPARE_PROPERTY_
+// CONTACT. Espelham `yzi_runs` / `yzi_run_steps` / `yzi_artifacts` / a
+// extensão de `yzi_action_requests` (ver SQL pack). Escrita acontece
+// exclusivamente via RPC `security_definer = false`; leitura via SELECT sob
+// RLS. Nenhum dado é inventado — ausência de linha é estado honesto.
+
+export type YziRunStatus =
+  | "running"
+  | "awaiting_approval"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export type YziRunStepStatus = "pending" | "running" | "completed" | "failed";
+
+export type YziArtifactVisibility = "approval" | "final";
+
+export type YziArtifactStatus = "written" | "sealed" | "superseded";
+
+/** Decisão institucional registrada em `yzi_action_requests` (Approval Queue Spec §6/§7). */
+export type YziApprovalStatus =
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "cancelled";
+
+/** Razão fechada da rejeição — mapeia o comportamento validado do Agent Lab (ajustar/reformular) sobre o enum institucional. */
+export type YziDecisionReason = "adjust" | "rework";
+
+export type YziRun = {
+  id: string;
+  tenantId: string;
+  workflowId: string;
+  status: YziRunStatus;
+  cursorStep: string;
+  activeAssetId: string;
+  contextFingerprint: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type YziRunStep = {
+  id: string;
+  runId: string;
+  stepKey: string;
+  attempt: number;
+  status: YziRunStepStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type YziArtifact = {
+  id: string;
+  runId: string;
+  runStepId: string;
+  contractKey: string;
+  version: number;
+  visibility: YziArtifactVisibility;
+  status: YziArtifactStatus;
+  content: Record<string, unknown>;
+  contentHash: string;
+  createdAt: string;
+};
+
+export type YziRunActionRequest = {
+  id: string;
+  runId: string;
+  runStepId: string;
+  artifactId: string;
+  artifactHash: string;
+  status: YziApprovalStatus;
+  decisionReason: YziDecisionReason | null;
+  decisionNote: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+};
+
+/** Estado agregado de uma run — o que o cockpit precisa para renderizar tudo. */
+export type YziRunState = {
+  run: YziRun;
+  steps: readonly YziRunStep[];
+  artifacts: readonly YziArtifact[];
+  actionRequests: readonly YziRunActionRequest[];
+};
+
+export type RunStateResult =
+  | { status: "no_run" }
+  | { status: "loaded"; state: YziRunState }
+  | { status: "error"; message: string };
+
+export type StartRunResult =
+  | { status: "started"; state: YziRunState }
+  | { status: "blocked"; reason: string }
+  | { status: "error"; message: string };
+
+export type DecisionResult =
+  | { status: "decided"; state: YziRunState }
+  | { status: "error"; message: string };
