@@ -43,6 +43,36 @@ const READ_ONLY_PROPERTY_LOOKUP: WorkflowDefinition = {
 };
 
 /**
+ * PROPERTY_SEARCH — primeira CAPABILITY de produto do YZI IMOB (Property Search
+ * v0). O cliente descreve o que procura; o runtime classifica a busca, monta o
+ * contexto mínimo e para no handoff. O matching real (read-only, sobre o
+ * catálogo do tenant) é o que a tool `yzi_imob_search_properties` FARIA — nesta
+ * unidade nada é executado: a capability compõe o resultado a partir de dados
+ * mockados internos, sem efeito colateral.
+ *
+ * Fluxo esperado: Intent → Workflow → Policy → Context → READY_FOR_APPROVAL.
+ * Read-only (`side_effect: none`), sem approval — descoberta não muda estado.
+ */
+const PROPERTY_SEARCH: WorkflowDefinition = {
+  workflow_id: "PROPERTY_SEARCH",
+  title: "Buscar imóvel para o cliente (read-only)",
+  intents: ["property_search"],
+  required_context: ["tenant", "user", "workflow", "policies", "runtime", "crm"],
+  allowed_tools: ["yzi_imob_search_properties"],
+  steps: [
+    {
+      id: "match_properties",
+      label: "Casar critério do cliente com o catálogo do tenant",
+      tool: "yzi_imob_search_properties",
+      side_effect: "none",
+      requires_approval: false,
+    },
+  ],
+  risk_level: "low",
+  terminal_status: "READY_FOR_APPROVAL",
+};
+
+/**
  * PREPARE_PROPERTY_CONTACT — primeiro workflow que atravessa a fronteira de
  * aprovação (unidade 2, Approval-Only Vertical Slice).
  *
@@ -79,6 +109,7 @@ const PREPARE_PROPERTY_CONTACT: WorkflowDefinition = {
 /** Registro imutável de workflows disponíveis nesta unidade. */
 export const WORKFLOW_REGISTRY: Readonly<Record<WorkflowId, WorkflowDefinition>> = {
   READ_ONLY_PROPERTY_LOOKUP,
+  PROPERTY_SEARCH,
   PREPARE_PROPERTY_CONTACT,
 };
 

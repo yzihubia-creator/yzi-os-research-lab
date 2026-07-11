@@ -25,6 +25,33 @@ const LOOKUP_HINTS = [
   "status do imóvel",
 ];
 
+/**
+ * Palavras-chave mínimas que sugerem BUSCA de imóvel a partir do critério do
+ * cliente (Property Search v0). Diferente do lookup: o cliente ainda não tem um
+ * imóvel ativo — ele procura um. Não depende de `active_asset_type=property`.
+ */
+const SEARCH_HINTS = [
+  "procuro",
+  "procurando",
+  "quero um",
+  "quero uma",
+  "quero comprar",
+  "quero alugar",
+  "cliente quer",
+  "cliente procura",
+  "cliente busca",
+  "busca de imovel",
+  "busca de imóvel",
+  "buscar imoveis",
+  "buscar imóveis",
+  "tem apartamento",
+  "tem casa",
+  "tem algum imovel",
+  "tem algum imóvel",
+  "opcoes de imovel",
+  "opções de imóvel",
+];
+
 /** Palavras-chave mínimas que sugerem preparar contato/follow-up (unidade 2). */
 const CONTACT_PREPARE_HINTS = [
   "preparar contato",
@@ -88,6 +115,22 @@ export function routeIntent(request: RuntimeRequest): IntentClassification {
     };
   }
 
+  // Busca: o cliente procura um imóvel que ainda não é o ativo ativo. Por isso
+  // NÃO exige `active_asset_type=property` (ao contrário do lookup/contato).
+  const looksLikeSearch =
+    SEARCH_HINTS.some((hint) => haystack.includes(hint)) &&
+    request.active_asset_type !== "property";
+
+  if (looksLikeSearch) {
+    const intent_type: IntentType = "property_search";
+    return {
+      ...base,
+      intent_type,
+      // Confiança conceitual do skeleton heurístico (ver TODO acima).
+      confidence: 0.65,
+    };
+  }
+
   const looksLikeContactPrepare =
     CONTACT_PREPARE_HINTS.some((hint) => haystack.includes(hint)) &&
     request.active_asset_type === "property";
@@ -106,8 +149,8 @@ export function routeIntent(request: RuntimeRequest): IntentClassification {
   return {
     ...base,
     blocking_reason:
-      "intent_unknown: nenhuma intenção read-only/contact-prepare reconhecida no skeleton.",
+      "intent_unknown: nenhuma intenção de busca/consulta/contato reconhecida no skeleton.",
     next_question:
-      "Qual imóvel você quer consultar, ou para qual imóvel deseja preparar contato? (skeleton reconhece apenas consulta read-only e preparo de contato)",
+      "Você quer buscar um imóvel para o cliente, consultar um imóvel específico ou preparar um contato? (skeleton reconhece busca, consulta read-only e preparo de contato)",
   };
 }

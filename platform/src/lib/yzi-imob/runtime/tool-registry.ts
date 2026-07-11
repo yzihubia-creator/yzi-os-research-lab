@@ -39,6 +39,18 @@ const TOOL_REGISTRY: Partial<Record<RuntimeToolName, ToolMetadata>> = {
     required_context: ["tenant", "user", "crm"],
     approval_required: false,
   },
+  yzi_imob_search_properties: {
+    tool_name: "yzi_imob_search_properties",
+    description:
+      "Casa o critério do cliente com o catálogo do tenant (leitura pura, sem efeito).",
+    category: "property",
+    tenant_scope: "tenant",
+    side_effects: "none",
+    risk_level: "low",
+    supported_workflows: ["PROPERTY_SEARCH"],
+    required_context: ["tenant", "user", "crm"],
+    approval_required: false,
+  },
   yzi_imob_prepare_followup: {
     tool_name: "yzi_imob_prepare_followup",
     description: "Prepara rascunho de contato/follow-up sobre o imóvel; nunca envia.",

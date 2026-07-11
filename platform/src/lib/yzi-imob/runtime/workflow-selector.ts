@@ -14,6 +14,7 @@ import { getWorkflowDefinition, WORKFLOW_REGISTRY } from "./workflows";
 /** Mapa intent → workflow (unidade 1: lookup; unidade 2: contact prepare). */
 const INTENT_TO_WORKFLOW: Partial<Record<string, WorkflowId>> = {
   property_lookup: "READ_ONLY_PROPERTY_LOOKUP",
+  property_search: "PROPERTY_SEARCH",
   property_contact_prepare: "PREPARE_PROPERTY_CONTACT",
 };
 

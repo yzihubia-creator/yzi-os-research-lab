@@ -8,7 +8,11 @@
 // decisão do workflow ativo.` Filtra por tenant; nunca inclui segredo; faltante
 // vira erro honesto, nunca preenchimento inventado (Spec §2, §7).
 
-import { findMockProperty, isLookupSupportedAsset } from "./mock-data";
+import {
+  findMockProperty,
+  isLookupSupportedAsset,
+  listMockPropertiesForTenant,
+} from "./mock-data";
 import type {
   BuiltContext,
   ContextBlock,
@@ -16,6 +20,7 @@ import type {
   RuntimeErrorState,
   RuntimeRequest,
   SelectedWorkflow,
+  WorkflowId,
 } from "./types";
 
 /**
@@ -72,8 +77,10 @@ export function buildContext(
       : "Workflow read-only — sem approval item; execução mesmo assim NÃO ocorre nesta unidade.",
   });
 
-  // 5 Execution: ativo ativo (property) — resolvido de mock, filtrado por tenant.
-  const executionBlock = buildExecutionBlock(request);
+  // 5 Execution: para lookup/contato, o ativo é UM imóvel (resolvido de mock,
+  //   filtrado por tenant); para PROPERTY_SEARCH, o "ativo" é o CRITÉRIO do
+  //   cliente sobre o catálogo do tenant (a busca não tem imóvel ativo ainda).
+  const executionBlock = buildExecutionBlock(request, workflow_id);
   if (executionBlock.block === null) {
     return {
       workflow_id,
@@ -103,10 +110,29 @@ export function buildContext(
   };
 }
 
-/** Monta o bloco de execução (ativo property) ou retorna erro honesto. */
-function buildExecutionBlock(request: RuntimeRequest):
+/** Monta o bloco de execução (ativo property, ou critério de busca) ou erro. */
+function buildExecutionBlock(
+  request: RuntimeRequest,
+  workflow_id: WorkflowId,
+):
   | { block: ContextBlock; error: null }
   | { block: null; error: RuntimeErrorState } {
+  // PROPERTY_SEARCH não tem imóvel ativo: o ativo é o CATÁLOGO do tenant sobre o
+  // qual a busca vai casar. Bloco de escopo (read-only), sem inventar imóvel.
+  if (workflow_id === "PROPERTY_SEARCH") {
+    const catalogSize = listMockPropertiesForTenant(request.tenant_id).length;
+    return {
+      block: {
+        id: "execution",
+        priority: 5,
+        provenance: `mock-data:catalog tenant_id=${request.tenant_id} size=${catalogSize}`,
+        freshness: "fresh",
+        summary: `Busca de imóvel — matching read-only sobre ${catalogSize} imóvel(is) do tenant "${request.tenant_id}". Critério vem do pedido do cliente; nenhum imóvel é alterado.`,
+      },
+      error: null,
+    };
+  }
+
   if (!isLookupSupportedAsset(request.active_asset_type) || !request.active_asset_id) {
     return { block: null, error: "asset_missing" };
   }

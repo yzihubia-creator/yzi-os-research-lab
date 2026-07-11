@@ -9,10 +9,12 @@ import {
 import {
   YziAlert,
   YziBadge,
+  YziDivider,
   YziPanel,
   YziStatusBadge,
 } from "@/components/yzi-os/yzi-primitives";
 
+import { YziImobPropertySearchV0 } from "@/components/yzi-imob/yzi-imob-property-search-v0";
 import {
   demoPreparePropertyContact,
   demoReadOnlyPropertyLookup,
@@ -179,32 +181,49 @@ export function YziImobRuntimePreviewV0() {
             YZI IMOB · Runtime Preview · v0.1
           </span>
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--yzi-text-primary)]">
-            Inspeção do Runtime (somente leitura)
+            Property Search — a primeira capability
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-            Mostra o resultado honesto de dois demos internos do Runtime YZI
-            IMOB — nenhuma tool é executada, nenhum approval é criado e nenhum
-            banco é tocado.
+            A busca de imóvel nasce de um workflow real do Runtime YZI IMOB.
+            Abaixo, a experiência de produto e a inspeção do runtime que a
+            sustenta — nenhuma tool é executada, nenhum approval é criado e
+            nenhum banco é tocado.
           </p>
         </div>
       </div>
 
       <YziAlert tone="info" title="Superfície somente leitura — sem execução real">
         Esta tela não cria approval, não chama API, não usa Supabase nem
-        credenciais. Ela apenas invoca as funções puras
-        demoReadOnlyPropertyLookup() e demoPreparePropertyContact() do Runtime e
-        exibe o objeto de resultado retornado por elas.
+        credenciais. Ela apenas invoca funções puras do Runtime e da capability
+        Property Search e exibe o objeto de resultado retornado por elas.
       </YziAlert>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RuntimeResultPanel
-          title="READ_ONLY_PROPERTY_LOOKUP"
-          result={readOnlyResult}
-        />
-        <RuntimeResultPanel
-          title="PREPARE_PROPERTY_CONTACT"
-          result={prepareContactResult}
-        />
+      {/* Experiência de PRODUTO — a primeira capability do YZI IMOB. */}
+      <YziImobPropertySearchV0 />
+
+      <YziDivider className="my-2" />
+
+      {/* Inspeção do RUNTIME — mesma base arquitetural sob a capability. */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.2em] text-[var(--yzi-text-secondary)]">
+            Inspeção do Runtime
+          </span>
+          <p className="max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
+            Objeto honesto de dois demos internos do Runtime — a mesma base que
+            sustenta a busca acima. Nenhuma tool é executada.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <RuntimeResultPanel
+            title="READ_ONLY_PROPERTY_LOOKUP"
+            result={readOnlyResult}
+          />
+          <RuntimeResultPanel
+            title="PREPARE_PROPERTY_CONTACT"
+            result={prepareContactResult}
+          />
+        </div>
       </div>
     </section>
   );

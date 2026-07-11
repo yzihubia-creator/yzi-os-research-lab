@@ -32,9 +32,19 @@
  * `lead_followup_prepare` mas com o imóvel como ativo central.
  * TODO(spec): reconciliar `property_contact_prepare` com `lead_followup_prepare`
  *   em uma futura revisão do Intent Router Spec.
+ *
+ * LACUNA REGISTRADA #3 (Property Search v0 — 1ª capability de produto): a spec
+ * §4 não define um intent de BUSCA/descoberta de imóvel a partir do critério do
+ * cliente (o cliente ainda não tem um imóvel ativo; ele procura um). Como a tese
+ * é property-centered, `property_search` é a intenção que abre a primeira
+ * experiência de produto do YZI IMOB: matching read-only sobre o catálogo do
+ * tenant, sem efeito colateral. Acréscimo SKELETON explícito e honesto.
+ * TODO(spec): reconciliar `property_search` (read-only discovery intent) em uma
+ *   futura revisão do Intent Router Spec.
  */
 export type IntentType =
   | "property_lookup" // SKELETON/ASSUNÇÃO — reconciliar com a spec (ver acima)
+  | "property_search" // SKELETON/ASSUNÇÃO #3 — 1ª capability de produto (ver abaixo)
   | "property_contact_prepare" // SKELETON/ASSUNÇÃO #2 — reconciliar com a spec (ver acima)
   | "property_register"
   | "property_update"
@@ -60,13 +70,23 @@ export type IntentType =
  * união cresce em unidades futuras conforme os workflows do Intent Router
  * Spec §5.
  */
-export type WorkflowId = "READ_ONLY_PROPERTY_LOOKUP" | "PREPARE_PROPERTY_CONTACT";
+export type WorkflowId =
+  | "READ_ONLY_PROPERTY_LOOKUP"
+  | "PROPERTY_SEARCH"
+  | "PREPARE_PROPERTY_CONTACT";
 
 // ── Tools e contexto (catálogo declarativo) ──────────────────────────────────
 
-/** Tools do runtime — nomes fiéis ao Tool Registry Spec v0.1 §5. Nenhuma executa. */
+/**
+ * Tools do runtime — nomes fiéis ao Tool Registry Spec v0.1 §5. Nenhuma executa.
+ * `yzi_imob_search_properties` é um acréscimo SKELETON (read-only discovery)
+ * introduzido pela capability Property Search v0; alinha em forma às tools
+ * `read_context` da spec (side_effect `none`).
+ * TODO(spec): reconciliar `yzi_imob_search_properties` no Tool Registry Spec §5.
+ */
 export type RuntimeToolName =
   | "yzi_imob_get_property_context"
+  | "yzi_imob_search_properties"
   | "yzi_imob_prepare_property_page"
   | "yzi_imob_prepare_ad_brief"
   | "yzi_imob_get_lead_context"
