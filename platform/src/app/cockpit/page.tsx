@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 
 import { YziCommandCenter } from "@/components/yzi-os/yzi-command-center";
+import { getSessionUser } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 
-// Tela principal do YZI OS = COMMAND CENTER / Mesa de Decisão Operacional
-// (Brandbook pág. 9). Mantém a proteção de sessão existente (redirect para
-// /login quando não há sessão). Não é dashboard, pipeline, nem chat central:
-// é a mesa onde o gestor lê o estado, decide e autoriza, com a YZI como
-// orquestradora discreta. Estado honesto de preview: nenhum dado operacional
-// real é exibido nesta fase.
+// Tela principal do YZI OS = COMMAND CENTER hero-first (contrato visual v1.2).
+// A home começa pela presença da YZI (saudação + composer central + ações por
+// job) e a operação emerge abaixo do hero. Mantém a proteção de sessão
+// existente (redirect para /login quando não há sessão). Estado honesto de
+// preview: nenhum dado operacional real e nenhuma resposta simulada.
 export default async function CockpitPage() {
   const context = await getTenantContext();
 
@@ -16,5 +16,7 @@ export default async function CockpitPage() {
     redirect("/login");
   }
 
-  return <YziCommandCenter />;
+  const operator = await getSessionUser();
+
+  return <YziCommandCenter operatorEmail={operator?.email} />;
 }

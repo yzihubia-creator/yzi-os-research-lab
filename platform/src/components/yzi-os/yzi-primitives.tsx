@@ -53,9 +53,11 @@ export function YziSurface({
   ...props
 }: YziSurfaceProps) {
   const variants = {
-    base: "bg-[var(--yzi-surface-base)]",
-    elevated: "bg-[var(--yzi-surface-elevated)] shadow-[var(--yzi-shadow-elevated)]",
-    overlay: "bg-[var(--yzi-surface-overlay)] shadow-[var(--yzi-shadow-overlay)]",
+    base: "bg-[var(--yzi-surface-base)] shadow-[var(--yzi-edge-highlight),var(--yzi-elevation-rest)]",
+    elevated:
+      "bg-[var(--yzi-surface-elevated)] shadow-[var(--yzi-edge-highlight),var(--yzi-elevation-elevated)]",
+    overlay:
+      "bg-[var(--yzi-surface-overlay)] shadow-[var(--yzi-edge-highlight),var(--yzi-elevation-overlay)]",
   };
 
   return (
@@ -89,10 +91,8 @@ export function YziPanel({
   ...props
 }: YziPanelProps) {
   const variants = {
-    default:
-      "border-[color:var(--yzi-border-subtle)] bg-[linear-gradient(180deg,var(--yzi-surface-elevated),var(--yzi-surface-base))]",
-    command:
-      "border-[color:var(--yzi-border-subtle)] bg-[linear-gradient(180deg,var(--yzi-surface-elevated),var(--yzi-surface-base))]",
+    default: "yzi-sheen border-[color:var(--yzi-border-subtle)]",
+    command: "yzi-sheen border-[color:var(--yzi-border-subtle)]",
     yzi:
       "border-[color:rgba(63,224,197,0.28)] bg-[linear-gradient(180deg,rgba(63,224,197,0.06),var(--yzi-surface-base))]",
     presence:
@@ -108,7 +108,7 @@ export function YziPanel({
   return (
     <section
       className={cx(
-        "rounded-[var(--yzi-radius-md)] border p-4 text-[var(--yzi-text-primary)]",
+        "rounded-[var(--yzi-radius-md)] border p-4 text-[var(--yzi-text-primary)] shadow-[var(--yzi-edge-highlight),var(--yzi-elevation-rest)]",
         variants[variant],
         className,
       )}
@@ -131,7 +131,7 @@ export function YziButton({
 }: YziButtonProps) {
   const variants = {
     primary:
-      "border-transparent bg-[var(--yzi-accent-action)] text-[#04231F] shadow-[var(--yzi-glow-action)] hover:brightness-110",
+      "border-transparent bg-[var(--yzi-accent-action)] text-[#04231F] shadow-[var(--yzi-glow-action)] hover:brightness-110 active:brightness-95 active:shadow-none",
     secondary:
       "border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] text-[var(--yzi-text-primary)] hover:bg-[var(--yzi-surface-elevated)]",
     ghost:
@@ -150,7 +150,7 @@ export function YziButton({
     <button
       type={type}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-[var(--yzi-radius-sm)] border font-semibold tracking-[0.01em] transition-[background,border-color,color,filter] duration-[var(--duration-fast)] ease-[var(--ease-standard)] disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded-[var(--yzi-radius-sm)] border font-semibold tracking-[0.01em] transition-[background,border-color,color,filter,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)] disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         sizes[size],
         className,
@@ -271,7 +271,7 @@ export function YziInput({
   return (
     <input
       className={cx(
-        "w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] text-[var(--yzi-text-primary)] outline-none transition-[border-color,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)] placeholder:text-[var(--yzi-text-faint)] focus:border-[color:rgba(63,224,197,0.42)] focus:shadow-[0_0_0_3px_var(--yzi-accent-action-soft)]",
+        "w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] text-[var(--yzi-text-primary)] outline-none transition-[border-color,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)] placeholder:text-[var(--yzi-text-faint)] focus:border-[color:rgba(63,224,197,0.42)] focus:shadow-[var(--yzi-focus-ring)]",
         variants[variant],
         className,
       )}
@@ -328,7 +328,7 @@ export function YziDock({ className, ...props }: YziDockProps) {
   return (
     <aside
       className={cx(
-        "rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[linear-gradient(180deg,var(--yzi-surface-overlay),var(--yzi-surface-base))] p-4 text-[var(--yzi-text-primary)] shadow-[var(--yzi-shadow-overlay)]",
+        "yzi-glass-overlay rounded-[var(--yzi-radius-md)] border p-4 text-[var(--yzi-text-primary)]",
         className,
       )}
       {...props}

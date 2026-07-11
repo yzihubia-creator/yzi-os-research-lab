@@ -1,323 +1,104 @@
 import Link from "next/link";
-import type { ComponentType, SVGProps } from "react";
 
 import {
-  AssetsIcon,
-  AttachmentIcon,
+  ActionsIcon,
+  AuthorizationIcon,
   ChannelsIcon,
   CommandCenterIcon,
-  DashboardIcon,
-  DeepThinkingIcon,
   RadarIcon,
-  SearchIcon,
-  SendIcon,
-  TrafficIcon,
 } from "@/components/yzi-os/yzi-icons";
+import { YziAlert } from "@/components/yzi-os/yzi-primitives";
 import {
-  YziAlert,
-  YziBadge,
-  YziPanel,
-  YziStatusBadge,
-  YziSurface,
-} from "@/components/yzi-os/yzi-primitives";
+  YziConnectionMap,
+  YziFlowRail,
+  YziMetricStrip,
+  type ConnectionMapLink,
+  type FlowStep,
+  type MetricStripItem,
+  type QualitativeLevel,
+} from "@/components/yzi-os/yzi-visual-primitives";
+import { YziChartCard, YziDonutChart, type DonutSlice } from "@/components/yzi-os/yzi-charts";
 
-type ConnectionCategory =
-  | "Dados"
-  | "Campanha"
-  | "Arquivo"
-  | "Comunicação"
-  | "IA"
-  | "Sistema";
-
-type ConnectionStatus =
-  | "disponível no sistema"
-  | "em preparação"
-  | "planejado"
-  | "não conectado";
-
-type CredentialLevel =
-  | "nenhuma"
-  | "API do sistema"
-  | "OAuth do cliente"
-  | "token sensível";
-
-type RiskLevel = "baixo" | "médio" | "alto";
-
-type AccessMode = "leitura" | "escrita" | "execução externa";
-
-type ConnectionSource = {
-  id: string;
-  name: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  category: ConnectionCategory;
-  status: ConnectionStatus;
-  usedBy: string[];
-  credential: CredentialLevel;
-  risk: RiskLevel;
-  modes: AccessMode[];
-  note: string;
-};
-
-// Mapa honesto de fontes candidatas do YZI OS v0.1. Nenhuma credencial real
-// está conectada; status reflete o que existe hoje, não uma promessa.
-const CONNECTIONS: ConnectionSource[] = [
+// Mapa honesto de fontes candidatas do YZI OS v0.2. Nenhuma credencial real
+// está conectada; risco reflete leitura vs. execução externa de cada fonte.
+const SOURCES: ConnectionMapLink[] = [
+  { id: "meta-ads", source: "Meta Ads", module: "Tráfego Pago · Resultados", risk: "alto" },
   {
-    id: "meta-ads",
-    name: "Meta Ads",
-    icon: TrafficIcon,
-    category: "Campanha",
-    status: "não conectado",
-    usedBy: ["Tráfego Pago", "Resultados"],
-    credential: "OAuth do cliente",
+    id: "instagram-meta-business",
+    source: "Instagram / Meta Business",
+    module: "Radar · Tráfego Pago",
     risk: "alto",
-    modes: ["leitura", "execução externa"],
-    note: "Pode envolver dados sensíveis de campanha e orçamento. Ajustar orçamento ou pausar campanhas só será permitido com aprovação humana.",
   },
+  { id: "whatsapp", source: "WhatsApp", module: "Assistente YZI", risk: "alto" },
   {
     id: "google-analytics",
-    name: "Google Analytics",
-    icon: DashboardIcon,
-    category: "Dados",
-    status: "não conectado",
-    usedBy: ["Radar", "Resultados"],
-    credential: "OAuth do cliente",
+    source: "Google Analytics",
+    module: "Radar · Resultados",
     risk: "médio",
-    modes: ["leitura"],
-    note: "Fonte planejada para alimentar o Radar com tráfego e conversões. Apenas leitura nesta fase.",
   },
   {
     id: "google-search-console",
-    name: "Google Search Console",
-    icon: SearchIcon,
-    category: "Dados",
-    status: "não conectado",
-    usedBy: ["Radar"],
-    credential: "OAuth do cliente",
+    source: "Google Search Console",
+    module: "Radar · Oportunidades",
     risk: "médio",
-    modes: ["leitura"],
-    note: "Leitura de desempenho de busca orgânica. Exige autorização da conta antes de buscar dados.",
   },
-  {
-    id: "google-trends",
-    name: "Tendências de mercado",
-    icon: ChannelsIcon,
-    category: "Dados",
-    status: "planejado",
-    usedBy: ["Radar"],
-    credential: "nenhuma",
-    risk: "baixo",
-    modes: ["leitura"],
-    note: "Dado público de mercado. Não exige autorização de conta nem credencial sensível.",
-  },
-  {
-    id: "instagram-meta-business",
-    name: "Instagram / Meta Business",
-    icon: ChannelsIcon,
-    category: "Comunicação",
-    status: "não conectado",
-    usedBy: ["Radar", "Tráfego Pago"],
-    credential: "OAuth do cliente",
-    risk: "alto",
-    modes: ["leitura", "execução externa"],
-    note: "Exige autorização da conta antes de buscar dados ou publicar. Pode envolver informação de audiência.",
-  },
-  {
-    id: "google-drive",
-    name: "Google Drive",
-    icon: AssetsIcon,
-    category: "Arquivo",
-    status: "não conectado",
-    usedBy: ["Biblioteca"],
-    credential: "OAuth do cliente",
-    risk: "médio",
-    modes: ["leitura"],
-    note: "Fonte planejada para alimentar a Biblioteca com material já existente do cliente.",
-  },
+  { id: "google-drive", source: "Google Drive", module: "Biblioteca", risk: "médio" },
+  { id: "google-trends", source: "Tendências de mercado", module: "Radar", risk: "baixo" },
   {
     id: "google-sheets",
-    name: "Google Sheets",
-    icon: AttachmentIcon,
-    category: "Arquivo",
-    status: "não conectado",
-    usedBy: ["Biblioteca", "Resultados"],
-    credential: "OAuth do cliente",
+    source: "Google Sheets",
+    module: "Biblioteca · Resultados",
     risk: "baixo",
-    modes: ["leitura", "escrita"],
-    note: "Leitura e escrita de planilhas operacionais do cliente. Nenhuma credencial está conectada nesta versão.",
-  },
-  {
-    id: "whatsapp",
-    name: "WhatsApp",
-    icon: SendIcon,
-    category: "Comunicação",
-    status: "não conectado",
-    usedBy: ["Assistente YZI"],
-    credential: "token sensível",
-    risk: "alto",
-    modes: ["leitura", "execução externa"],
-    note: "Conversas e mensagens diretas. Enviar mensagem por aqui só será permitido com aprovação humana.",
   },
   {
     id: "ia-modelos",
-    name: "IA / Modelos",
-    icon: DeepThinkingIcon,
-    category: "IA",
-    status: "em preparação",
-    usedBy: ["Assistente YZI", "Radar", "Oportunidades"],
-    credential: "API do sistema",
+    source: "IA / Modelos",
+    module: "Assistente YZI · Radar · Oportunidades",
     risk: "baixo",
-    modes: ["leitura"],
-    note: "Raciocínio que a YZI usa para ler e sugerir. Não acessa contas do cliente diretamente.",
   },
   {
     id: "biblioteca-interna",
-    name: "Biblioteca interna",
-    icon: AssetsIcon,
-    category: "Sistema",
-    status: "em preparação",
-    usedBy: ["Ativos", "Busca Semântica"],
-    credential: "nenhuma",
+    source: "Biblioteca interna",
+    module: "Ativos · Busca Semântica",
     risk: "baixo",
-    modes: ["leitura", "escrita"],
-    note: "Armazenamento interno do YZI OS para material já recebido e entendido.",
   },
-  {
-    id: "radar",
-    name: "Radar",
-    icon: RadarIcon,
-    category: "Sistema",
-    status: "disponível no sistema",
-    usedBy: ["Command Center", "Oportunidades"],
-    credential: "nenhuma",
-    risk: "baixo",
-    modes: ["leitura"],
-    note: "Motor de leitura interno do YZI OS. Hoje é manual e assistido; nenhuma fonte externa está conectada a ele ainda.",
-  },
+  { id: "radar", source: "Radar", module: "Command Center · Oportunidades", risk: "baixo" },
 ];
 
-const STATUS_TONE: Record<ConnectionStatus, "trust" | "preview" | "neutral" | "authorization"> = {
-  "disponível no sistema": "trust",
-  "em preparação": "preview",
-  planejado: "neutral",
-  "não conectado": "authorization",
-};
-
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  "disponível no sistema": "disponível no sistema",
-  "em preparação": "em preparação",
-  planejado: "planejado",
-  "não conectado": "ainda não conectado",
-};
-
-const RISK_DOT_COLOR: Record<RiskLevel, string> = {
-  baixo: "bg-[var(--yzi-accent-opportunity)]",
-  médio: "bg-[var(--yzi-accent-risk)]",
-  alto: "bg-[var(--yzi-state-blocked)]",
-};
-
-const CREDENTIAL_LABEL: Record<CredentialLevel, string> = {
-  nenhuma: "Nenhuma",
-  "API do sistema": "Recurso interno do YZI OS",
-  "OAuth do cliente": "Exige autorização da conta",
-  "token sensível": "Acesso sensível do cliente",
-};
-
-const MODE_LABEL: Record<AccessMode, string> = {
-  leitura: "Leitura",
-  escrita: "Escrita",
-  "execução externa": "Pode alterar dados fora do YZI OS",
-};
-
-function renderModes(modes: AccessMode[]): string {
-  if (modes.length === 1 && modes[0] === "leitura") {
-    return "Somente leitura nesta fase";
-  }
-  return modes.map((mode) => MODE_LABEL[mode]).join(" · ");
-}
-
-const STATUS_ORDER: ConnectionStatus[] = [
-  "disponível no sistema",
-  "em preparação",
-  "planejado",
-  "não conectado",
+const TENANT_FLOW: FlowStep[] = [
+  { label: "Tenant", icon: CommandCenterIcon },
+  { label: "Conecta contas próprias", icon: ChannelsIcon },
+  { label: "YZI OS lê e organiza", icon: RadarIcon },
+  { label: "YZI propõe ações", icon: ActionsIcon },
+  { label: "Humano aprova", icon: AuthorizationIcon },
 ];
 
-function summarizeByStatus(sources: ConnectionSource[]) {
-  return STATUS_ORDER.map((status) => ({
-    status,
-    count: sources.filter((source) => source.status === status).length,
-  })).filter((entry) => entry.count > 0);
-}
+const SUMMARY_LINE: MetricStripItem[] = [
+  { label: "Fontes mapeadas", value: `${SOURCES.length} candidatas` },
+  { label: "Conectadas", value: "nenhuma" },
+  { label: "Autorização", value: "da conta do cliente" },
+  { label: "Execução", value: "só com aprovação" },
+];
 
-function ConnectionCard({ source }: { source: ConnectionSource }) {
-  const Glyph = source.icon;
+const RISK_LEVEL_LABEL: Record<QualitativeLevel, string> = {
+  baixo: "Baixo risco",
+  médio: "Médio risco",
+  alto: "Alto risco",
+};
 
-  return (
-    <YziPanel className="flex flex-col gap-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <YziSurface
-            aria-hidden
-            variant="elevated"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--yzi-radius-md)] p-0 text-[var(--yzi-text-secondary)]"
-          >
-            <Glyph className="h-4 w-4" />
-          </YziSurface>
-          <h3 className="text-sm font-semibold text-[var(--yzi-text-primary)]">
-            {source.name}
-          </h3>
-        </div>
-        <YziBadge tone="neutral" className="shrink-0 normal-case">
-          {source.category}
-        </YziBadge>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <YziStatusBadge tone={STATUS_TONE[source.status]}>
-          {STATUS_LABEL[source.status]}
-        </YziStatusBadge>
-        <YziBadge tone="neutral" className="normal-case">
-          <span
-            aria-hidden
-            className={`h-1.5 w-1.5 rounded-full ${RISK_DOT_COLOR[source.risk]}`}
-          />
-          risco {source.risk}
-        </YziBadge>
-      </div>
-
-      <dl className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3 text-xs">
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-[var(--yzi-text-secondary)]">Usado por</dt>
-          <dd className="text-right text-[var(--yzi-text-primary)]">
-            {source.usedBy.join(", ")}
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-[var(--yzi-text-secondary)]">Credencial</dt>
-          <dd className="text-right text-[var(--yzi-text-primary)]">
-            {CREDENTIAL_LABEL[source.credential]}
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-[var(--yzi-text-secondary)]">Modo</dt>
-          <dd className="text-right text-[var(--yzi-text-primary)]">
-            {renderModes(source.modes)}
-          </dd>
-        </div>
-      </dl>
-
-      <p className="text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
-        {source.note}
-      </p>
-    </YziPanel>
-  );
-}
+// Contagem estrutural: quantas fontes da lista acima caem em cada risco.
+// Não é volume de uso nem dado de cliente.
+const SOURCE_RISK_SLICES: DonutSlice[] = (
+  ["baixo", "médio", "alto"] as QualitativeLevel[]
+).map((level) => ({
+  label: RISK_LEVEL_LABEL[level],
+  level,
+  count: SOURCES.filter((source) => source.risk === level).length,
+}));
 
 export function ConnectionsV0() {
-  const summary = summarizeByStatus(CONNECTIONS);
-
   return (
-    <section className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-6 px-6 py-10">
+    <section className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-5 px-6 py-10">
       <div className="flex flex-col gap-4">
         <Link
           href="/cockpit"
@@ -326,52 +107,43 @@ export function ConnectionsV0() {
           <CommandCenterIcon className="h-3.5 w-3.5" />
           Voltar ao Cockpit
         </Link>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           <span className="text-[0.62rem] font-medium uppercase tracking-[0.2em] text-[var(--yzi-text-secondary)]">
-            Mapa de fontes · v0.1
+            Mapa de fontes · v0.2
           </span>
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--yzi-text-primary)]">
             Conexões
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-            De onde os dados do YZI OS podem vir, quem precisa autorizar, qual
-            módulo usa cada fonte e qual risco ela envolve.
+          <p className="text-sm text-[var(--yzi-text-secondary)]">
+            Cada cliente conecta suas próprias contas.
           </p>
         </div>
       </div>
 
-      <YziAlert tone="info" title="Nenhuma credencial está conectada nesta versão.">
-        Esta tela é um mapa visual das fontes planejadas. Conectar uma conta
-        real, autorizar o acesso do cliente ou guardar qualquer credencial
-        acontece em uma fase futura.
-      </YziAlert>
+      <YziAlert tone="info" title="Nenhuma credencial está conectada nesta versão." />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {summary.map(({ status, count }) => (
-          <YziStatusBadge key={status} tone={STATUS_TONE[status]}>
-            {count} · {STATUS_LABEL[status]}
-          </YziStatusBadge>
-        ))}
+      <div className="flex flex-col gap-4 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[linear-gradient(180deg,var(--yzi-surface-elevated),var(--yzi-surface-base))] p-4">
+        <YziFlowRail steps={TENANT_FLOW} />
+        <div className="border-t border-[color:var(--yzi-border-subtle)] pt-3">
+          <YziMetricStrip items={SUMMARY_LINE} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CONNECTIONS.map((source) => (
-          <ConnectionCard key={source.id} source={source} />
-        ))}
-      </div>
+      <YziConnectionMap links={SOURCES} />
 
-      <YziSurface variant="elevated" className="p-1.5">
-        <YziPanel className="flex flex-col gap-2 p-4">
-          <p className="text-sm font-medium text-[var(--yzi-text-primary)]">
-            Próximas fases
-          </p>
-          <p className="text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-            Quando uma conexão for autorizada de verdade, o consumo dela
-            aparece em Uso &amp; Créditos. Nenhuma ação que altere dados fora
-            do YZI OS acontece sem aprovação humana explícita.
-          </p>
-        </YziPanel>
-      </YziSurface>
+      <YziChartCard
+        title="Distribuição por risco"
+        caption="Quantas fontes mapeadas caem em cada risco — não é volume de uso ou dado de cliente."
+      >
+        <YziDonutChart slices={SOURCE_RISK_SLICES} />
+      </YziChartCard>
+
+      <p className="text-xs leading-relaxed text-[var(--yzi-text-faint)]">
+        A YZIHUB não centraliza dados de campanha na conta dela. Conexões
+        sensíveis exigem autorização; leitura e execução são tratadas
+        separadamente. Quando uma fonte for autorizada de verdade, o consumo
+        dela aparece em Uso &amp; Créditos.
+      </p>
     </section>
   );
 }

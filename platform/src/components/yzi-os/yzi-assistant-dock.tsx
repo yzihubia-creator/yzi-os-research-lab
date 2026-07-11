@@ -37,8 +37,12 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 const STATUS_CHIPS = ["preview", "somente leitura", "ações exigem autorização"];
 
-export function YziAssistantDock() {
-  const [collapsed, setCollapsed] = useState(false);
+export function YziAssistantDock({
+  defaultCollapsed = false,
+}: {
+  defaultCollapsed?: boolean;
+} = {}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [ask, setAsk] = useState("");
 
   if (collapsed) {

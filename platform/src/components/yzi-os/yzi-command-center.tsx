@@ -1,28 +1,56 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import type { ComponentType, ReactNode, SVGProps } from "react";
+import type { ComponentType, FormEvent, ReactNode, SVGProps } from "react";
 
 import {
   YziAlert,
   YziButton,
   YziDivider,
+  YziInput,
   YziPanel,
   YziPresence,
   YziStatusBadge,
 } from "@/components/yzi-os/yzi-primitives";
 import {
   ActionsIcon,
+  AssetsIcon,
   AuditIcon,
   AuthorizationIcon,
   ChannelsIcon,
   CommandCenterIcon,
+  DashboardIcon,
   OpportunityIcon,
   RadarIcon,
+  SendIcon,
   SidebarToggleIcon,
+  TrafficIcon,
   YziAssistantIcon,
 } from "@/components/yzi-os/yzi-icons";
+import {
+  hourGreeting,
+  operatorName,
+  subscribeNoop,
+} from "@/lib/yzi-os/hero-greeting";
+
+// Ações rápidas do hero (contrato v1.2 §2): lideradas por job, navegando para
+// superfícies reais. Nenhuma resposta simulada.
+const HERO_ACTIONS: Array<{
+  label: string;
+  href: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+}> = [
+  { label: "Criar campanha", href: "/cockpit/trafego-pago", icon: TrafficIcon },
+  {
+    label: "Cadastrar imóvel",
+    href: "/cockpit/yzi-imob/imoveis",
+    icon: AssetsIcon,
+  },
+  { label: "Criar site", href: "/cockpit/yzi-imob/site", icon: CommandCenterIcon },
+  { label: "Analisar operação", href: "/cockpit/dashboard", icon: DashboardIcon },
+  { label: "Conectar canal", href: "/cockpit/canais", icon: ChannelsIcon },
+];
 
 type Tone = "preview" | "waiting" | "action";
 
@@ -92,25 +120,114 @@ function RailCard({
   );
 }
 
-export function YziCommandCenter() {
+export function YziCommandCenter({
+  operatorEmail,
+}: {
+  operatorEmail?: string | null;
+}) {
   const [auditOpen, setAuditOpen] = useState(false);
+  const [ask, setAsk] = useState("");
   const router = useRouter();
+  const name = operatorName(operatorEmail);
+
+  // Saudação pela hora local do cliente sem divergir da hidratação: o servidor
+  // renderiza o fallback "Olá" e o cliente resolve a hora real.
+  const greeting = useSyncExternalStore(
+    subscribeNoop,
+    () => hourGreeting(new Date().getHours()),
+    () => "Olá",
+  );
+
+  function handleAsk(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    router.push("/cockpit/assistente");
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[0.62rem] font-medium uppercase tracking-[0.2em] text-[var(--yzi-text-secondary)]">
-            Mesa de decisão operacional
-          </span>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--yzi-text-primary)]">
-            Command Center
-          </h1>
-        </div>
-        <StatusPill label="preview · sem dados reais" tone="preview" />
-      </header>
+    <div className="yzi-atmosphere flex w-full flex-col">
+      <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-7 px-6 pb-16 pt-10 text-center md:pt-14">
+        <span
+          aria-hidden
+          className="relative grid h-12 w-12 place-items-center rounded-full border border-[color:rgba(63,224,197,0.28)] bg-[var(--yzi-surface-elevated)] text-[var(--yzi-accent-action)] shadow-[var(--yzi-glow-presence)]"
+        >
+          <YziPresence
+            state="ready"
+            animated
+            className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5"
+          />
+          <YziAssistantIcon className="h-6 w-6" />
+        </span>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="flex flex-col gap-2">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.24em] text-[var(--yzi-text-secondary)]">
+            YZI · sistema operacional
+          </span>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--yzi-text-primary)] md:text-4xl">
+            {greeting}
+            {name ? `, ${name}` : ""}.
+          </h1>
+          <p className="text-lg text-[var(--yzi-text-secondary)]">
+            O que vamos resolver hoje?
+          </p>
+        </div>
+
+        <form onSubmit={handleAsk} className="flex w-full items-center gap-2">
+          <label htmlFor="yzi-hero-ask" className="sr-only">
+            Converse com a YZI sobre sua operação
+          </label>
+          <YziInput
+            id="yzi-hero-ask"
+            value={ask}
+            onChange={(event) => setAsk(event.target.value)}
+            placeholder="Converse com a YZI sobre sua operação..."
+            variant="composer"
+            className="yzi-glass-panel min-w-0 flex-1"
+          />
+          <YziButton
+            type="submit"
+            variant="primary"
+            size="md"
+            aria-label="Enviar para a YZI"
+            title="Enviar para a YZI"
+            className="h-12 w-12 shrink-0 p-0"
+          >
+            <SendIcon className="h-5 w-5" />
+          </YziButton>
+        </form>
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {HERO_ACTIONS.map((action) => {
+            const Glyph = action.icon;
+            return (
+              <YziButton
+                key={action.href}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push(action.href)}
+              >
+                <Glyph className="h-3.5 w-3.5 shrink-0" />
+                {action.label}
+              </YziButton>
+            );
+          })}
+        </div>
+
+        <p className="flex items-center gap-1.5 text-[0.68rem] text-[var(--yzi-text-faint)]">
+          <AuthorizationIcon className="h-3.5 w-3.5 shrink-0 text-[var(--yzi-accent-authorization)]" />
+          Preview. Ações externas exigem autorização.
+        </p>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-6 pb-10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.2em] text-[var(--yzi-text-secondary)]">
+            Operação
+          </span>
+          <StatusPill label="preview · sem dados reais" tone="preview" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
           <SurfaceCard
             icon={CommandCenterIcon}
@@ -245,7 +362,8 @@ export function YziCommandCenter() {
             ) : null}
           </YziPanel>
         </aside>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

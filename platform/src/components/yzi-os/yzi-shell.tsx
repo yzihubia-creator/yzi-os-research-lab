@@ -68,12 +68,8 @@ export function YziShell({
         operatorEmail={operatorEmail}
       />
       <main className="relative flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 shrink-0 border-b border-[color:var(--yzi-border-subtle)]">
-          <YziSurface
-            variant="base"
-            framed={false}
-            className="flex h-14 items-center justify-between gap-4 px-6"
-          >
+        <header className="yzi-glass sticky top-0 z-10 shrink-0 border-b">
+          <div className="flex h-14 items-center justify-between gap-4 px-6 text-[var(--yzi-text-primary)]">
             <div className="flex items-center gap-2.5 text-xs">
               <span className="font-medium tracking-[0.16em] text-[var(--yzi-text-secondary)] uppercase">
                 Cockpit
@@ -100,11 +96,16 @@ export function YziShell({
                 {initial}
               </YziSurface>
             </div>
-          </YziSurface>
+          </div>
         </header>
         <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       </main>
-      <YziAssistantDock />
+      {/* Contrato v1.2: na home o hero da YZI é a superfície de conversa, então o
+          dock abre recolhido (rail) para não competir com o hero. */}
+      <YziAssistantDock
+        key={pathname === "/cockpit" ? "home" : "surface"}
+        defaultCollapsed={pathname === "/cockpit"}
+      />
     </div>
   );
 }
