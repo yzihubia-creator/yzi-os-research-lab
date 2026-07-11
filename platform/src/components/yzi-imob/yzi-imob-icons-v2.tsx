@@ -104,6 +104,16 @@ export function ResultsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function AgendaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2" />
+      <path d="M4 9.5h16" />
+      <path d="M8 3.5v3.5M16 3.5v3.5" />
+    </YziIcon>
+  );
+}
+
 export function TeamIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <YziIcon {...props}>
@@ -160,6 +170,81 @@ export function ArrowRightIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <YziIcon {...props}>
       <path d="M5 12h14M13 6l6 6-6 6" />
+    </YziIcon>
+  );
+}
+
+export function TrendUpIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <path d="M4 17l5.5-5.5 3.5 3.5L20 8" />
+      <path d="M15 8h5v5" />
+    </YziIcon>
+  );
+}
+
+export function TrendDownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <path d="M4 7l5.5 5.5L13 9l7 7" />
+      <path d="M15 16h5v-5" />
+    </YziIcon>
+  );
+}
+
+export function FlameIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <path d="M12 3.5c1 2.4 3.2 3.9 4.4 6a6.5 6.5 0 1 1-9.9-1.6C7.9 6.7 11 6 12 3.5z" />
+      <path d="M12 20.5a3 3 0 0 0 2.6-4.5c-.7-1.2-1.8-1.9-2.6-3-.8 1.1-1.9 1.8-2.6 3a3 3 0 0 0 2.6 4.5z" />
+    </YziIcon>
+  );
+}
+
+export function StackIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <path d="M12 4l8 4.2-8 4.2-8-4.2z" />
+      <path d="M4 12.5l8 4.2 8-4.2" />
+      <path d="M4 16.5l8 4.2 8-4.2" />
+    </YziIcon>
+  );
+}
+
+export function TargetIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="12" cy="12" r="0.8" />
+    </YziIcon>
+  );
+}
+
+export function SearchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M15.8 15.8L20.5 20.5" />
+    </YziIcon>
+  );
+}
+
+export function ShieldIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <path d="M12 3.5l7 2.6v5.4c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V6.1z" />
+      <path d="M9.2 12l2 2 3.6-3.8" />
+    </YziIcon>
+  );
+}
+
+export function CardIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <rect x="3" y="6" width="18" height="13" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M6.5 15h4" />
     </YziIcon>
   );
 }
