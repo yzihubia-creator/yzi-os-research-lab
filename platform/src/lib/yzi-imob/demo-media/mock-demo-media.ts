@@ -1,9 +1,12 @@
 import type { YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 
+import { propertyDemoAssetSrc } from "./property-demo-assets";
+
 // Dados puramente visuais de demonstração para os grids de mídia mockada do
-// Growth OS (Conteúdo, Biblioteca, Campanhas). Nenhum arquivo real, nenhuma
-// imagem remota — apenas metadados usados por GrowthDemoMediaCard para
-// renderizar gradiente + indicadores (play, contador, duração, CTA).
+// Growth OS (Conteúdo, Biblioteca, Campanhas). Nenhum arquivo real de cliente,
+// nenhuma imagem remota — as miniaturas usam o pack local mockado da
+// "Cobertura Atlântico — Cabo Branco" (property-demo-assets), servido de
+// /public/demo, com gradiente + indicadores (play, contador, duração, CTA).
 
 export type DemoMediaType = "property" | "reel" | "story" | "carousel" | "landing" | "meta_ad" | "display";
 export type DemoMediaFormat = "9:16" | "1:1" | "4:5" | "16:9" | "wide";
@@ -17,12 +20,31 @@ export type DemoMediaItem = {
   badge: string;
   simulated: true;
   palette: [YziImobRole, YziImobRole];
+  imageSrc?: string;
   duration?: string;
   slideCount?: number;
   cta?: string;
 };
 
-export const MOCK_DEMO_MEDIA: DemoMediaItem[] = [
+// Mapeia tipo de mídia → asset do manifesto demo, respeitando o formato.
+const DEMO_IMAGE_BY_TYPE: Record<DemoMediaType, string> = {
+  property: propertyDemoAssetSrc("facade"),
+  reel: propertyDemoAssetSrc("story"),
+  story: propertyDemoAssetSrc("story"),
+  carousel: propertyDemoAssetSrc("carousel"),
+  landing: propertyDemoAssetSrc("drone"),
+  meta_ad: propertyDemoAssetSrc("living"),
+  display: propertyDemoAssetSrc("facade"),
+};
+
+export function demoImageForType(type: DemoMediaType, format?: DemoMediaFormat): string {
+  if (type === "meta_ad" && format === "4:5") {
+    return propertyDemoAssetSrc("balcony");
+  }
+  return DEMO_IMAGE_BY_TYPE[type];
+}
+
+const MOCK_DEMO_MEDIA_BASE: DemoMediaItem[] = [
   {
     id: "demo_altiplano_reel",
     title: "Reel Premium",
@@ -242,3 +264,10 @@ export const MOCK_DEMO_MEDIA: DemoMediaItem[] = [
     cta: "Ver página",
   },
 ];
+
+// Toda miniatura demo aponta para o pack mockado do manifesto — nenhuma
+// imagem de cliente real, nenhum arquivo remoto.
+export const MOCK_DEMO_MEDIA: DemoMediaItem[] = MOCK_DEMO_MEDIA_BASE.map((item) => ({
+  ...item,
+  imageSrc: item.imageSrc ?? demoImageForType(item.type, item.format),
+}));

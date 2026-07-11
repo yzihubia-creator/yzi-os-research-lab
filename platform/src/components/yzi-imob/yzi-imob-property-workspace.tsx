@@ -36,6 +36,14 @@ import {
   WorkspaceTabs,
 } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 import {
+  GROWTH_ASSET_STATUS_ACCENT,
+  GROWTH_CAMPAIGN_STATUS_ACCENT,
+  GrowthStatusBadge,
+  MOCK_GROWTH_ASSETS,
+  MOCK_GROWTH_CAMPAIGNS,
+  useGrowthCampaignState,
+} from "@/components/yzi-imob/growth";
+import {
   WorkspaceDropdown,
   WorkspaceField,
   WorkspaceMultiSelect,
@@ -97,6 +105,23 @@ export function YziImobPropertyWorkspace() {
     toPropertyRecord(property),
   );
   const [brokerName, setBrokerName] = useState(property?.responsavel.nome ?? "");
+  const { statusFor } = useGrowthCampaignState();
+
+  // Reflexo do Growth OS: os dois catálogos mock ainda não são unificados
+  // (ver growthPropertyId em yzi-imob-catalog-mock.ts). Só aparece campanha
+  // aqui quando o imóvel de demonstração tem essa ponte definida.
+  const growthPropertyId = property?.growthPropertyId;
+  const relatedCampaigns = growthPropertyId
+    ? MOCK_GROWTH_CAMPAIGNS.map((campaign) => ({
+        campaign,
+        pieces: campaign.pieceIds
+          .map((pieceId) => MOCK_GROWTH_ASSETS.find((asset) => asset.id === pieceId))
+          .filter(
+            (piece): piece is (typeof MOCK_GROWTH_ASSETS)[number] =>
+              Boolean(piece) && piece?.propertyId === growthPropertyId,
+          ),
+      })).filter((entry) => entry.pieces.length > 0)
+    : [];
 
   useEffect(() => {
     if (notFound) return;
@@ -266,6 +291,54 @@ export function YziImobPropertyWorkspace() {
                   Sem responsável, o imóvel não avança para publicação, visita ou campanha.
                 </p>
               ) : null}
+            </WorkspaceSection>
+
+            <WorkspaceSection
+              title="Campanhas & Criativos"
+              description="O que a YZI preparou para este imóvel em Growth OS e o que ainda depende da sua aprovação."
+            >
+              {relatedCampaigns.length === 0 ? (
+                <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                  Nenhuma campanha vinculada a este imóvel ainda. Prepare uma em{" "}
+                  <Link href="/cockpit/yzi-imob/growth/campanhas" className="text-[rgb(var(--imob-ice))] hover:underline">
+                    Growth OS / Campanhas
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {relatedCampaigns.map(({ campaign, pieces }) => (
+                    <div
+                      key={campaign.id}
+                      className="flex flex-col gap-2.5 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">
+                          {campaign.name}
+                        </span>
+                        <GrowthStatusBadge status={campaign.status} accents={GROWTH_CAMPAIGN_STATUS_ACCENT} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {pieces.map((piece) => (
+                          <div key={piece.id} className="flex items-center justify-between gap-2 text-[0.76rem]">
+                            <span className="min-w-0 truncate text-[var(--yzi-text-secondary)]">{piece.name}</span>
+                            <GrowthStatusBadge
+                              status={statusFor(piece.id, piece.status)}
+                              accents={GROWTH_ASSET_STATUS_ACCENT}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <Link
+                        href="/cockpit/yzi-imob/growth/campanhas"
+                        className="w-fit text-[0.72rem] text-[rgb(var(--imob-ice))] hover:underline"
+                      >
+                        Revisar na mesa de campanhas
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
             </WorkspaceSection>
 
             <WorkspaceSection

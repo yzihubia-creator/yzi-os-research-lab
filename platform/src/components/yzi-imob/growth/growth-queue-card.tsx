@@ -18,6 +18,7 @@ export function GrowthQueueCard({
   palette,
   active,
   onSelect,
+  imageSrc,
 }: {
   title: string;
   subtitle: string;
@@ -27,6 +28,7 @@ export function GrowthQueueCard({
   palette: [YziImobRole, YziImobRole];
   active: boolean;
   onSelect: () => void;
+  imageSrc?: string;
 }) {
   return (
     <button
@@ -39,7 +41,7 @@ export function GrowthQueueCard({
           : "border-[rgba(var(--imob-graphite),0.28)] bg-[rgba(17,22,31,0.72)]",
       )}
     >
-      <GrowthThumbnail palette={palette} active={active} />
+      <GrowthThumbnail palette={palette} active={active} imageSrc={imageSrc} />
       <span className="flex min-w-0 flex-1 flex-col gap-2.5">
         <span className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-start min-[520px]:justify-between">
           <span className="min-w-0">

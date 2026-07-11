@@ -6,6 +6,10 @@ import {
 import { YziBadge, YziPanel } from "@/components/yzi-os/yzi-primitives";
 import { AuditIcon } from "@/components/yzi-os/yzi-icons";
 
+// Prontidão comercial usa `tone="warning"` (âmbar) do Dashboard Visual System
+// para o passo ainda não elegível (plano de campanha), coerente com a
+// hierarquia de cor do YZI IMOB: pendência/atenção = âmbar, nunca verde.
+
 // Prontidão comercial de um imóvel ao longo do pipeline. Todas as dimensões
 // nascem em "inicial" porque nada foi feito ainda — leitura qualitativa
 // honesta, sem porcentagem nem progresso fabricado.

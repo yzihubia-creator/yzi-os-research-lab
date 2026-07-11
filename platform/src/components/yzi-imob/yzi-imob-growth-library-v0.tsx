@@ -119,6 +119,7 @@ export function YziImobGrowthLibraryV0() {
                 status={source.status}
                 accents={GROWTH_COLLECTION_STATUS_ACCENT}
                 palette={source.palette}
+                imageSrc={source.imageSrc}
                 active={source.id === selectedSource.id}
                 onSelect={() => setSourceId(source.id)}
                 meta={
@@ -174,6 +175,7 @@ export function YziImobGrowthLibraryV0() {
               headline={selectedItem.headline}
               supportingText={selectedItem.supportingText}
               badges={[selectedItem.property, selectedItem.type]}
+              imageSrc={selectedItem.imageSrc}
             />
           </main>
 

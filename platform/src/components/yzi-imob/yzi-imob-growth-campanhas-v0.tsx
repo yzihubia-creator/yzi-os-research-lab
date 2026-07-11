@@ -1,24 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import {
+  GROWTH_ASSET_STATUS_ACCENT,
   GROWTH_CAMPAIGN_STATUS_ACCENT,
   GrowthActionBar,
   GrowthCounterStrip,
-  GrowthDemoMediaCard,
   GrowthDetailRow,
   GrowthInspectorPanel,
   GrowthNavigation,
+  GrowthPiecePreviewModal,
   GrowthQueueCard,
   GrowthSectionCard,
   GrowthStatusBadge,
   GrowthSurfaceHeader,
   GrowthTag,
+  GrowthThumbnail,
+  MOCK_GROWTH_ASSETS,
   MOCK_GROWTH_CAMPAIGN_COUNTERS,
   MOCK_GROWTH_CAMPAIGNS,
+  useGrowthCampaignState,
 } from "@/components/yzi-imob/growth";
-import { MOCK_DEMO_MEDIA } from "@/lib/yzi-imob/demo-media/mock-demo-media";
 import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
 
@@ -32,29 +36,67 @@ function TagList({ items }: { items: string[] }) {
   );
 }
 
-function findDemoMediaByTitle(title: string, propertyHint: string) {
-  return (
-    MOCK_DEMO_MEDIA.find((media) => media.title === title && media.propertyName === propertyHint) ??
-    MOCK_DEMO_MEDIA.find((media) => media.title === title)
-  );
-}
+function CampaignPieceGallery({ pieceIds }: { pieceIds: string[] }) {
+  const { statusFor } = useGrowthCampaignState();
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-function CreativeMediaGrid({ titles, propertyHint }: { titles: string[]; propertyHint: string }) {
+  const pieces = pieceIds
+    .map((id) => MOCK_GROWTH_ASSETS.find((asset) => asset.id === id))
+    .filter((piece): piece is (typeof MOCK_GROWTH_ASSETS)[number] => Boolean(piece));
+
+  if (pieces.length === 0) {
+    return (
+      <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-faint)]">
+        Nenhuma peça preparada para esta campanha ainda.
+      </p>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-3">
-      {titles.map((title) => {
-        const media = findDemoMediaByTitle(title, propertyHint);
-        if (!media) {
-          return <GrowthTag key={title}>{title}</GrowthTag>;
-        }
-        return <GrowthDemoMediaCard key={media.id} item={media} size="sm" />;
-      })}
-    </div>
+    <>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {pieces.map((piece) => (
+          <button
+            key={piece.id}
+            type="button"
+            onClick={() => setActiveId(piece.id)}
+            className="yzi-growth-card-hover flex flex-col gap-1.5 rounded-[var(--yzi-radius-md)] border border-[rgba(var(--imob-graphite),0.28)] bg-[rgba(17,22,31,0.72)] p-2 text-left"
+          >
+            <GrowthThumbnail palette={piece.palette} active={false} wide imageSrc={piece.imageSrc} />
+            <span className="truncate text-[0.74rem] font-medium leading-snug text-[var(--yzi-text-primary)]">
+              {piece.name}
+            </span>
+            <span className="flex items-center justify-between gap-1">
+              <span className="truncate text-[0.64rem] text-[var(--yzi-text-faint)]">{piece.format}</span>
+              <GrowthStatusBadge status={statusFor(piece.id, piece.status)} accents={GROWTH_ASSET_STATUS_ACCENT} />
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {activeId ? (
+        <GrowthPiecePreviewModal
+          pieces={pieces}
+          activeId={activeId}
+          onClose={() => setActiveId(null)}
+          onNavigate={setActiveId}
+        />
+      ) : null}
+    </>
   );
 }
 
 export function YziImobGrowthCampanhasV0() {
-  const [campaignId, setCampaignId] = useState(MOCK_GROWTH_CAMPAIGNS[0].id);
+  // Preseleção via ?campaign=<id> — permite link direto de fora (ex.: home de
+  // Comunicação, Property Workspace) para o detalhe de uma campanha específica.
+  const searchParams = useSearchParams();
+  const requestedId = searchParams.get("campaign");
+  const initialId =
+    (requestedId && MOCK_GROWTH_CAMPAIGNS.some((campaign) => campaign.id === requestedId)
+      ? requestedId
+      : MOCK_GROWTH_CAMPAIGNS[0].id) ?? MOCK_GROWTH_CAMPAIGNS[0].id;
+
+  const [campaignId, setCampaignId] = useState(initialId);
   const [lastMockAction, setLastMockAction] = useState("Nenhuma ação executada.");
   const { select } = useYziImobWorkspace();
 
@@ -129,6 +171,7 @@ export function YziImobGrowthCampanhasV0() {
                 status={campaign.status}
                 accents={GROWTH_CAMPAIGN_STATUS_ACCENT}
                 palette={campaign.palette}
+                imageSrc={campaign.imageSrc}
                 active={campaign.id === selected.id}
                 onSelect={() => {
                   setCampaignId(campaign.id);
@@ -171,13 +214,13 @@ export function YziImobGrowthCampanhasV0() {
               </div>
             </section>
 
+            <GrowthSectionCard title="Peças da campanha">
+              <CampaignPieceGallery pieceIds={selected.pieceIds} />
+            </GrowthSectionCard>
+
             <div className="grid grid-cols-1 gap-4 min-[1500px]:grid-cols-2">
               <GrowthSectionCard title="Canais sugeridos">
                 <TagList items={selected.suggestedChannels} />
-              </GrowthSectionCard>
-
-              <GrowthSectionCard title="Criativos vinculados">
-                <CreativeMediaGrid titles={selected.linkedCreatives} propertyHint={selected.target} />
               </GrowthSectionCard>
 
               <GrowthSectionCard title="Público sugerido">

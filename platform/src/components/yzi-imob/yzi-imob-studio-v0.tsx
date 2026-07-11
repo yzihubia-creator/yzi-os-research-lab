@@ -1,35 +1,65 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { YziBadge } from "@/components/yzi-os/yzi-primitives";
 import { CommandCenterIcon } from "@/components/yzi-os/yzi-icons";
 import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
+import { propertyDemoAssetSrc } from "@/lib/yzi-imob/demo-media/property-demo-assets";
 
 const ENGINE_FLOW = [
-  { label: "Imóvel", detail: "brief comercial", role: "primary" },
+  { label: "Imóvel", detail: "brief comercial", role: "primary", imageSrc: propertyDemoAssetSrc("thumbnail") },
   { label: "Creative Package", detail: "patrimônio organizado", role: "cyan" },
   { label: "Conteúdo", detail: "post, reel, carrossel", role: "amber" },
   { label: "Biblioteca", detail: "assets aprovados", role: "coldGreen" },
   { label: "Campanha", detail: "plano para aprovação", role: "lilac" },
   { label: "Site", detail: "página publicável", role: "petrol" },
   { label: "Resultados", detail: "aprendizado futuro", role: "graphite" },
-] satisfies Array<{ label: string; detail: string; role: YziImobRole }>;
+] satisfies Array<{ label: string; detail: string; role: YziImobRole; imageSrc?: string }>;
 
+// Mídia mockada do pack demo (Cobertura Atlântico — Cabo Branco), via manifesto.
 const PACKAGE_ASSETS = [
-  { title: "Reel premium", format: "9:16", state: "motion preparado", role: "cyan" },
-  { title: "Carrossel alto padrão", format: "1:1 / 5 cards", state: "preview mock", role: "amber" },
-  { title: "Post de feed", format: "4:5", state: "aprovável", role: "coldGreen" },
-  { title: "Página do imóvel", format: "16:10", state: "site preview", role: "petrol" },
-] satisfies Array<{ title: string; format: string; state: string; role: YziImobRole }>;
+  { title: "Reel premium", format: "9:16", state: "motion preparado", role: "cyan", imageSrc: propertyDemoAssetSrc("story") },
+  {
+    title: "Carrossel alto padrão",
+    format: "1:1 / 5 cards",
+    state: "preview mock",
+    role: "amber",
+    imageSrc: propertyDemoAssetSrc("carousel"),
+  },
+  { title: "Post de feed", format: "4:5", state: "aprovável", role: "coldGreen", imageSrc: propertyDemoAssetSrc("suite") },
+  {
+    title: "Página do imóvel",
+    format: "16:10",
+    state: "site preview",
+    role: "petrol",
+    imageSrc: propertyDemoAssetSrc("facade"),
+  },
+] satisfies Array<{ title: string; format: string; state: string; role: YziImobRole; imageSrc?: string }>;
 
-function EngineStep({ label, detail, role, index }: (typeof ENGINE_FLOW)[number] & { index: number }) {
+function EngineStep({
+  label,
+  detail,
+  role,
+  index,
+  imageSrc,
+}: { label: string; detail: string; role: YziImobRole; imageSrc?: string } & { index: number }) {
   return (
     <div className="flex min-w-[136px] flex-1 items-center gap-2.5 rounded-[var(--yzi-radius-md)] border border-[rgba(var(--imob-graphite),0.28)] bg-[rgba(17,22,31,0.66)] px-3 py-2.5 shadow-[var(--yzi-edge-highlight)]">
-      <span
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border text-[0.72rem] font-semibold"
-        style={{ borderColor: imobRgba(role, 0.34), backgroundColor: imobRgba(role, 0.12), color: imobRgba(role, 0.96) }}
-      >
-        {index + 1}
-      </span>
+      {imageSrc ? (
+        <span
+          className="relative block h-7 w-7 shrink-0 overflow-hidden rounded-[var(--yzi-radius-sm)] border"
+          style={{ borderColor: imobRgba(role, 0.34) }}
+        >
+          <Image src={imageSrc} alt="" fill sizes="28px" className="object-cover" />
+        </span>
+      ) : (
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border text-[0.72rem] font-semibold"
+          style={{ borderColor: imobRgba(role, 0.34), backgroundColor: imobRgba(role, 0.12), color: imobRgba(role, 0.96) }}
+        >
+          {index + 1}
+        </span>
+      )}
       <span className="min-w-0">
         <span className="block truncate text-[0.8rem] font-semibold text-[var(--yzi-text-primary)]">{label}</span>
         <span className="block truncate text-[0.68rem] text-[var(--yzi-text-faint)]">{detail}</span>
@@ -44,12 +74,14 @@ function MockFrame({
   state,
   role,
   tall = false,
+  imageSrc,
 }: {
   title: string;
   format: string;
   state: string;
   role: YziImobRole;
   tall?: boolean;
+  imageSrc?: string;
 }) {
   return (
     <article className="yzi-growth-card flex min-w-0 flex-col gap-3.5 rounded-[var(--yzi-radius-lg)] border p-3.5">
@@ -69,10 +101,19 @@ function MockFrame({
           <span>mock</span>
         </div>
         <div className="absolute left-4 right-4 top-12 h-[42%] overflow-hidden rounded-[18px] border border-white/10 bg-black/20">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),rgba(255,255,255,0.03))]" />
-          <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.44))]" />
-          <div className="absolute bottom-4 left-4 h-10 w-20 rounded-t-full bg-black/28" />
-          <div className="absolute bottom-4 right-4 h-12 w-14 rounded-[8px] bg-white/12" />
+          {imageSrc ? (
+            <>
+              <Image src={imageSrc} alt={`${title} — mídia de demonstração`} fill sizes="320px" className="object-cover" />
+              <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.44))]" />
+            </>
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),rgba(255,255,255,0.03))]" />
+              <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.44))]" />
+              <div className="absolute bottom-4 left-4 h-10 w-20 rounded-t-full bg-black/28" />
+              <div className="absolute bottom-4 right-4 h-12 w-14 rounded-[8px] bg-white/12" />
+            </>
+          )}
         </div>
         <div className="absolute bottom-4 left-4 right-4">
           <span className="mb-2 block w-fit rounded-[var(--yzi-radius-sm)] bg-black/28 px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] text-white/62">
@@ -129,7 +170,16 @@ export function YziImobStudioV0() {
                   preview mockado
                 </YziBadge>
               </div>
-              <div className="absolute inset-x-6 top-16 h-28 rounded-[24px] border border-white/10 bg-white/10" />
+              <div className="absolute inset-x-6 top-16 h-28 overflow-hidden rounded-[24px] border border-white/10 bg-white/10">
+                <Image
+                  src={propertyDemoAssetSrc("drone")}
+                  alt="Mídia de demonstração do Creative Package"
+                  fill
+                  sizes="400px"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,9,14,0.1),rgba(6,9,14,0.38))]" />
+              </div>
               <div className="absolute bottom-6 left-6 right-6">
                 <span className="text-[0.62rem] uppercase tracking-[0.14em] text-white/58">Apartamento Altiplano</span>
                 <h2 className="mt-2 text-[2rem] font-semibold leading-none text-white">Creative Package</h2>

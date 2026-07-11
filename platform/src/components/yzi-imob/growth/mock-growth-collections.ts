@@ -1,3 +1,5 @@
+import { propertyDemoAssetSrc } from "@/lib/yzi-imob/demo-media/property-demo-assets";
+
 import type { GrowthCollection, GrowthCounter, GrowthStatusAccent } from "./types";
 
 export const MOCK_GROWTH_COLLECTION_COUNTERS: GrowthCounter[] = [
@@ -44,6 +46,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     reusableReason: "O imóvel tem fotos, vídeo curto, planta e pacote aprovado com argumento consistente.",
     campaignOpportunity: "Reutilizar o pacote premium em Meta Leads com chamada de visita.",
     palette: ["primary", "lilac"],
+    imageSrc: propertyDemoAssetSrc("living"),
     items: [
       {
         id: "altiplano_reel_premium",
@@ -58,6 +61,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Vista alta, rotina leve",
         supportingText: "Pacote aprovado para destacar varanda, metragem e diferenciais.",
         palette: ["primary", "lilac"],
+        imageSrc: propertyDemoAssetSrc("story"),
       },
       {
         id: "altiplano_open_house_julho",
@@ -72,6 +76,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Visita qualificada",
         supportingText: "Asset de campanha com convite para agenda presencial.",
         palette: ["cyan", "petrol"],
+        imageSrc: propertyDemoAssetSrc("balcony"),
       },
     ],
   },
@@ -103,6 +108,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     reusableReason: "O pacote tem imagens fortes, canal definido e histórico recente de aprovação.",
     campaignOpportunity: "Reaproveitar o carrossel para Site Destaque com foco na área gourmet.",
     palette: ["petrol", "primary"],
+    imageSrc: propertyDemoAssetSrc("facade"),
     items: [
       {
         id: "cabo_branco_carrossel",
@@ -117,6 +123,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Cobertura com presença",
         supportingText: "Pacote editorial para destacar vista, planta e área social.",
         palette: ["petrol", "primary"],
+        imageSrc: propertyDemoAssetSrc("carousel"),
       },
     ],
   },
@@ -148,6 +155,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     reusableReason: "A biblioteca já liga localização, chamada de visita e perfil familiar.",
     campaignOpportunity: "Reusar o story em atendimento de fim de semana.",
     palette: ["ice", "cyan"],
+    imageSrc: propertyDemoAssetSrc("suite"),
     items: [
       {
         id: "manaira_story_visita",
@@ -162,6 +170,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Visita neste sábado",
         supportingText: "Pacote curto para captar interesse e levar ao atendimento.",
         palette: ["ice", "cyan"],
+        imageSrc: propertyDemoAssetSrc("story"),
       },
     ],
   },
@@ -238,6 +247,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     reusableReason: "A coleção agrupa imóveis com linguagem visual consistente e pacotes já aprovados.",
     campaignOpportunity: "Reutilizar o conjunto premium em campanha de captação qualificada.",
     palette: ["lilac", "primary"],
+    imageSrc: propertyDemoAssetSrc("drone"),
     items: [
       {
         id: "luxo_jp_lancamento_premium",
@@ -252,6 +262,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Imóveis de presença",
         supportingText: "Asset aprovado para organizar imóveis premium por coleção.",
         palette: ["lilac", "primary"],
+        imageSrc: propertyDemoAssetSrc("balcony"),
       },
     ],
   },
@@ -283,6 +294,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
     reusableReason: "A coleção tem assets e pacotes já usados em visita, com histórico de aprovação.",
     campaignOpportunity: "Reaproveitar assets de visita no canal de leads.",
     palette: ["cyan", "primary"],
+    imageSrc: propertyDemoAssetSrc("carousel"),
     items: [
       {
         id: "open_house_julho_asset",
@@ -297,6 +309,7 @@ export const MOCK_GROWTH_COLLECTIONS: GrowthCollection[] = [
         headline: "Agenda de visitas",
         supportingText: "Asset de coleção para organizar imóveis com chamada de visita.",
         palette: ["cyan", "primary"],
+        imageSrc: propertyDemoAssetSrc("suite"),
       },
     ],
   },

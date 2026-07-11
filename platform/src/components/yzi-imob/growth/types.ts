@@ -110,6 +110,7 @@ export type GrowthCollection = {
   campaignOpportunity: string;
   palette: [YziImobRole, YziImobRole];
   items: GrowthCollectionItem[];
+  imageSrc?: string;
 };
 
 export type GrowthCollectionItem = {
@@ -125,6 +126,7 @@ export type GrowthCollectionItem = {
   headline: string;
   supportingText: string;
   palette: [YziImobRole, YziImobRole];
+  imageSrc?: string;
 };
 
 export type GrowthEvidence = {

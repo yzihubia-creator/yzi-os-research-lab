@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -26,6 +27,13 @@ import {
   SIMULATION_NOTE,
 } from "@/lib/yzi-imob/growth-intelligence/mock-brain";
 import type { BriefingItem, BriefingRoute } from "@/lib/yzi-imob/growth-intelligence/types";
+import { propertyDemoAssetSrc } from "@/lib/yzi-imob/demo-media/property-demo-assets";
+
+// Única mídia do Briefing: miniatura discreta na oportunidade vinculada ao
+// imóvel demo (Cabo Branco). O Briefing continua leitura, não galeria.
+const ITEM_THUMB: Record<string, string> = {
+  op_resposta_cabo_branco: propertyDemoAssetSrc("thumbnail"),
+};
 
 const CONFIDENCE_LABEL = { alta: "Confiança alta", media: "Confiança média", baixa: "Confiança baixa" } as const;
 
@@ -77,9 +85,16 @@ function BriefingItemCard({
         style={{ backgroundColor: imobRgba(role, active ? 0.85 : 0.45) }}
       />
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[0.98rem] font-semibold leading-snug tracking-[-0.01em] text-[var(--yzi-text-primary)]">
-          {item.title}
-        </h3>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {ITEM_THUMB[item.id] ? (
+            <span className="relative block h-9 w-9 shrink-0 overflow-hidden rounded-[var(--yzi-radius-sm)] border border-white/12">
+              <Image src={ITEM_THUMB[item.id]} alt="" fill sizes="36px" className="object-cover" />
+            </span>
+          ) : null}
+          <h3 className="text-[0.98rem] font-semibold leading-snug tracking-[-0.01em] text-[var(--yzi-text-primary)]">
+            {item.title}
+          </h3>
+        </div>
         <span
           className="shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.14em]"
           style={{ color: imobRgba(role, 0.95), backgroundColor: imobRgba(role, 0.1) }}

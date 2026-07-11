@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 
@@ -7,10 +9,12 @@ export function GrowthThumbnail({
   palette,
   active,
   wide = false,
+  imageSrc,
 }: {
   palette: [YziImobRole, YziImobRole];
   active: boolean;
   wide?: boolean;
+  imageSrc?: string;
 }) {
   return (
     <div
@@ -26,16 +30,25 @@ export function GrowthThumbnail({
         )}, ${imobRgba(palette[1], 0.12)} 58%, rgba(8,12,18,0.98))`,
       }}
     >
-      <div className="absolute inset-x-1.5 top-1.5 h-7 overflow-hidden rounded-[5px] border border-white/10 bg-black/20">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),rgba(255,255,255,0.03))]" />
-        <div className="absolute -bottom-2 left-1 h-5 w-7 rounded-t-full bg-black/30" />
-        <div className="absolute bottom-1 right-1 h-3 w-4 rounded-sm bg-white/14" />
-      </div>
-      <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-1.5">
-        <span className="h-1 rounded bg-white/38" />
-        <span className="h-1 w-2/3 rounded bg-white/18" />
-        <span className="h-1 w-1/2 rounded bg-white/12" />
-      </div>
+      {imageSrc ? (
+        <>
+          <Image src={imageSrc} alt="" fill sizes="64px" className="object-cover" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,9,14,0.12),rgba(6,9,14,0.4))]" />
+        </>
+      ) : (
+        <>
+          <div className="absolute inset-x-1.5 top-1.5 h-7 overflow-hidden rounded-[5px] border border-white/10 bg-black/20">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),rgba(255,255,255,0.03))]" />
+            <div className="absolute -bottom-2 left-1 h-5 w-7 rounded-t-full bg-black/30" />
+            <div className="absolute bottom-1 right-1 h-3 w-4 rounded-sm bg-white/14" />
+          </div>
+          <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-1.5">
+            <span className="h-1 rounded bg-white/38" />
+            <span className="h-1 w-2/3 rounded bg-white/18" />
+            <span className="h-1 w-1/2 rounded bg-white/12" />
+          </div>
+        </>
+      )}
     </div>
   );
 }

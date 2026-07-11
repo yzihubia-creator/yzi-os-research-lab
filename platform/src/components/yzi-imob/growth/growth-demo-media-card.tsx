@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 
@@ -7,8 +9,9 @@ import type { DemoMediaItem } from "@/lib/yzi-imob/demo-media/mock-demo-media";
 
 // Card puramente visual (sem onClick funcional, sem estado) para representar
 // mídia mockada em grids (Biblioteca/Campanhas). Segue o mesmo padrão visual
-// de GrowthPreviewFrame/GrowthThumbnail/MockFrame do Studio: gradiente via
-// imobRgba, bordas brancas translúcidas, radius do design system.
+// de GrowthPreviewFrame/GrowthThumbnail/MockFrame do Studio: quando o item
+// traz imageSrc (pack demo local), a imagem preenche o card sob um scrim;
+// sem imagem, mantém o gradiente via imobRgba como fallback.
 
 function aspectClass(format: DemoMediaItem["format"]) {
   if (format === "9:16") return "aspect-[9/16]";
@@ -52,6 +55,18 @@ export function GrowthDemoMediaCard({
         )}, ${imobRgba(resolvedPalette[1], 0.18)} 56%, rgba(8,12,18,0.97))`,
       }}
     >
+      {item.imageSrc ? (
+        <>
+          <Image
+            src={item.imageSrc}
+            alt={`${item.title} — mídia de demonstração`}
+            fill
+            sizes="240px"
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,9,14,0.42),rgba(6,9,14,0.06)_38%,rgba(6,9,14,0.68))]" />
+        </>
+      ) : null}
       <div className="absolute inset-x-2.5 top-2.5 flex items-center justify-between gap-2 text-[0.56rem] uppercase tracking-[0.1em] text-white/60">
         <span className="truncate">{item.propertyName}</span>
       </div>

@@ -168,6 +168,11 @@ export type DemoProperty = {
   responsavel: PropertyBroker;
   knowledge: PropertyKnowledge;
   basics: PropertyBasics;
+  // Ponte de demonstração com o universo mock do Growth OS (propertyId em
+  // growth/mock-growth-assets.ts). Os dois catálogos ainda não são unificados;
+  // este campo existe só para validar visualmente o fluxo imóvel → campanha →
+  // aprovação → reflexo em um imóvel real deste Workspace.
+  growthPropertyId?: string;
 };
 
 export const STATUS_META: Record<
@@ -257,6 +262,7 @@ export const DEMO_PROPERTIES: DemoProperty[] = [
     id: "vista-mar",
     idImovel: "IMV-1042",
     name: "Cobertura Vista Mar",
+    growthPropertyId: "property_cabo_branco_014",
     neighborhood: "Barra Sul",
     city: "Balneário Camboriú",
     status: "publicar",

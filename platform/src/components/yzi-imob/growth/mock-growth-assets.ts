@@ -1,4 +1,5 @@
 import type { YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
+import { propertyDemoAssetSrc } from "@/lib/yzi-imob/demo-media/property-demo-assets";
 
 import type { GrowthCounter, GrowthStatusAccent } from "./types";
 
@@ -23,6 +24,18 @@ export type GrowthCreativeItem = {
   palette: [YziImobRole, YziImobRole];
   headline: string;
   supportingText: string;
+  cta: string;
+  imageSrc?: string;
+};
+
+// Mídia mockada do pack demo (Cobertura Atlântico — Cabo Branco), escolhida
+// pelo formato do criativo. Fonte única: manifesto property-demo-assets.
+const FORMAT_DEMO_IMAGE: Record<GrowthCreativeFormat, string> = {
+  Reel: propertyDemoAssetSrc("story"),
+  Story: propertyDemoAssetSrc("story"),
+  Carrossel: propertyDemoAssetSrc("carousel"),
+  "Meta Feed": propertyDemoAssetSrc("living"),
+  Site: propertyDemoAssetSrc("drone"),
 };
 
 export const MOCK_GROWTH_ASSET_COUNTERS: GrowthCounter[] = [
@@ -38,9 +51,10 @@ export const GROWTH_ASSET_STATUS_ACCENT: GrowthStatusAccent = {
   "Em revisão": "lilac",
   Aprovado: "coldGreen",
   Falhou: "wine",
+  "Ajuste solicitado": "amber",
 };
 
-export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
+const MOCK_GROWTH_ASSETS_BASE: GrowthCreativeItem[] = [
   {
     id: "asset_altiplano_reel_01",
     name: "Reel Premium",
@@ -59,6 +73,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     palette: ["primary", "cyan"],
     headline: "Vista alta, rotina leve",
     supportingText: "Apartamento pronto para visita com varanda e acabamento premium.",
+    cta: "Agende sua visita ao Altiplano",
   },
   {
     id: "asset_cabo_branco_carrossel_01",
@@ -78,6 +93,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     palette: ["petrol", "primary"],
     headline: "Cobertura com presença",
     supportingText: "Sequência visual para destacar vista, planta e área social.",
+    cta: "Peça a apresentação completa da cobertura",
   },
   {
     id: "asset_manaira_story_01",
@@ -97,6 +113,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     palette: ["coldGreen", "cyan"],
     headline: "Visita neste sábado",
     supportingText: "Story curto para captar interesse e levar ao atendimento.",
+    cta: "Confirme sua vaga na visita de sábado",
   },
   {
     id: "asset_jardim_oceania_meta_01",
@@ -116,6 +133,7 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     palette: ["wine", "amber"],
     headline: "Oferta em ajuste",
     supportingText: "A peça precisa de mais informação para parecer pronta.",
+    cta: "— (sem CTA: peça falhou antes de gerar copy final)",
   },
   {
     id: "asset_bessa_site_01",
@@ -135,5 +153,76 @@ export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = [
     palette: ["primary", "petrol"],
     headline: "Bessa Garden",
     supportingText: "Página de entrada com argumento claro para lead qualificado.",
+    cta: "Fale com um corretor sobre o Bessa Garden",
+  },
+  {
+    id: "asset_cabo_branco_site_hero_01",
+    name: "Site Hero",
+    property: "Cobertura Cabo Branco",
+    propertyId: "property_cabo_branco_014",
+    channel: "Site",
+    format: "Site",
+    status: "Aprovado",
+    credits: "14",
+    creditMode: "consumidos",
+    objective: "Abrir a página de destaque para tráfego pago",
+    recommendedAction: "Pronta para uso em campanha",
+    readiness: 96,
+    usedData: ["cobertura", "vista mar", "área gourmet", "localização"],
+    pendencies: ["Publicação real depende da conexão do site, ainda não conectado"],
+    palette: ["petrol", "primary"],
+    headline: "Cobertura com vista definitiva",
+    supportingText: "Página de entrada para a Cobertura Cabo Branco, com argumento de vista e padrão de acabamento.",
+    cta: "Agende sua visita à cobertura",
+  },
+  {
+    id: "asset_luxo_jp_open_house_01",
+    name: "Open House Julho",
+    property: "Collection Luxo João Pessoa",
+    propertyId: "collection_luxo_joao_pessoa_001",
+    channel: "Instagram Feed",
+    format: "Carrossel",
+    status: "Aprovado",
+    credits: "16",
+    creditMode: "consumidos",
+    objective: "Reunir visitas qualificadas em uma janela curta de julho",
+    recommendedAction: "Pronta para uso em campanha",
+    readiness: 90,
+    usedData: ["data do evento", "imóveis participantes", "diferenciais premium"],
+    pendencies: ["Agenda dos imóveis participantes ainda precisa confirmação humana"],
+    palette: ["lilac", "primary"],
+    headline: "Open House real, vagas limitadas",
+    supportingText: "Sequência de carrossel convidando para o Open House de julho na collection de luxo.",
+    cta: "Confirme presença no Open House",
+  },
+  {
+    id: "asset_altiplano_captacao_01",
+    name: "Captação Proprietário",
+    property: "Apartamento Altiplano",
+    propertyId: "property_altiplano_001",
+    channel: "Instagram Feed",
+    format: "Meta Feed",
+    status: "Aprovado",
+    credits: "9",
+    creditMode: "consumidos",
+    objective: "Atrair proprietários para avaliação consultiva de venda",
+    recommendedAction: "Revisar promessa antes de aprovar uso em campanha",
+    readiness: 84,
+    usedData: ["bairro", "perfil de proprietário", "argumento de curadoria"],
+    pendencies: ["Promessa de captação precisa revisão jurídica/comercial antes de publicar"],
+    palette: ["wine", "amber"],
+    headline: "Seu imóvel com a curadoria certa",
+    supportingText: "Peça de captação para proprietários no Altiplano avaliando vender ou alugar.",
+    cta: "Fale com um especialista em captação",
   },
 ];
+
+// Estados honestos: "Gerando" e "Falhou" não têm preview pronto, então o
+// frame mantém o mock abstrato; imagem real só onde o preview existe.
+export const MOCK_GROWTH_ASSETS: GrowthCreativeItem[] = MOCK_GROWTH_ASSETS_BASE.map((item) => ({
+  ...item,
+  imageSrc:
+    item.status === "Em revisão" || item.status === "Aprovado"
+      ? (item.imageSrc ?? FORMAT_DEMO_IMAGE[item.format])
+      : item.imageSrc,
+}));

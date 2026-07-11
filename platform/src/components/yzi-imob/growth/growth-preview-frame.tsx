@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 
@@ -23,6 +25,7 @@ export function GrowthPreviewFrame({
   headline,
   supportingText,
   badges,
+  imageSrc,
 }: {
   channel: string;
   format: string;
@@ -30,6 +33,7 @@ export function GrowthPreviewFrame({
   headline: string;
   supportingText: string;
   badges: string[];
+  imageSrc?: string;
 }) {
   const isWide = format === "Site" || format === "Meta Feed" || format === "Carrossel" || format === "Coleção";
   const isMotion = format === "Reel" || format === "Story";
@@ -76,10 +80,25 @@ export function GrowthPreviewFrame({
               isWide ? "left-7 right-7 top-14 h-[44%]" : "left-6 right-6 top-16 h-[44%]",
             )}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),rgba(255,255,255,0.035)_42%,rgba(0,0,0,0.16))]" />
-            <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.42))]" />
-            <div className="absolute bottom-5 left-5 h-12 w-24 rounded-t-full bg-black/28" />
-            <div className="absolute bottom-5 right-5 h-16 w-20 rounded-[10px] border border-white/10 bg-white/12" />
+            {imageSrc ? (
+              <>
+                <Image
+                  src={imageSrc}
+                  alt="Mídia de demonstração do imóvel"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 760px"
+                  className="object-cover"
+                />
+                <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.42))]" />
+              </>
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.2),rgba(255,255,255,0.035)_42%,rgba(0,0,0,0.16))]" />
+                <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.42))]" />
+                <div className="absolute bottom-5 left-5 h-12 w-24 rounded-t-full bg-black/28" />
+                <div className="absolute bottom-5 right-5 h-16 w-20 rounded-[10px] border border-white/10 bg-white/12" />
+              </>
+            )}
             <div className="absolute left-5 top-5 rounded-[var(--yzi-radius-sm)] bg-black/24 px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] text-white/58">
               imóvel mockado
             </div>

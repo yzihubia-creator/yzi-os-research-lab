@@ -105,6 +105,7 @@ export function YziImobGrowthContentV0() {
                 status={item.status}
                 accents={GROWTH_ASSET_STATUS_ACCENT}
                 palette={item.palette}
+                imageSrc={item.imageSrc}
                 active={item.id === selected.id}
                 onSelect={() => {
                   setSelectedId(item.id);
@@ -135,6 +136,7 @@ export function YziImobGrowthContentV0() {
               headline={selected.headline}
               supportingText={selected.supportingText}
               badges={[selected.property, selected.objective]}
+              imageSrc={selected.imageSrc}
             />
 
             <div className="grid grid-cols-1 gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4 md:grid-cols-2">

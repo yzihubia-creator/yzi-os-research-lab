@@ -1,4 +1,5 @@
 import type { YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
+import { propertyDemoAssetSrc } from "@/lib/yzi-imob/demo-media/property-demo-assets";
 
 import type { GrowthCounter, GrowthStatusAccent } from "./types";
 
@@ -13,6 +14,7 @@ export type GrowthCampaignDraft = {
   suggestedChannels: string[];
   estimatedBudget: string;
   linkedCreatives: string[];
+  pieceIds: string[];
   status: GrowthCampaignDraftStatus;
   nextAction: string;
   audience: string;
@@ -23,6 +25,7 @@ export type GrowthCampaignDraft = {
   sourceInputs: string[];
   recommendedAction: string;
   palette: [YziImobRole, YziImobRole];
+  imageSrc?: string;
 };
 
 export const MOCK_GROWTH_CAMPAIGN_COUNTERS: GrowthCounter[] = [
@@ -49,6 +52,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     suggestedChannels: ["Instagram Feed", "Meta Leads", "Site Destaque"],
     estimatedBudget: "R$ 1.800 a R$ 2.400 / 10 dias",
     linkedCreatives: ["Carrossel Alto Padrão", "Site Hero", "Reel Premium"],
+    pieceIds: ["asset_cabo_branco_carrossel_01", "asset_cabo_branco_site_hero_01", "asset_altiplano_reel_01"],
     status: "Aguardando aprovação",
     nextAction: "Revisar plano e aprovar orçamento antes de qualquer envio.",
     audience: "Famílias e investidores em João Pessoa com interesse em cobertura, vista e área gourmet.",
@@ -59,6 +63,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     sourceInputs: ["Briefing: oportunidade premium", "Conteúdo: carrossel aprovado", "Biblioteca: pacote Site Hero"],
     recommendedAction: "Enviar para aprovação humana depois de ajustar o orçamento final.",
     palette: ["petrol", "primary"],
+    imageSrc: propertyDemoAssetSrc("drone"),
   },
   {
     id: "campaign_manaira_reactivation",
@@ -69,6 +74,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     suggestedChannels: ["Instagram Stories", "Lista de atendimento", "Meta Leads"],
     estimatedBudget: "R$ 900 a R$ 1.200 / 7 dias",
     linkedCreatives: ["Story Visita", "Open House Julho"],
+    pieceIds: ["asset_manaira_story_01", "asset_luxo_jp_open_house_01"],
     status: "Rascunho",
     nextAction: "Confirmar lista de imóveis e janela de visita antes de pedir aprovação.",
     audience: "Leads antigos que buscaram Manaíra, famílias em comparação de bairro e contatos com visita não concluída.",
@@ -79,6 +85,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     sourceInputs: ["Briefing: reativação", "Conteúdo: Story Visita aprovado", "Biblioteca: Open House Julho"],
     recommendedAction: "Manter como rascunho até validar a lista de contatos e a agenda de visitas.",
     palette: ["ice", "cyan"],
+    imageSrc: propertyDemoAssetSrc("story"),
   },
   {
     id: "campaign_altiplano_owners",
@@ -89,6 +96,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     suggestedChannels: ["Instagram Feed", "Site Conteúdo", "Google Search futuro"],
     estimatedBudget: "R$ 1.200 a R$ 1.600 / 14 dias",
     linkedCreatives: ["Meta Feed", "Captação Proprietário"],
+    pieceIds: ["asset_jardim_oceania_meta_01", "asset_altiplano_captacao_01"],
     status: "Bloqueada por conexão",
     nextAction: "Resolver pendências de mensagem e conexão antes de publicar.",
     audience: "Proprietários no Altiplano que avaliam vender ou alugar imóveis de alto padrão.",
@@ -99,6 +107,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     sourceInputs: ["Briefing: captação", "Conteúdo: Meta Feed falhou", "Biblioteca: asset Captação Proprietário"],
     recommendedAction: "Ajustar criativo e revisar promessa antes de enviar para aprovação.",
     palette: ["wine", "amber"],
+    imageSrc: propertyDemoAssetSrc("living"),
   },
   {
     id: "campaign_open_house_luxury_jp",
@@ -109,6 +118,7 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     suggestedChannels: ["Instagram Reels", "Instagram Feed", "Meta Leads"],
     estimatedBudget: "R$ 2.400 a R$ 3.200 / 12 dias",
     linkedCreatives: ["Reel Premium", "Open House Julho", "Carrossel Alto Padrão"],
+    pieceIds: ["asset_altiplano_reel_01", "asset_luxo_jp_open_house_01", "asset_cabo_branco_carrossel_01"],
     status: "Aguardando aprovação",
     nextAction: "Revisar datas, orçamento e imóveis participantes.",
     audience: "Compradores de alto padrão em João Pessoa, investidores e leads com histórico de busca por luxo.",
@@ -119,5 +129,6 @@ export const MOCK_GROWTH_CAMPAIGNS: GrowthCampaignDraft[] = [
     sourceInputs: ["Briefing: collection premium", "Conteúdo: Reel Premium aprovado", "Biblioteca: Collection Luxo João Pessoa"],
     recommendedAction: "Enviar para aprovação depois de confirmar agenda e orçamento.",
     palette: ["lilac", "primary"],
+    imageSrc: propertyDemoAssetSrc("balcony"),
   },
 ];
