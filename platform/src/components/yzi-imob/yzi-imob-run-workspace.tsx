@@ -2,16 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 
-import {
-  AssetsIcon,
-  AuditIcon,
-  AuthorizationIcon,
-} from "@/components/yzi-os/yzi-icons";
+import { AssetsIcon, AuthorizationIcon } from "@/components/yzi-os/yzi-icons";
 import {
   YziAlert,
   YziBadge,
   YziButton,
-  YziDivider,
   YziPanel,
   YziStatusBadge,
 } from "@/components/yzi-os/yzi-primitives";
@@ -24,9 +19,12 @@ import {
 } from "@/lib/yzi-os/actions";
 import type {
   RunStateResult,
+  YziApprovalStatus,
   YziArtifact,
+  YziArtifactStatus,
   YziRunActionRequest,
   YziRunState,
+  YziRunStepStatus,
 } from "@/lib/yzi-os/types";
 
 // YZI IMOB — Workspace real da run (Unidade 3, Persisted Run Slice).
@@ -35,8 +33,12 @@ import type {
 // artefato versionado → checkpoint → decisão humana → production lock →
 // artefato final selado. Nenhuma tool externa é chamada; "liberar" significa
 // apenas selar o artefato dentro do sistema — nenhuma mensagem é enviada.
-// Reutiliza o Dashboard Visual System (mesmos primitives do preview do
-// runtime e da fila de autorizações); nenhum componente novo de card wall.
+//
+// Correção de UX/UI (sem mudança funcional): a superfície principal fala em
+// linguagem operacional (o que foi preparado / o que depende do gestor / o
+// que acontece depois); todo termo técnico (ids, hash, fingerprint, cursor
+// de workflow, contagem de tentativas) vive só no inspector colapsável no
+// final da página.
 
 type CandidateProperty = { id: string; title: string };
 
@@ -46,6 +48,8 @@ type Phase =
   | "deciding_approve"
   | "deciding_adjust"
   | "deciding_rework";
+
+const WORKFLOW_LABEL = "Preparar contato com o cliente";
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -71,6 +75,49 @@ function runStatusTone(
   }
 }
 
+function runStatusLabel(status: YziRunState["run"]["status"]): string {
+  switch (status) {
+    case "running":
+      return "Preparando rascunho";
+    case "awaiting_approval":
+      return "Aguardando sua decisão";
+    case "done":
+      return "Concluído";
+    case "failed":
+      return "Falhou";
+    case "cancelled":
+      return "Cancelado";
+    default:
+      return status;
+  }
+}
+
+const STEP_STATUS_LABEL: Record<YziRunStepStatus, string> = {
+  pending: "Pendente",
+  running: "Em andamento",
+  completed: "Concluído",
+  failed: "Falhou",
+};
+
+const ARTIFACT_STATUS_LABEL: Record<YziArtifactStatus, string> = {
+  written: "Em revisão",
+  sealed: "Selado",
+  superseded: "Substituído",
+};
+
+const APPROVAL_STATUS_LABEL: Record<YziApprovalStatus, string> = {
+  pending_review: "Aguardando decisão",
+  approved: "Aprovado",
+  rejected: "Rejeitado",
+  expired: "Expirado",
+  cancelled: "Cancelado",
+};
+
+const STEP_LABEL: Record<string, string> = {
+  prepare_contact_followup: "Preparar rascunho de contato",
+  release_contact_draft: "Selar rascunho como final",
+};
+
 function latestArtifact(artifacts: readonly YziArtifact[]): YziArtifact | null {
   if (artifacts.length === 0) return null;
   return artifacts.reduce((latest, a) => (a.version > latest.version ? a : latest));
@@ -82,106 +129,173 @@ function pendingDecision(
   return actionRequests.find((a) => a.status === "pending_review") ?? null;
 }
 
-function StepTimeline({ state }: { state: YziRunState }) {
-  const stepLabels: Record<string, string> = {
-    prepare_contact_followup: "1 · Preparar rascunho de contato",
-    release_contact_draft: "2 · Selar rascunho como final",
-  };
+function propertyTitleFor(
+  activeAssetId: string,
+  candidateProperties: readonly CandidateProperty[],
+): string {
+  return candidateProperties.find((p) => p.id === activeAssetId)?.title ?? activeAssetId;
+}
 
+type HistoryEntry = {
+  key: string;
+  timestamp: string;
+  title: string;
+  detail: string | null;
+};
+
+/**
+ * Deriva uma linha do tempo em linguagem simples a partir do estado já
+ * carregado (artefatos + decisões) — nenhuma consulta nova, apenas
+ * recombinação de dados já disponíveis para leitura humana.
+ */
+function buildHistoryEntries(state: YziRunState): HistoryEntry[] {
+  const entries: HistoryEntry[] = [
+    {
+      key: "run-started",
+      timestamp: state.run.createdAt,
+      title: "Operação iniciada",
+      detail: null,
+    },
+  ];
+
+  for (const artifact of state.artifacts) {
+    entries.push({
+      key: `artifact-${artifact.id}`,
+      timestamp: artifact.createdAt,
+      title: `Rascunho (versão ${artifact.version}) preparado`,
+      detail: null,
+    });
+  }
+
+  for (const actionRequest of state.actionRequests) {
+    if (actionRequest.status === "approved" && actionRequest.decidedAt) {
+      entries.push({
+        key: `decision-${actionRequest.id}`,
+        timestamp: actionRequest.decidedAt,
+        title: "Aprovado pelo gestor",
+        detail: null,
+      });
+    } else if (actionRequest.status === "rejected" && actionRequest.decidedAt) {
+      entries.push({
+        key: `decision-${actionRequest.id}`,
+        timestamp: actionRequest.decidedAt,
+        title:
+          actionRequest.decisionReason === "rework"
+            ? "Reformulação solicitada"
+            : "Ajuste solicitado",
+        detail: actionRequest.decisionNote,
+      });
+    }
+  }
+
+  return entries.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+}
+
+function OperationSummary({
+  state,
+  candidateProperties,
+}: {
+  state: YziRunState;
+  candidateProperties: readonly CandidateProperty[];
+}) {
   return (
-    <div className="flex flex-col gap-2">
-      {state.steps.map((step) => (
-        <div
-          key={step.id}
-          className="flex items-center justify-between gap-3 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-2"
-        >
-          <span className="text-xs text-[var(--yzi-text-primary)]">
-            {stepLabels[step.stepKey] ?? step.stepKey}
-            {step.attempt > 1 ? (
-              <span className="ml-2 text-[var(--yzi-text-faint)]">
-                (attempt {step.attempt})
-              </span>
-            ) : null}
-          </span>
-          <YziBadge
-            tone={
-              step.status === "completed"
-                ? "opportunity"
-                : step.status === "failed"
-                  ? "blocked"
-                  : step.status === "running"
-                    ? "action"
-                    : "neutral"
-            }
-          >
-            {step.status}
-          </YziBadge>
+    <YziPanel className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-sm font-semibold text-[var(--yzi-text-primary)]">
+            Resumo da operação
+          </h2>
+          <p className="max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
+            {WORKFLOW_LABEL} para{" "}
+            <strong className="font-semibold text-[var(--yzi-text-primary)] [overflow-wrap:anywhere]">
+              {propertyTitleFor(state.run.activeAssetId, candidateProperties)}
+            </strong>
+            .
+          </p>
         </div>
-      ))}
-    </div>
+        <span className="text-xs text-[var(--yzi-text-faint)]">
+          Atualizado em {formatDateTime(state.run.updatedAt)}
+        </span>
+      </div>
+      <YziStatusBadge tone={runStatusTone(state.run.status)}>
+        {runStatusLabel(state.run.status)}
+      </YziStatusBadge>
+    </YziPanel>
   );
 }
 
-function ArtifactPanel({ artifact }: { artifact: YziArtifact }) {
+function StepTimeline({ state }: { state: YziRunState }) {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="runtime-timeline">
+      <h2
+        id="runtime-timeline"
+        className="text-sm font-semibold text-[var(--yzi-text-primary)]"
+      >
+        Timeline
+      </h2>
+      <div className="flex flex-col rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)]">
+        {state.steps.map((step, index) => (
+          <div
+            key={step.id}
+            className={`grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${
+              index > 0 ? "border-t border-[color:var(--yzi-border-subtle)]" : ""
+            }`}
+          >
+            <span className="text-sm text-[var(--yzi-text-primary)] [overflow-wrap:anywhere]">
+              {STEP_LABEL[step.stepKey] ?? step.stepKey}
+            </span>
+            <YziBadge
+              tone={
+                step.status === "completed"
+                  ? "opportunity"
+                  : step.status === "failed"
+                    ? "blocked"
+                    : step.status === "running"
+                      ? "action"
+                      : "neutral"
+              }
+              className="w-fit shrink-0 normal-case"
+            >
+              {STEP_STATUS_LABEL[step.status]}
+            </YziBadge>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ArtifactSection({ artifact }: { artifact: YziArtifact }) {
   const messageDraft =
     typeof artifact.content.message_draft === "string"
       ? artifact.content.message_draft
       : "—";
-  const mode = typeof artifact.content.mode === "string" ? artifact.content.mode : "—";
-  const revisionNote =
-    typeof artifact.content.revision_note === "string" ? artifact.content.revision_note : null;
 
   return (
     <YziPanel
       variant={artifact.status === "sealed" ? "trust" : "authorization"}
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-3 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--yzi-text-secondary)]">
-          Artefato — {artifact.contractKey} · v{artifact.version}
-        </span>
-        <div className="flex gap-2">
-          <YziBadge tone="neutral" className="normal-case">
-            {artifact.visibility}
-          </YziBadge>
-          <YziStatusBadge
-            tone={
-              artifact.status === "sealed"
-                ? "opportunity"
-                : artifact.status === "superseded"
-                  ? "neutral"
-                  : "authorization"
-            }
-          >
-            {artifact.status}
-          </YziStatusBadge>
-        </div>
+        <h2 className="text-sm font-semibold text-[var(--yzi-text-primary)]">
+          Artefato em revisão
+        </h2>
+        <YziStatusBadge
+          tone={
+            artifact.status === "sealed"
+              ? "opportunity"
+              : artifact.status === "superseded"
+                ? "neutral"
+                : "authorization"
+          }
+        >
+          {ARTIFACT_STATUS_LABEL[artifact.status]}
+        </YziStatusBadge>
       </div>
 
-      <p className="text-sm leading-relaxed text-[var(--yzi-text-primary)]">
+      <p className="text-sm leading-relaxed text-[var(--yzi-text-primary)] [overflow-wrap:anywhere]">
         {messageDraft}
       </p>
-
-      {revisionNote ? (
-        <p className="text-xs text-[var(--yzi-text-secondary)]">
-          Nota da última decisão: {revisionNote}
-        </p>
-      ) : null}
-
-      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-[0.68rem] text-[var(--yzi-text-faint)] sm:grid-cols-2">
-        <div>
-          <dt className="inline">modo: </dt>
-          <dd className="inline">{mode}</dd>
-        </div>
-        <div>
-          <dt className="inline">criado em: </dt>
-          <dd className="inline">{formatDateTime(artifact.createdAt)}</dd>
-        </div>
-        <div className="sm:col-span-2 break-all">
-          <dt className="inline">hash: </dt>
-          <dd className="inline font-mono">{artifact.contentHash}</dd>
-        </div>
-      </dl>
     </YziPanel>
   );
 }
@@ -201,32 +315,45 @@ function DecisionPanel({
   const busy = pending !== "idle";
 
   return (
-    <YziPanel variant="authorization" className="flex flex-col gap-3">
+    <YziPanel variant="authorization" className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-2 text-[var(--yzi-accent-authorization)]">
         <AuthorizationIcon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-[0.08em]">
-          Decisão do gestor
-        </span>
+        <h2 className="text-sm font-semibold text-[var(--yzi-text-primary)]">
+          Decisão humana
+        </h2>
       </div>
-      <p className="text-xs text-[var(--yzi-text-secondary)]">
-        Aprovar sela o artefato como final (nada é enviado). Ajustar mantém a
-        mesma base e aplica sua nota. Reformular descarta o rascunho atual e
-        gera um novo do zero.
-      </p>
+
+      <ul className="flex flex-col gap-1 text-xs text-[var(--yzi-text-secondary)]">
+        <li>
+          <strong className="text-[var(--yzi-text-primary)]">O que foi preparado:</strong>{" "}
+          um rascunho de mensagem para o contato com o cliente sobre este imóvel.
+        </li>
+        <li>
+          <strong className="text-[var(--yzi-text-primary)]">O que depende de você:</strong>{" "}
+          aprovar, pedir um ajuste pontual ou pedir uma reformulação completa.
+        </li>
+        <li>
+          <strong className="text-[var(--yzi-text-primary)]">O que acontece depois:</strong>{" "}
+          ao aprovar, o rascunho é selado como versão final — nada é enviado
+          automaticamente.
+        </li>
+      </ul>
+
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Nota curta — obrigatória para ajustar/reformular"
         rows={2}
         disabled={busy}
-        className="w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-xs text-[var(--yzi-text-primary)] outline-none focus:border-[color:rgba(63,224,197,0.42)]"
+        className="w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm text-[var(--yzi-text-primary)] outline-none transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus:border-[color:rgba(var(--imob-ice),0.42)] focus:shadow-[0_0_0_3px_rgba(var(--imob-cold),0.14)]"
       />
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <YziButton
           variant="primary"
           size="sm"
           disabled={busy}
           onClick={onApprove}
+          className="w-full sm:w-auto"
         >
           {pending === "deciding_approve" ? "Aprovando…" : "Aprovar"}
         </YziButton>
@@ -235,6 +362,7 @@ function DecisionPanel({
           size="sm"
           disabled={busy || !note.trim()}
           onClick={() => onAdjust(note)}
+          className="w-full sm:w-auto"
         >
           {pending === "deciding_adjust" ? "Enviando ajuste…" : "Solicitar ajuste"}
         </YziButton>
@@ -243,11 +371,154 @@ function DecisionPanel({
           size="sm"
           disabled={busy || !note.trim()}
           onClick={() => onRework(note)}
+          className="w-full sm:w-auto"
         >
           {pending === "deciding_rework" ? "Enviando reformulação…" : "Reformular"}
         </YziButton>
       </div>
     </YziPanel>
+  );
+}
+
+function HistorySection({ entries }: { entries: readonly HistoryEntry[] }) {
+  if (entries.length <= 1) return null;
+
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="runtime-history">
+      <h2
+        id="runtime-history"
+        className="text-sm font-semibold text-[var(--yzi-text-primary)]"
+      >
+        Histórico
+      </h2>
+      <div className="flex flex-col rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)]">
+        {entries.map((entry, index) => (
+          <div
+            key={entry.key}
+            className={`flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 ${
+              index > 0 ? "border-t border-[color:var(--yzi-border-subtle)]" : ""
+            }`}
+          >
+            <span className="text-sm text-[var(--yzi-text-primary)] [overflow-wrap:anywhere]">
+              {entry.title}
+              {entry.detail ? (
+                <span className="text-[var(--yzi-text-secondary)]"> — {entry.detail}</span>
+              ) : null}
+            </span>
+            <span className="shrink-0 text-xs text-[var(--yzi-text-faint)]">
+              {formatDateTime(entry.timestamp)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InspectorField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-[0.62rem] font-medium uppercase tracking-[0.1em] text-[var(--yzi-text-faint)]">
+        {label}
+      </dt>
+      <dd className="font-mono text-[0.68rem] text-[var(--yzi-text-secondary)] [overflow-wrap:anywhere]">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function TechnicalInspector({
+  state,
+  history,
+}: {
+  state: YziRunState;
+  history: readonly HistoryEntry[];
+}) {
+  return (
+    <details className="group min-w-0 rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[rgba(255,255,255,0.015)] lg:h-fit">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-[var(--yzi-text-faint)] marker:content-['']">
+        <span>Detalhes técnicos</span>
+        <span className="transition-transform group-open:rotate-180">▾</span>
+      </summary>
+      <div className="max-h-[70vh] overflow-y-auto border-t border-[color:var(--yzi-border-subtle)] p-4">
+        <div className="flex flex-col gap-4">
+        <dl className="flex flex-col gap-3">
+          <InspectorField label="Workflow" value={state.run.workflowId} />
+          <InspectorField label="Run id" value={state.run.id} />
+          <InspectorField label="Cursor" value={state.run.cursorStep} />
+          <InspectorField label="Imóvel (id)" value={state.run.activeAssetId} />
+          <InspectorField label="Fingerprint de contexto" value={state.run.contextFingerprint} />
+        </dl>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.1em] text-[var(--yzi-text-faint)]">
+            Steps
+          </span>
+          <dl className="flex flex-col gap-3">
+            {state.steps.map((step) => (
+              <InspectorField
+                key={step.id}
+                label={`${step.stepKey} · tentativa ${step.attempt}`}
+                value={`${step.status} · início ${formatDateTime(step.startedAt)} · fim ${formatDateTime(step.completedAt)}`}
+              />
+            ))}
+          </dl>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.1em] text-[var(--yzi-text-faint)]">
+            Artefatos
+          </span>
+          <dl className="flex flex-col gap-3">
+            {state.artifacts.map((artifact) => (
+              <InspectorField
+                key={artifact.id}
+                label={`v${artifact.version} · ${artifact.visibility}`}
+                value={`${artifact.status} · hash ${artifact.contentHash}`}
+              />
+            ))}
+          </dl>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[0.62rem] font-medium uppercase tracking-[0.1em] text-[var(--yzi-text-faint)]">
+            Decisões (evidência)
+          </span>
+          <dl className="flex flex-col gap-3">
+            {state.actionRequests.map((actionRequest) => (
+              <InspectorField
+                key={actionRequest.id}
+                label={`${APPROVAL_STATUS_LABEL[actionRequest.status]}${
+                  actionRequest.decisionReason ? ` · ${actionRequest.decisionReason}` : ""
+                }`}
+                value={`hash ${actionRequest.artifactHash} · decidido em ${formatDateTime(actionRequest.decidedAt)}${
+                  actionRequest.decidedBy ? ` · por ${actionRequest.decidedBy}` : ""
+                }`}
+              />
+            ))}
+          </dl>
+        </div>
+
+        {history.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-[0.62rem] font-medium uppercase tracking-[0.1em] text-[var(--yzi-text-faint)]">
+              Eventos
+            </span>
+            <dl className="flex flex-col gap-3">
+              {history.map((entry) => (
+                <InspectorField
+                  key={entry.key}
+                  label={entry.title}
+                  value={`${entry.timestamp}${entry.detail ? ` · ${entry.detail}` : ""}`}
+                />
+              ))}
+            </dl>
+          </div>
+        ) : null}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -281,6 +552,7 @@ export function YziImobRunWorkspace({
     () => (state ? pendingDecision(state.actionRequests) : null),
     [state],
   );
+  const history = useMemo(() => (state ? buildHistoryEntries(state) : []), [state]);
 
   function handleStart() {
     setError(null);
@@ -302,7 +574,7 @@ export function YziImobRunWorkspace({
         return;
       }
       if (started.status === "blocked") {
-        setError(`Bloqueado pelo runtime: ${started.reason}`);
+        setError(`Não foi possível iniciar: ${started.reason}`);
         return;
       }
       setError(started.message);
@@ -373,16 +645,7 @@ export function YziImobRunWorkspace({
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="text-[0.62rem] font-medium uppercase tracking-[0.2em] text-[var(--yzi-text-secondary)]">
-          YZI IMOB · Run Workspace · PREPARE_PROPERTY_CONTACT
-        </span>
-        <h2 className="text-lg font-semibold tracking-tight text-[var(--yzi-text-primary)]">
-          Contato sobre o imóvel — do rascunho à liberação
-        </h2>
-      </div>
-
+    <section className="flex flex-col gap-6">
       {error ? (
         <YziAlert tone="blocked" title="Não foi possível concluir a ação">
           {error}
@@ -399,13 +662,13 @@ export function YziImobRunWorkspace({
         candidateProperties.length === 0 ? (
           <YziEmptyVisualState
             icon={AssetsIcon}
-            message="Nenhum imóvel disponível para iniciar o rascunho nesta unidade (catálogo mock limitado ao tenant de demonstração)."
+            message="Nenhum imóvel disponível para iniciar um contato nesta operação."
           />
         ) : (
-          <YziPanel className="flex flex-col gap-3">
-            <span className="text-xs text-[var(--yzi-text-secondary)]">
-              A YZI explica: nenhuma run ativa. Escolha um imóvel para preparar
-              o rascunho de contato.
+          <YziPanel className="flex max-w-3xl flex-col gap-3 p-4">
+            <span className="text-sm text-[var(--yzi-text-secondary)]">
+              Nenhuma operação em andamento. Escolha um imóvel para a YZI
+              preparar o rascunho de contato.
             </span>
             <select
               value={selectedAssetId}
@@ -419,7 +682,13 @@ export function YziImobRunWorkspace({
                 </option>
               ))}
             </select>
-            <YziButton variant="primary" size="sm" disabled={pending} onClick={handleStart}>
+            <YziButton
+              variant="primary"
+              size="sm"
+              disabled={pending}
+              onClick={handleStart}
+              className="w-full sm:w-auto"
+            >
               {phase === "starting" ? "Iniciando…" : "Iniciar rascunho de contato"}
             </YziButton>
           </YziPanel>
@@ -427,49 +696,43 @@ export function YziImobRunWorkspace({
       ) : null}
 
       {state ? (
-        <>
-          <YziPanel className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[var(--yzi-text-secondary)]">
-              <AuditIcon className="h-4 w-4" />
-              <span className="text-sm font-semibold text-[var(--yzi-text-primary)]">
-                Run {state.run.id.slice(0, 8)}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--yzi-text-secondary)]">
-              <span>cursor: {state.run.cursorStep}</span>
-              <span>atualizado em {formatDateTime(state.run.updatedAt)}</span>
-              <YziStatusBadge tone={runStatusTone(state.run.status)}>
-                {state.run.status}
-              </YziStatusBadge>
-            </div>
-          </YziPanel>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-6">
+            <OperationSummary state={state} candidateProperties={candidateProperties} />
 
-          <YziAlert tone={state.run.status === "done" ? "success" : "info"} title="A YZI explica">
-            {state.run.status === "running" &&
-              "Preparando o rascunho de contato."}
-            {state.run.status === "awaiting_approval" &&
-              "Rascunho pronto. Aguardando sua decisão — silêncio não aprova."}
-            {state.run.status === "done" &&
-              "Artefato final selado. Nenhuma mensagem foi enviada — apenas o rascunho foi liberado dentro do sistema."}
-            {state.run.status === "failed" && "A run falhou. Veja o bloqueio acima."}
-            {state.run.status === "cancelled" && "A run foi cancelada."}
-          </YziAlert>
+            <YziAlert
+              tone={state.run.status === "done" ? "success" : "info"}
+              title="Execução atual"
+            >
+              {state.run.status === "running" &&
+                "A YZI está preparando o rascunho de contato."}
+              {state.run.status === "awaiting_approval" &&
+                "Rascunho pronto. Aguardando sua decisão — silêncio não aprova."}
+              {state.run.status === "done" &&
+                "Rascunho liberado. Nenhuma mensagem foi enviada — apenas o conteúdo foi selado como versão final."}
+              {state.run.status === "failed" &&
+                "Não foi possível concluir esta operação."}
+              {state.run.status === "cancelled" && "Esta operação foi cancelada."}
+            </YziAlert>
 
-          <StepTimeline state={state} />
+            <StepTimeline state={state} />
 
-          <YziDivider />
+            {artifact ? <ArtifactSection artifact={artifact} /> : null}
 
-          {artifact ? <ArtifactPanel artifact={artifact} /> : null}
+            {state.run.status === "awaiting_approval" && decision ? (
+              <DecisionPanel
+                onApprove={handleApprove}
+                onAdjust={handleAdjust}
+                onRework={handleRework}
+                pending={phase}
+              />
+            ) : null}
 
-          {state.run.status === "awaiting_approval" && decision ? (
-            <DecisionPanel
-              onApprove={handleApprove}
-              onAdjust={handleAdjust}
-              onRework={handleRework}
-              pending={phase}
-            />
-          ) : null}
-        </>
+            <HistorySection entries={history} />
+          </div>
+
+          <TechnicalInspector state={state} history={history} />
+        </div>
       ) : null}
     </section>
   );
