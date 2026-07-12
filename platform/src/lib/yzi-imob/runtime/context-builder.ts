@@ -178,9 +178,9 @@ function buildExecutionBlock(
  * PURA — apenas formata; não decide nem consulta nada.
  */
 function buildRealExecutionBlock(real: RealContactContext): ContextBlock {
-  const { property, lead, interest, conversation } = real;
+  const { property, lead, interest, conversation, recentMessages } = real;
   const conversationPart = conversation
-    ? `conversa=${conversation.channel}/${conversation.status}`
+    ? `conversa=${conversation.channel}/${conversation.status}, mensagens_recentes=${recentMessages.length}`
     : "conversa=nenhuma";
 
   return {
@@ -188,7 +188,7 @@ function buildRealExecutionBlock(real: RealContactContext): ContextBlock {
     priority: 5,
     provenance: `db:contact-context property_id=${property.id} lead_id=${lead.id}`,
     freshness: "fresh",
-    summary: `Imóvel "${property.title}" (status=${property.status}) para o lead "${lead.fullName}" (status=${lead.status}, temperatura=${lead.temperature ?? "n/d"}); interesse=${interest.status}; ${conversationPart}.`,
+    summary: `Imóvel "${property.title}" (status=${property.status}, completude=${property.completenessPercentage}%, qualidade=${property.qualityLevel}) para o lead "${lead.fullName}" (status=${lead.status}, temperatura=${lead.temperature ?? "n/d"}); interesse=${interest.status}; ${conversationPart}.`,
   };
 }
 

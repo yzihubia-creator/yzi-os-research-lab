@@ -1,4 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/auth/session";
+import { getConversation, listRecentMessages } from "@/lib/yzi-imob/conversations";
+import {
+  computePropertyCompleteness,
+  computePropertyQuality,
+  getPropertyById,
+} from "@/lib/yzi-imob/properties";
 import {
   computeContentHash,
   draftContactDraftContent,
@@ -73,14 +79,7 @@ async function loadRealContactContext(input: {
   const { supabase, tenantId, propertyId, leadId, conversationId } = input;
 
   const [propertyResult, leadResult, interestResult] = await Promise.all([
-    supabase
-      .from("yzi_imob_properties")
-      .select(
-        "id, title, reference_code, property_type, transaction_type, status, city, neighborhood, price, description",
-      )
-      .eq("tenant_id", tenantId)
-      .eq("id", propertyId)
-      .maybeSingle(),
+    getPropertyById(supabase, tenantId, propertyId),
     supabase
       .from("yzi_imob_leads")
       .select("id, full_name, phone, email, status, temperature, source, notes")
@@ -98,7 +97,7 @@ async function loadRealContactContext(input: {
       .maybeSingle(),
   ]);
 
-  if (propertyResult.error || !propertyResult.data) {
+  if (propertyResult.status === "error") {
     return { status: "error", code: "property_not_found" };
   }
   if (leadResult.error || !leadResult.data) {
@@ -112,73 +111,60 @@ async function loadRealContactContext(input: {
   let recentMessages: RealContactContext["recentMessages"] = [];
 
   if (conversationId) {
-    const conversationRow = await supabase
-      .from("yzi_imob_conversations")
-      .select("id, lead_id, channel, status, started_at, last_message_at")
-      .eq("tenant_id", tenantId)
-      .eq("id", conversationId)
-      .maybeSingle();
-
-    if (conversationRow.error || !conversationRow.data) {
+    const conversationResult = await getConversation({ tenantId, conversationId });
+    if (conversationResult.status === "error") {
       return { status: "error", code: "conversation_not_found" };
     }
-    if (conversationRow.data.lead_id !== leadId) {
+    if (conversationResult.conversation.leadId !== leadId) {
       return { status: "error", code: "conversation_lead_mismatch" };
     }
 
     conversation = {
-      id: readString(asRecord(conversationRow.data), "id"),
-      channel: readString(asRecord(conversationRow.data), "channel"),
-      status: readString(asRecord(conversationRow.data), "status"),
-      startedAt: readString(asRecord(conversationRow.data), "started_at"),
-      lastMessageAt:
-        typeof conversationRow.data.last_message_at === "string"
-          ? conversationRow.data.last_message_at
-          : null,
+      id: conversationResult.conversation.id,
+      channel: conversationResult.conversation.channel,
+      status: conversationResult.conversation.status,
+      startedAt: conversationResult.conversation.startedAt,
+      lastMessageAt: conversationResult.conversation.lastMessageAt,
     };
 
-    const messagesResult = await supabase
-      .from("yzi_imob_messages")
-      .select("direction, sender_type, body, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: false })
-      .limit(RECENT_MESSAGES_LIMIT);
-
-    recentMessages = (messagesResult.data ?? []).map((row) => {
-      const record = asRecord(row);
-      return {
-        direction: readString(record, "direction"),
-        senderType: readString(record, "sender_type"),
-        body: readString(record, "body"),
-        createdAt: readString(record, "created_at"),
-      };
+    const messagesResult = await listRecentMessages({
+      tenantId,
+      conversationId,
+      limit: RECENT_MESSAGES_LIMIT,
     });
+    if (messagesResult.status === "ok") {
+      recentMessages = messagesResult.messages.map((message) => ({
+        direction: message.direction,
+        senderType: message.senderType,
+        body: message.body,
+        createdAt: message.createdAt,
+      }));
+    }
   }
 
-  const propertyRow = asRecord(propertyResult.data);
+  const property = propertyResult.value;
   const leadRow = asRecord(leadResult.data);
   const interestRow = asRecord(interestResult.data);
+
+  const completeness = computePropertyCompleteness(property);
+  const quality = computePropertyQuality(property);
 
   return {
     status: "ok",
     context: {
       property: {
-        id: readString(propertyRow, "id"),
-        title: readString(propertyRow, "title"),
-        referenceCode:
-          typeof propertyRow.reference_code === "string" ? propertyRow.reference_code : null,
-        propertyType:
-          typeof propertyRow.property_type === "string" ? propertyRow.property_type : null,
-        transactionType:
-          typeof propertyRow.transaction_type === "string" ? propertyRow.transaction_type : null,
-        status: readString(propertyRow, "status"),
-        city: typeof propertyRow.city === "string" ? propertyRow.city : null,
-        neighborhood:
-          typeof propertyRow.neighborhood === "string" ? propertyRow.neighborhood : null,
-        price: typeof propertyRow.price === "number" ? propertyRow.price : null,
-        description:
-          typeof propertyRow.description === "string" ? propertyRow.description : null,
+        id: property.id,
+        title: property.title,
+        referenceCode: property.referenceCode,
+        propertyType: property.propertyType,
+        transactionType: property.transactionType,
+        status: property.status,
+        city: property.city,
+        neighborhood: property.neighborhood,
+        price: property.price,
+        description: property.description,
+        completenessPercentage: completeness.percentage,
+        qualityLevel: quality.level,
       },
       lead: {
         id: readString(leadRow, "id"),

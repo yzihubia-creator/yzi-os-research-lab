@@ -235,6 +235,14 @@ export type RealPropertySummary = {
   neighborhood: string | null;
   price: number | null;
   description: string | null;
+  /**
+   * Unidade "Runtime Integration" — resumo derivado do repositório real de
+   * properties (`lib/yzi-imob/properties`), nunca recalculado aqui. Só o
+   * essencial para contexto (percentual + nível), nunca o `attributes` bruto
+   * nem os checks detalhados — evita dump completo no artifact.
+   */
+  completenessPercentage: number;
+  qualityLevel: "insufficient" | "basic" | "ready";
 };
 
 export type RealLeadSummary = {
