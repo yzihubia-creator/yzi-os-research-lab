@@ -207,6 +207,76 @@ export type RuntimeRequest = {
   user_role: string;
   available_connections: readonly string[];
   requested_action: string;
+  /**
+   * Unidade "Real Entity Contract" — contexto REAL (banco, tenant-scoped) do
+   * imóvel/lead/interesse/conversa, pré-carregado pela camada de
+   * persistência ANTES de chamar o pipeline puro (que continua síncrono e
+   * sem I/O). Presente apenas para `PREPARE_PROPERTY_CONTACT` no fluxo
+   * persistido normal. `undefined`/`null` para os demais workflows (que
+   * continuam usando os mocks internos do skeleton, inalterados).
+   */
+  real_contact_context?: RealContactContext | null;
+};
+
+// ── Contexto real (Real Entity Contract) ─────────────────────────────────────
+//
+// Formas compactas, tenant-scoped, das entidades reais lidas pela camada de
+// persistência para `PREPARE_PROPERTY_CONTACT`. Nenhum dado é inventado:
+// ausência é sempre um erro honesto tratado ANTES de chegar aqui.
+
+export type RealPropertySummary = {
+  id: string;
+  title: string;
+  referenceCode: string | null;
+  propertyType: string | null;
+  transactionType: string | null;
+  status: string;
+  city: string | null;
+  neighborhood: string | null;
+  price: number | null;
+  description: string | null;
+};
+
+export type RealLeadSummary = {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  temperature: string | null;
+  source: string | null;
+  notes: string | null;
+};
+
+export type RealInterestSummary = {
+  id: string;
+  status: string;
+  source: string | null;
+  score: number | null;
+};
+
+export type RealConversationSummary = {
+  id: string;
+  channel: string;
+  status: string;
+  startedAt: string;
+  lastMessageAt: string | null;
+} | null;
+
+export type RealMessageSummary = {
+  direction: string;
+  senderType: string;
+  body: string;
+  createdAt: string;
+};
+
+export type RealContactContext = {
+  property: RealPropertySummary;
+  lead: RealLeadSummary;
+  interest: RealInterestSummary;
+  conversation: RealConversationSummary;
+  /** Só populado quando `conversation` existe; limite pequeno e determinístico. */
+  recentMessages: readonly RealMessageSummary[];
 };
 
 // ── Saída do Intent Router + Workflow Selector ───────────────────────────────

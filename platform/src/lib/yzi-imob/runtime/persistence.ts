@@ -1,11 +1,13 @@
-// YZI IMOB Runtime — Persistence Bridge (Unidade 3, Persisted Run Slice).
+// YZI IMOB Runtime — Persistence Bridge (Unidade 3, Persisted Run Slice;
+// Unidade "Real Entity Contract" — contrato v2 do artefato).
 //
 // Ponte PURA entre o pipeline puro do Runtime (types/workflows/context-builder/
 // orchestrator, todos inalterados nesta unidade) e a camada de persistência
 // real em `lib/yzi-os/runs.ts`. Este módulo NÃO importa Supabase, NÃO faz I/O
 // de rede, NÃO lê cookies/sessão. Apenas deriva, de forma determinística, o
-// conteúdo do artefato `contact_draft` a partir do contexto já montado pelo
-// Context Builder existente, valida o gate estrutural e calcula o hash.
+// conteúdo do artefato `contact_draft` a partir do contexto REAL já
+// carregado e validado pela persistência, valida o gate estrutural e calcula
+// o hash.
 //
 // Preserva o comportamento validado do Agent Lab sem filesystem/Markdown:
 // gate binário = validação estrutural em código (nunca "declaração do
@@ -13,20 +15,33 @@
 
 import { createHash } from "node:crypto";
 
-import type { BuiltContext, RuntimeRequest } from "./types";
+import type { RealContactContext } from "./types";
 
 /** Modo de derivação do conteúdo — espelha a decisão humana que o originou. */
 export type ContactDraftMode = "initial" | "adjust" | "rework";
 
-/** Artifact contract `contact_draft` — único contrato desta unidade. */
+/**
+ * Artifact contract `yzi.imob.contact_draft.v1` — versão que carrega os IDs
+ * reais (property/lead/conversation) e um resumo de contexto compacto.
+ * Retrocompatibilidade: artifacts antigos (`{"message_draft": "..."}`, sem
+ * `contract`) continuam sendo lidos pela UI porque ela só depende do campo
+ * `message_draft` (ver `yzi-imob-run-workspace.tsx`) — este módulo nunca lê
+ * nem migra artifacts antigos, apenas escreve o novo contrato daqui pra frente.
+ */
 export type ContactDraftContent = {
-  contract: "contact_draft";
-  tenant_id: string;
+  contract: "yzi.imob.contact_draft.v1";
   property_id: string;
-  property_title: string;
+  lead_id: string;
+  conversation_id: string | null;
+  channel: string;
   message_draft: string;
-  channel: "internal_draft";
   context_fingerprint: string;
+  context_summary: {
+    property_title: string;
+    lead_name: string;
+    interest_status: string;
+    conversation_status: string | null;
+  };
   mode: ContactDraftMode;
   /** Nota curta da decisão humana que originou este attempt (adjust/rework). */
   revision_note: string | null;
@@ -37,17 +52,7 @@ export type ContactDraftContent = {
 const DRAFT_DISCLAIMER =
   "Rascunho interno. Nenhuma mensagem é enviada nesta unidade — liberar significa apenas selar o artefato.";
 
-/**
- * Extrai o resumo do imóvel a partir do bloco `execution` já montado pelo
- * Context Builder (Spec §5). Não consulta nenhuma fonte nova — reaproveita
- * exatamente o que o pipeline puro já resolveu e validou (tenant boundary
- * incluso). Retorna `null` honestamente se o bloco não existir (defensivo;
- * não deveria ocorrer quando `context.complete === true`).
- */
-function extractExecutionSummary(context: BuiltContext): string | null {
-  const block = context.blocks.find((b) => b.id === "execution");
-  return block?.summary ?? null;
-}
+const INTERNAL_CHANNEL = "internal_draft";
 
 /**
  * Deriva o conteúdo do rascunho de contato de forma determinística (sem IA,
@@ -58,22 +63,22 @@ function extractExecutionSummary(context: BuiltContext): string | null {
  * (nunca como autoridade sobre o conteúdo anterior).
  */
 export function draftContactDraftContent(params: {
-  request: RuntimeRequest;
-  context: BuiltContext;
+  real: RealContactContext;
+  contextFingerprint: string;
   mode: ContactDraftMode;
   revisionNote?: string | null;
   now?: Date;
 }): ContactDraftContent | null {
-  const { request, context, mode } = params;
-  const summary = extractExecutionSummary(context);
-  if (!summary || !request.active_asset_id) {
+  const { real, contextFingerprint, mode } = params;
+  if (!contextFingerprint || !real.property.id || !real.lead.id) {
     return null;
   }
 
   const preparedAt = (params.now ?? new Date()).toISOString();
   const revisionNote = params.revisionNote?.trim() || null;
+  const channel = real.conversation?.channel ?? INTERNAL_CHANNEL;
 
-  const baseMessage = `Olá! Sobre o imóvel — ${summary} Podemos avançar com o próximo passo?`;
+  const baseMessage = `Olá! Sobre o imóvel "${real.property.title}" — falando com ${real.lead.fullName}. Podemos avançar com o próximo passo?`;
 
   const messageDraft =
     mode === "initial"
@@ -85,13 +90,19 @@ export function draftContactDraftContent(params: {
           : baseMessage;
 
   return {
-    contract: "contact_draft",
-    tenant_id: request.tenant_id,
-    property_id: request.active_asset_id,
-    property_title: summary,
+    contract: "yzi.imob.contact_draft.v1",
+    property_id: real.property.id,
+    lead_id: real.lead.id,
+    conversation_id: real.conversation?.id ?? null,
+    channel,
     message_draft: messageDraft,
-    channel: "internal_draft",
-    context_fingerprint: context.fingerprint,
+    context_fingerprint: contextFingerprint,
+    context_summary: {
+      property_title: real.property.title,
+      lead_name: real.lead.fullName,
+      interest_status: real.interest.status,
+      conversation_status: real.conversation?.status ?? null,
+    },
     mode,
     revision_note: mode === "initial" ? null : revisionNote,
     prepared_at: preparedAt,
@@ -118,14 +129,14 @@ export function validateContactDraftContent(
   if (!content) {
     return { valid: false, errors: ["content_missing"] };
   }
-  if (content.contract !== "contact_draft") {
+  if (content.contract !== "yzi.imob.contact_draft.v1") {
     errors.push("contract_mismatch");
-  }
-  if (!content.tenant_id) {
-    errors.push("tenant_id_missing");
   }
   if (!content.property_id) {
     errors.push("property_id_missing");
+  }
+  if (!content.lead_id) {
+    errors.push("lead_id_missing");
   }
   if (!content.message_draft || content.message_draft.trim().length === 0) {
     errors.push("message_draft_empty");

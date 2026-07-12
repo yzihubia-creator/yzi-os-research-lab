@@ -40,7 +40,17 @@ import type {
 // de workflow, contagem de tentativas) vive só no inspector colapsável no
 // final da página.
 
-type CandidateProperty = { id: string; title: string };
+/** Par explícito (imóvel, lead) — cada operação é sempre um par, nunca só um imóvel. */
+type CandidateOperation = { propertyId: string; leadId: string; title: string };
+
+function operationKey(op: { propertyId: string; leadId: string }): string {
+  return `${op.propertyId}::${op.leadId}`;
+}
+
+function parseOperationKey(key: string): { propertyId: string; leadId: string } | null {
+  const [propertyId, leadId] = key.split("::");
+  return propertyId && leadId ? { propertyId, leadId } : null;
+}
 
 type Phase =
   | "idle"
@@ -131,9 +141,9 @@ function pendingDecision(
 
 function propertyTitleFor(
   activeAssetId: string,
-  candidateProperties: readonly CandidateProperty[],
+  candidateOperations: readonly CandidateOperation[],
 ): string {
-  return candidateProperties.find((p) => p.id === activeAssetId)?.title ?? activeAssetId;
+  return candidateOperations.find((op) => op.propertyId === activeAssetId)?.title ?? activeAssetId;
 }
 
 type HistoryEntry = {
@@ -193,10 +203,10 @@ function buildHistoryEntries(state: YziRunState): HistoryEntry[] {
 
 function OperationSummary({
   state,
-  candidateProperties,
+  candidateOperations,
 }: {
   state: YziRunState;
-  candidateProperties: readonly CandidateProperty[];
+  candidateOperations: readonly CandidateOperation[];
 }) {
   return (
     <YziPanel className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
@@ -208,7 +218,7 @@ function OperationSummary({
           <p className="max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
             {WORKFLOW_LABEL} para{" "}
             <strong className="font-semibold text-[var(--yzi-text-primary)] [overflow-wrap:anywhere]">
-              {propertyTitleFor(state.run.activeAssetId, candidateProperties)}
+              {propertyTitleFor(state.run.activeAssetId, candidateOperations)}
             </strong>
             .
           </p>
@@ -526,17 +536,17 @@ export function YziImobRunWorkspace({
   tenantId,
   userId,
   userRole,
-  candidateProperties,
+  candidateOperations,
   initialState,
 }: {
   tenantId: string;
   userId: string;
   userRole: string;
-  candidateProperties: readonly CandidateProperty[];
+  candidateOperations: readonly CandidateOperation[];
   initialState: RunStateResult;
 }) {
-  const [selectedAssetId, setSelectedAssetId] = useState(
-    candidateProperties[0]?.id ?? "",
+  const [selectedOperationKey, setSelectedOperationKey] = useState(
+    candidateOperations[0] ? operationKey(candidateOperations[0]) : "",
   );
   const [result, setResult] = useState<RunStateResult>(initialState);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -556,8 +566,9 @@ export function YziImobRunWorkspace({
 
   function handleStart() {
     setError(null);
-    if (!selectedAssetId) {
-      setError("Selecione um imóvel para iniciar o rascunho.");
+    const parsed = parseOperationKey(selectedOperationKey);
+    if (!parsed) {
+      setError("Selecione um imóvel e um lead para iniciar o rascunho.");
       return;
     }
     setPhase("starting");
@@ -566,7 +577,8 @@ export function YziImobRunWorkspace({
         tenantId,
         userId,
         userRole,
-        activeAssetId: selectedAssetId,
+        activeAssetId: parsed.propertyId,
+        leadId: parsed.leadId,
       });
       setPhase("idle");
       if (started.status === "started") {
@@ -659,26 +671,26 @@ export function YziImobRunWorkspace({
       ) : null}
 
       {result.status === "no_run" ? (
-        candidateProperties.length === 0 ? (
+        candidateOperations.length === 0 ? (
           <YziEmptyVisualState
             icon={AssetsIcon}
-            message="Nenhum imóvel disponível para iniciar um contato nesta operação."
+            message="Nenhum par imóvel/lead disponível para iniciar um contato nesta operação."
           />
         ) : (
           <YziPanel className="flex max-w-3xl flex-col gap-3 p-4">
             <span className="text-sm text-[var(--yzi-text-secondary)]">
-              Nenhuma operação em andamento. Escolha um imóvel para a YZI
-              preparar o rascunho de contato.
+              Nenhuma operação em andamento. Escolha o imóvel e o lead para a
+              YZI preparar o rascunho de contato.
             </span>
             <select
-              value={selectedAssetId}
-              onChange={(e) => setSelectedAssetId(e.target.value)}
+              value={selectedOperationKey}
+              onChange={(e) => setSelectedOperationKey(e.target.value)}
               disabled={pending}
               className="w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm text-[var(--yzi-text-primary)]"
             >
-              {candidateProperties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
+              {candidateOperations.map((op) => (
+                <option key={operationKey(op)} value={operationKey(op)}>
+                  {op.title}
                 </option>
               ))}
             </select>
@@ -698,7 +710,7 @@ export function YziImobRunWorkspace({
       {state ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] lg:items-start">
           <div className="flex min-w-0 flex-col gap-6">
-            <OperationSummary state={state} candidateProperties={candidateProperties} />
+            <OperationSummary state={state} candidateOperations={candidateOperations} />
 
             <YziAlert
               tone={state.run.status === "done" ? "success" : "info"}

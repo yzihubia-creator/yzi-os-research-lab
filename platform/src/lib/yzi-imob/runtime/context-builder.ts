@@ -17,6 +17,7 @@ import type {
   BuiltContext,
   ContextBlock,
   PolicyDecision,
+  RealContactContext,
   RuntimeErrorState,
   RuntimeRequest,
   SelectedWorkflow,
@@ -117,6 +118,17 @@ function buildExecutionBlock(
 ):
   | { block: ContextBlock; error: null }
   | { block: null; error: RuntimeErrorState } {
+  // PREPARE_PROPERTY_CONTACT no fluxo normal usa SEMPRE contexto real
+  // (banco, tenant-scoped), pré-carregado pela persistência. Nunca cai para
+  // mock em produção — faltante é erro honesto (`context_required`), nunca
+  // preenchimento inventado (Spec §2).
+  if (workflow_id === "PREPARE_PROPERTY_CONTACT") {
+    if (!request.real_contact_context) {
+      return { block: null, error: "context_required" };
+    }
+    return { block: buildRealExecutionBlock(request.real_contact_context), error: null };
+  }
+
   // PROPERTY_SEARCH não tem imóvel ativo: o ativo é o CATÁLOGO do tenant sobre o
   // qual a busca vai casar. Bloco de escopo (read-only), sem inventar imóvel.
   if (workflow_id === "PROPERTY_SEARCH") {
@@ -157,6 +169,26 @@ function buildExecutionBlock(
       summary: `Imóvel "${property.title}" (status=${property.status}); mídia=${property.media_count}; ${missing}; próxima ação="${property.next_action}".`,
     },
     error: null,
+  };
+}
+
+/**
+ * Monta o bloco `execution` a partir de dados REAIS (property/lead/interest/
+ * conversation), já lidos e validados tenant-scoped pela persistência. Função
+ * PURA — apenas formata; não decide nem consulta nada.
+ */
+function buildRealExecutionBlock(real: RealContactContext): ContextBlock {
+  const { property, lead, interest, conversation } = real;
+  const conversationPart = conversation
+    ? `conversa=${conversation.channel}/${conversation.status}`
+    : "conversa=nenhuma";
+
+  return {
+    id: "execution",
+    priority: 5,
+    provenance: `db:contact-context property_id=${property.id} lead_id=${lead.id}`,
+    freshness: "fresh",
+    summary: `Imóvel "${property.title}" (status=${property.status}) para o lead "${lead.fullName}" (status=${lead.status}, temperatura=${lead.temperature ?? "n/d"}); interesse=${interest.status}; ${conversationPart}.`,
   };
 }
 

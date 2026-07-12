@@ -6,7 +6,7 @@ import {
   type ContactDraftMode,
 } from "@/lib/yzi-imob/runtime/persistence";
 import { runYziImobRuntime } from "@/lib/yzi-imob/runtime/runtime-api";
-import type { RuntimeRequest } from "@/lib/yzi-imob/runtime/types";
+import type { RealContactContext, RuntimeRequest } from "@/lib/yzi-imob/runtime/types";
 
 import { asRecord, readNumber, readString } from "./rpc-normalize";
 import type {
@@ -27,22 +27,180 @@ import type {
 
 // YZI OS — Persistência da primeira fatia vertical da Capability Platform
 // (Unidade 3: PREPARE_PROPERTY_CONTACT, run → step → artefato → checkpoint →
-// decisão → production lock → artefato final selado). Reutiliza o pipeline
+// decisão → production lock → artefato final selado; Unidade "Real Entity
+// Contract": o fluxo normal lê imóvel/lead/interesse/conversa REAIS do banco,
+// tenant-scoped — nenhum mock no caminho persistido). Reutiliza o pipeline
 // puro do Runtime YZI IMOB (inalterado) apenas para classificar intenção,
 // montar contexto e validar elegibilidade de tool — a escrita real acontece
 // exclusivamente via RPCs `security_definer = false` (`runs.sql`, pack
-// manual), sob RLS, com a sessão por cookie do operador. NUNCA service role,
-// SQL raw, MCP ou execução externa. NENHUMA tool externa é chamada; "liberar"
-// significa apenas selar o artefato dentro do sistema.
-//
-// As RPCs abaixo (`yzi_start_prepare_contact_run`,
-// `yzi_advance_after_approval`, `yzi_record_run_adjustment`) ainda NÃO
-// existem no banco — fazem parte do SQL pack manual entregue com esta
-// unidade, para aplicação por um operador humano. Até lá, toda chamada
-// retorna `status: "error"` (RPC inexistente), estado honesto.
+// manual v1 + amendment v2), sob RLS, com a sessão por cookie do operador.
+// NUNCA service role, SQL raw, MCP ou execução externa. NENHUMA tool externa
+// é chamada; "liberar" significa apenas selar o artefato dentro do sistema.
 
 const WORKFLOW_ID = "PREPARE_PROPERTY_CONTACT";
 const ACTIVE_ASSET_TYPE = "property";
+
+/** Códigos de erro honestos do contrato de entrada real (Fase 7 da unidade). */
+export type PrepareContactInputError =
+  | "property_not_found"
+  | "lead_not_found"
+  | "property_interest_not_found"
+  | "conversation_not_found"
+  | "conversation_lead_mismatch"
+  | "invalid_runtime_input";
+
+type LoadRealContextResult =
+  | { status: "ok"; context: RealContactContext }
+  | { status: "error"; code: PrepareContactInputError };
+
+const RECENT_MESSAGES_LIMIT = 5;
+
+/**
+ * Lê imóvel, lead, interesse e (opcionalmente) conversa/mensagens REAIS do
+ * banco, sempre filtrando por `tenant_id` — nunca confia em IDs soltos do
+ * cliente sem confirmar que pertencem ao tenant. Ausência de qualquer
+ * entidade é um erro honesto e nomeado (Fase 7), nunca um valor inventado.
+ * As FKs compostas de `yzi_imob_run_contexts` e a RPC (Fase 4/9) revalidam o
+ * mesmo vínculo no servidor — esta leitura é a primeira camada, não a única.
+ */
+async function loadRealContactContext(input: {
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+  tenantId: string;
+  propertyId: string;
+  leadId: string;
+  conversationId: string | null;
+}): Promise<LoadRealContextResult> {
+  const { supabase, tenantId, propertyId, leadId, conversationId } = input;
+
+  const [propertyResult, leadResult, interestResult] = await Promise.all([
+    supabase
+      .from("yzi_imob_properties")
+      .select(
+        "id, title, reference_code, property_type, transaction_type, status, city, neighborhood, price, description",
+      )
+      .eq("tenant_id", tenantId)
+      .eq("id", propertyId)
+      .maybeSingle(),
+    supabase
+      .from("yzi_imob_leads")
+      .select("id, full_name, phone, email, status, temperature, source, notes")
+      .eq("tenant_id", tenantId)
+      .eq("id", leadId)
+      .maybeSingle(),
+    supabase
+      .from("yzi_imob_property_interests")
+      .select("id, status, source, score")
+      .eq("tenant_id", tenantId)
+      .eq("property_id", propertyId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (propertyResult.error || !propertyResult.data) {
+    return { status: "error", code: "property_not_found" };
+  }
+  if (leadResult.error || !leadResult.data) {
+    return { status: "error", code: "lead_not_found" };
+  }
+  if (interestResult.error || !interestResult.data) {
+    return { status: "error", code: "property_interest_not_found" };
+  }
+
+  let conversation: RealContactContext["conversation"] = null;
+  let recentMessages: RealContactContext["recentMessages"] = [];
+
+  if (conversationId) {
+    const conversationRow = await supabase
+      .from("yzi_imob_conversations")
+      .select("id, lead_id, channel, status, started_at, last_message_at")
+      .eq("tenant_id", tenantId)
+      .eq("id", conversationId)
+      .maybeSingle();
+
+    if (conversationRow.error || !conversationRow.data) {
+      return { status: "error", code: "conversation_not_found" };
+    }
+    if (conversationRow.data.lead_id !== leadId) {
+      return { status: "error", code: "conversation_lead_mismatch" };
+    }
+
+    conversation = {
+      id: readString(asRecord(conversationRow.data), "id"),
+      channel: readString(asRecord(conversationRow.data), "channel"),
+      status: readString(asRecord(conversationRow.data), "status"),
+      startedAt: readString(asRecord(conversationRow.data), "started_at"),
+      lastMessageAt:
+        typeof conversationRow.data.last_message_at === "string"
+          ? conversationRow.data.last_message_at
+          : null,
+    };
+
+    const messagesResult = await supabase
+      .from("yzi_imob_messages")
+      .select("direction, sender_type, body, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(RECENT_MESSAGES_LIMIT);
+
+    recentMessages = (messagesResult.data ?? []).map((row) => {
+      const record = asRecord(row);
+      return {
+        direction: readString(record, "direction"),
+        senderType: readString(record, "sender_type"),
+        body: readString(record, "body"),
+        createdAt: readString(record, "created_at"),
+      };
+    });
+  }
+
+  const propertyRow = asRecord(propertyResult.data);
+  const leadRow = asRecord(leadResult.data);
+  const interestRow = asRecord(interestResult.data);
+
+  return {
+    status: "ok",
+    context: {
+      property: {
+        id: readString(propertyRow, "id"),
+        title: readString(propertyRow, "title"),
+        referenceCode:
+          typeof propertyRow.reference_code === "string" ? propertyRow.reference_code : null,
+        propertyType:
+          typeof propertyRow.property_type === "string" ? propertyRow.property_type : null,
+        transactionType:
+          typeof propertyRow.transaction_type === "string" ? propertyRow.transaction_type : null,
+        status: readString(propertyRow, "status"),
+        city: typeof propertyRow.city === "string" ? propertyRow.city : null,
+        neighborhood:
+          typeof propertyRow.neighborhood === "string" ? propertyRow.neighborhood : null,
+        price: typeof propertyRow.price === "number" ? propertyRow.price : null,
+        description:
+          typeof propertyRow.description === "string" ? propertyRow.description : null,
+      },
+      lead: {
+        id: readString(leadRow, "id"),
+        fullName: readString(leadRow, "full_name"),
+        phone: typeof leadRow.phone === "string" ? leadRow.phone : null,
+        email: typeof leadRow.email === "string" ? leadRow.email : null,
+        status: readString(leadRow, "status"),
+        temperature: typeof leadRow.temperature === "string" ? leadRow.temperature : null,
+        source: typeof leadRow.source === "string" ? leadRow.source : null,
+        notes: typeof leadRow.notes === "string" ? leadRow.notes : null,
+      },
+      interest: {
+        id: readString(interestRow, "id"),
+        status: readString(interestRow, "status"),
+        source: typeof interestRow.source === "string" ? interestRow.source : null,
+        score: typeof interestRow.score === "number" ? interestRow.score : null,
+      },
+      conversation,
+      recentMessages,
+    },
+  };
+}
 
 function mapRunStatus(value: string): YziRunStatus {
   const allowed: YziRunStatus[] = [
@@ -175,11 +333,19 @@ function mapActionRequestRow(row: Record<string, unknown>): YziRunActionRequest 
   };
 }
 
+/** Status não-terminais — a "operação atual" quando nenhum `runId` é informado. */
+const ACTIVE_RUN_STATUSES: readonly YziRunStatus[] = ["running", "awaiting_approval"];
+
 /**
  * Lê o estado agregado de uma run — reconstrói TUDO a partir do banco
  * (nenhum estado do cliente é confiado). Se `runId` não for informado, busca
- * a run mais recente de `PREPARE_PROPERTY_CONTACT` do tenant. Ausência de run
- * é estado honesto (`no_run`), nunca inventado.
+ * a run ATIVA mais recente (`running`/`awaiting_approval`) de
+ * `PREPARE_PROPERTY_CONTACT` do tenant — runs terminais (`done`/`failed`/
+ * `cancelled`) nunca são tratadas como "operação atual", para não bloquear
+ * permanentemente o início de uma nova operação após a anterior concluir.
+ * Se `runId` FOR informado, nenhum filtro de status é aplicado — leitura de
+ * histórico/inspeção explícita continua abrindo runs de qualquer status.
+ * Ausência de run é estado honesto (`no_run`), nunca inventado.
  */
 export async function getPrepareContactRunState(input: {
   tenantId: string;
@@ -196,7 +362,10 @@ export async function getPrepareContactRunState(input: {
 
     const { data: runRows, error: runError } = input.runId
       ? await baseRunQuery.eq("id", input.runId)
-      : await baseRunQuery.order("created_at", { ascending: false }).limit(1);
+      : await baseRunQuery
+          .in("status", ACTIVE_RUN_STATUSES)
+          .order("created_at", { ascending: false })
+          .limit(1);
     if (runError) {
       return { status: "error", message: "Não foi possível carregar a run." };
     }
@@ -253,6 +422,7 @@ function buildRuntimeRequest(params: {
   userId: string;
   userRole: string;
   activeAssetId: string;
+  realContactContext: RealContactContext;
 }): RuntimeRequest {
   return {
     tenant_id: params.tenantId,
@@ -265,23 +435,54 @@ function buildRuntimeRequest(params: {
     user_role: params.userRole,
     available_connections: [],
     requested_action: "prepare_contact_followup",
+    real_contact_context: params.realContactContext,
   };
 }
 
 /**
- * Inicia a run persistida. Roda o pipeline puro do Runtime primeiro (nunca
- * pula essa etapa): só persiste se o pipeline chegar honestamente a
- * `READY_FOR_APPROVAL` com um Approval Descriptor para a tool de contato.
- * Gate estrutural do artefato roda em código servidor antes de qualquer
- * escrita — nunca confia na "declaração" de que o conteúdo existe.
+ * Inicia a run persistida. `propertyId` e `leadId` são AMBOS obrigatórios —
+ * cada operação é o par explícito (imóvel, lead); nunca há inferência do
+ * "primeiro interesse" nem fallback automático para qualquer lead
+ * (correção desta unidade: um imóvel com dois leads produz duas operações
+ * distintas e determinísticas, escolhidas explicitamente na UI).
+ * `conversationId` continua opcional. Lê o contexto REAL do banco (Fase 3),
+ * roda o pipeline puro do Runtime (nunca pula essa etapa) e só persiste se
+ * o pipeline chegar honestamente a `READY_FOR_APPROVAL`. Gate estrutural do
+ * artefato roda em código servidor antes de qualquer escrita — nunca confia
+ * na "declaração" de que o conteúdo existe.
  */
 export async function startPrepareContactRun(input: {
   tenantId: string;
   userId: string;
   userRole: string;
-  activeAssetId: string;
+  propertyId: string;
+  leadId: string;
+  conversationId?: string | null;
 }): Promise<StartRunResult> {
-  const request = buildRuntimeRequest(input);
+  if (!input.tenantId || !input.userId || !input.propertyId || !input.leadId) {
+    return { status: "blocked", reason: "invalid_runtime_input" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const loaded = await loadRealContactContext({
+    supabase,
+    tenantId: input.tenantId,
+    propertyId: input.propertyId,
+    leadId: input.leadId,
+    conversationId: input.conversationId ?? null,
+  });
+  if (loaded.status === "error") {
+    return { status: "blocked", reason: loaded.code };
+  }
+
+  const request = buildRuntimeRequest({
+    tenantId: input.tenantId,
+    userId: input.userId,
+    userRole: input.userRole,
+    activeAssetId: input.propertyId,
+    realContactContext: loaded.context,
+  });
   const result = runYziImobRuntime(request);
 
   if (result.status !== "READY_FOR_APPROVAL" || !result.context) {
@@ -295,8 +496,8 @@ export async function startPrepareContactRun(input: {
   }
 
   const content = draftContactDraftContent({
-    request,
-    context: result.context,
+    real: loaded.context,
+    contextFingerprint: result.context.fingerprint,
     mode: "initial",
   });
   const gate = validateContactDraftContent(content);
@@ -306,10 +507,11 @@ export async function startPrepareContactRun(input: {
   const contentHash = computeContentHash(content);
 
   try {
-    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.rpc("yzi_start_prepare_contact_run", {
       p_tenant_id: input.tenantId,
-      p_active_asset_id: input.activeAssetId,
+      p_property_id: input.propertyId,
+      p_lead_id: input.leadId,
+      p_conversation_id: input.conversationId ?? null,
       p_context_fingerprint: result.context.fingerprint,
       p_content: content,
       p_content_hash: contentHash,
@@ -393,11 +595,40 @@ export async function recordRunAdjustment(input: {
     return { status: "error", message: "Run não encontrada para registrar o ajuste." };
   }
 
+  const supabase = await createServerSupabaseClient();
+  const runContextRow = await supabase
+    .from("yzi_imob_run_contexts")
+    .select("property_id, lead_id, conversation_id")
+    .eq("tenant_id", input.tenantId)
+    .eq("run_id", input.runId)
+    .maybeSingle();
+
+  if (runContextRow.error || !runContextRow.data) {
+    return { status: "error", message: "Vínculo real (imóvel/lead) da run não foi encontrado." };
+  }
+  const runContext = asRecord(runContextRow.data);
+  const propertyId = readString(runContext, "property_id");
+  const leadId = readString(runContext, "lead_id");
+  const conversationId =
+    typeof runContext.conversation_id === "string" ? runContext.conversation_id : null;
+
+  const loaded = await loadRealContactContext({
+    supabase,
+    tenantId: input.tenantId,
+    propertyId,
+    leadId,
+    conversationId,
+  });
+  if (loaded.status === "error") {
+    return { status: "error", message: `Não foi possível recarregar o vínculo real: ${loaded.code}.` };
+  }
+
   const request = buildRuntimeRequest({
     tenantId: input.tenantId,
     userId: input.userId,
     userRole: input.userRole,
     activeAssetId: current.state.run.activeAssetId,
+    realContactContext: loaded.context,
   });
   const result = runYziImobRuntime(request);
   if (result.status !== "READY_FOR_APPROVAL" || !result.context) {
@@ -405,8 +636,8 @@ export async function recordRunAdjustment(input: {
   }
 
   const content = draftContactDraftContent({
-    request,
-    context: result.context,
+    real: loaded.context,
+    contextFingerprint: result.context.fingerprint,
     mode: input.mode,
     revisionNote: input.note,
   });

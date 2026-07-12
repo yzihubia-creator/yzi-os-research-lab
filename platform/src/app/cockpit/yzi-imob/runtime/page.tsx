@@ -4,8 +4,7 @@ import { YziImobDemoEnvironment } from "@/components/yzi-imob/yzi-imob-demo-envi
 import { YziImobRunWorkspace } from "@/components/yzi-imob/yzi-imob-run-workspace";
 import { YziImobRuntimePreviewV0 } from "@/components/yzi-imob/yzi-imob-runtime-preview-v0";
 import { YziAlert, YziPanel } from "@/components/yzi-os/yzi-primitives";
-import { getSessionUser } from "@/lib/auth/session";
-import { listMockPropertiesForTenant } from "@/lib/yzi-imob/runtime/mock-data";
+import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
 import { getPrepareContactRunState } from "@/lib/yzi-os/runs";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 
@@ -99,6 +98,94 @@ function UnavailableOperationState({ userId }: { userId: string }) {
   );
 }
 
+/** Status de run que já "consomem" um par (imóvel, lead) — não elegível de novo. */
+const BLOCKING_RUN_STATUSES = ["running", "awaiting_approval", "done"] as const;
+
+/**
+ * Pares (imóvel, lead) já vinculados a uma run `PREPARE_PROPERTY_CONTACT`
+ * não-encerrada-por-falha deste tenant — via `yzi_imob_run_contexts`, nunca
+ * via `active_asset_id` isolado (que não identifica o lead). `failed`/
+ * `cancelled` NÃO bloqueiam: a operação não se concretizou, o par pode ser
+ * tentado de novo.
+ */
+async function listBlockedPairsForTenant(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  tenantId: string,
+): Promise<ReadonlySet<string>> {
+  const { data: blockingRuns } = await supabase
+    .from("yzi_runs")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("workflow_id", "PREPARE_PROPERTY_CONTACT")
+    .in("status", BLOCKING_RUN_STATUSES);
+
+  const runIds = (blockingRuns ?? []).map((row) => row.id);
+  if (runIds.length === 0) return new Set();
+
+  const { data: contexts } = await supabase
+    .from("yzi_imob_run_contexts")
+    .select("property_id, lead_id")
+    .eq("tenant_id", tenantId)
+    .in("run_id", runIds);
+
+  return new Set((contexts ?? []).map((row) => `${row.property_id}::${row.lead_id}`));
+}
+
+/**
+ * Candidatos = pares (imóvel, lead) reais do tenant, um por
+ * `yzi_imob_property_interests` distinto — nunca colapsados por imóvel.
+ * Um imóvel com dois leads interessados produz DUAS operações distintas e
+ * determinísticas (nenhuma inferência implícita de lead, nem na leitura nem
+ * no início da run). Pares já vinculados a uma run `running`/
+ * `awaiting_approval`/`done` são excluídos — a operação já está em curso ou
+ * já se concretizou; `failed`/`cancelled` deixam o par elegível de novo.
+ * Fonte 100% real; nenhum mock no fluxo persistido normal.
+ */
+async function listCandidateOperationsForTenant(
+  tenantId: string,
+): Promise<readonly { propertyId: string; leadId: string; title: string }[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data: interestRows } = await supabase
+    .from("yzi_imob_property_interests")
+    .select("property_id, lead_id")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+
+  const allPairs = Array.from(
+    new Map(
+      (interestRows ?? [])
+        .filter((row) => row.property_id && row.lead_id)
+        .map((row) => [`${row.property_id}::${row.lead_id}`, row]),
+    ).values(),
+  );
+  if (allPairs.length === 0) return [];
+
+  const blockedPairs = await listBlockedPairsForTenant(supabase, tenantId);
+  const pairs = allPairs.filter(
+    (pair) => !blockedPairs.has(`${pair.property_id}::${pair.lead_id}`),
+  );
+  if (pairs.length === 0) return [];
+
+  const propertyIds = Array.from(new Set(pairs.map((p) => p.property_id)));
+  const leadIds = Array.from(new Set(pairs.map((p) => p.lead_id)));
+
+  const [{ data: propertyRows }, { data: leadRows }] = await Promise.all([
+    supabase.from("yzi_imob_properties").select("id, title").eq("tenant_id", tenantId).in("id", propertyIds),
+    supabase.from("yzi_imob_leads").select("id, full_name").eq("tenant_id", tenantId).in("id", leadIds),
+  ]);
+
+  const propertyTitleById = new Map((propertyRows ?? []).map((row) => [row.id, row.title]));
+  const leadNameById = new Map((leadRows ?? []).map((row) => [row.id, row.full_name]));
+
+  return pairs.map((pair) => ({
+    propertyId: pair.property_id,
+    leadId: pair.lead_id,
+    title: `${propertyTitleById.get(pair.property_id) ?? pair.property_id} — ${
+      leadNameById.get(pair.lead_id) ?? pair.lead_id
+    }`,
+  }));
+}
+
 async function RunWorkspaceSection({
   tenantId,
   userId,
@@ -108,10 +195,7 @@ async function RunWorkspaceSection({
   userId: string;
   userRole: string;
 }) {
-  const candidateProperties = listMockPropertiesForTenant(tenantId).map((p) => ({
-    id: p.property_id,
-    title: p.title,
-  }));
+  const candidateOperations = await listCandidateOperationsForTenant(tenantId);
   const initialState = await getPrepareContactRunState({ tenantId });
 
   return (
@@ -119,7 +203,7 @@ async function RunWorkspaceSection({
       tenantId={tenantId}
       userId={userId}
       userRole={userRole}
-      candidateProperties={candidateProperties}
+      candidateOperations={candidateOperations}
       initialState={initialState}
     />
   );

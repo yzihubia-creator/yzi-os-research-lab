@@ -1451,3 +1451,229 @@ where tgrelid = 'public.yzi_action_requests'::regclass
 -- drop table if exists public.yzi_artifacts;
 -- drop table if exists public.yzi_run_steps;
 -- drop table if exists public.yzi_runs;
+
+-- ============================================================================
+-- PART 8 — AMENDMENT v2 (2026-07-12): real entity contract for
+-- PREPARE_PROPERTY_CONTACT
+-- ============================================================================
+-- Applied to the live project (thwsltjcjrvtidhnfukc) via mcp__supabase
+-- (apply_migration), under this unit's explicit human authorization
+-- ("aplicar a alteração no banco vivo via mcp__supabase" — unit brief).
+--
+-- Reconciled against the LIVE `yzi_imob_run_contexts` table, which already
+-- existed (created by a prior unit) with exactly:
+--   run_id uuid pk, tenant_id uuid, property_id uuid, lead_id uuid,
+--   conversation_id uuid nullable, created_at timestamptz,
+--   FK (property_id, tenant_id) -> yzi_imob_properties, FK (lead_id,
+--   tenant_id) -> yzi_imob_leads, FK (conversation_id, lead_id, tenant_id)
+--   -> yzi_imob_conversations (composite — enforces conversation belongs to
+--   the SAME lead), FK (run_id, tenant_id) -> yzi_runs. RLS enabled, INSERT
+--   policy requires active tenant membership (not gated by
+--   yzi.run_write_gate — this table is descriptive linkage, not part of the
+--   governed decision/audit chain, so no new gate is introduced for it).
+-- No new table, no new column beyond what already existed. Only
+-- `yzi_start_prepare_contact_run` changes signature (old signature is
+-- DROPped first — the client contract changes; no dual-signature ambiguity
+-- is left live). `yzi_advance_after_approval` and `yzi_record_run_adjustment`
+-- are unchanged (they operate on run_id/action_request_id, which already
+-- carry the tenant/property/lead binding transitively via yzi_runs +
+-- yzi_imob_run_contexts).
+
+drop function if exists public.yzi_start_prepare_contact_run(uuid, text, text, jsonb, text);
+
+create or replace function public.yzi_start_prepare_contact_run(
+  p_tenant_id uuid,
+  p_property_id uuid,
+  p_lead_id uuid,
+  p_context_fingerprint text,
+  p_content jsonb,
+  p_content_hash text,
+  p_conversation_id uuid default null
+)
+returns table (
+  run_id uuid,
+  run_step_id uuid,
+  artifact_id uuid,
+  action_request_id uuid,
+  status text
+)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_run_id uuid;
+  v_step1_id uuid;
+  v_artifact_id uuid;
+  v_action_request_id uuid;
+  v_active_asset_id text;
+begin
+  if auth.uid() is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+  if not public.yzi_is_active_tenant_member(p_tenant_id) then
+    raise exception 'TENANT_ACCESS_DENIED';
+  end if;
+
+  -- Real entity contract (Fase 2/4 of the unit brief): the run may only
+  -- start when the property and lead exist in THIS tenant and a
+  -- yzi_imob_property_interests row links them; an optional conversation
+  -- must belong to the same lead and tenant. Honest, named errors — never a
+  -- generic failure.
+  if not exists (
+    select 1 from public.yzi_imob_properties p
+    where p.id = p_property_id and p.tenant_id = p_tenant_id
+  ) then
+    raise exception 'property_not_found';
+  end if;
+
+  if not exists (
+    select 1 from public.yzi_imob_leads l
+    where l.id = p_lead_id and l.tenant_id = p_tenant_id
+  ) then
+    raise exception 'lead_not_found';
+  end if;
+
+  if not exists (
+    select 1 from public.yzi_imob_property_interests pi
+    where pi.property_id = p_property_id
+      and pi.lead_id = p_lead_id
+      and pi.tenant_id = p_tenant_id
+  ) then
+    raise exception 'property_interest_not_found';
+  end if;
+
+  if p_conversation_id is not null then
+    if not exists (
+      select 1 from public.yzi_imob_conversations c
+      where c.id = p_conversation_id and c.tenant_id = p_tenant_id
+    ) then
+      raise exception 'conversation_not_found';
+    end if;
+    if not exists (
+      select 1 from public.yzi_imob_conversations c
+      where c.id = p_conversation_id
+        and c.tenant_id = p_tenant_id
+        and c.lead_id = p_lead_id
+    ) then
+      raise exception 'conversation_lead_mismatch';
+    end if;
+  end if;
+
+  if p_content is null or not (p_content ? 'message_draft')
+     or length(btrim(p_content->>'message_draft')) = 0 then
+    raise exception 'artifact_gate_failed: message_draft missing or empty';
+  end if;
+  if p_content_hash is null or length(btrim(p_content_hash)) = 0 then
+    raise exception 'artifact_gate_failed: content_hash missing';
+  end if;
+
+  v_active_asset_id := p_property_id::text;
+
+  -- Open the governed gates for this transaction only (RLS/audit require them).
+  perform set_config('yzi.run_write_gate', 'rpc', true);
+  perform set_config('yzi.audit_caller_gate', 'rpc', true);
+
+  insert into public.yzi_runs (
+    tenant_id, initiated_by, workflow_id, intent_type,
+    active_asset_type, active_asset_id, context_fingerprint,
+    status, cursor_step
+  ) values (
+    p_tenant_id, auth.uid(), 'PREPARE_PROPERTY_CONTACT', 'property_contact_prepare',
+    'property', v_active_asset_id, p_context_fingerprint,
+    'awaiting_approval', 'prepare_contact_followup'
+  )
+  returning id into v_run_id;
+
+  insert into public.yzi_run_steps (
+    tenant_id, run_id, step_key, attempt, status, started_at, completed_at
+  ) values (
+    p_tenant_id, v_run_id, 'prepare_contact_followup', 1, 'completed', now(), now()
+  )
+  returning id into v_step1_id;
+
+  -- Step 2 pre-created as pending so the timeline is visible before any
+  -- decision exists; it stays 'pending' until yzi_advance_after_approval.
+  insert into public.yzi_run_steps (
+    tenant_id, run_id, step_key, attempt, status
+  ) values (
+    p_tenant_id, v_run_id, 'release_contact_draft', 1, 'pending'
+  );
+
+  insert into public.yzi_artifacts (
+    tenant_id, run_id, run_step_id, contract_key, version,
+    visibility, status, content, content_hash
+  ) values (
+    p_tenant_id, v_run_id, v_step1_id, 'contact_draft', 1,
+    'approval', 'written', p_content, p_content_hash
+  )
+  returning id into v_artifact_id;
+
+  -- Live-schema insert: requested_by NOT NULL; status must be 'pending' to
+  -- satisfy the live INSERT policy; side_effects 'internal_only' (live enum
+  -- has no 'draft_only' — the draft never leaves the platform at this stage).
+  insert into public.yzi_action_requests (
+    tenant_id, requested_by, action_type, status, risk_level, side_effects,
+    payload, evidence_snapshot, metadata,
+    run_id, run_step_id, artifact_id, artifact_hash
+  ) values (
+    p_tenant_id, auth.uid(), 'contact_draft_release', 'pending', 'medium', 'internal_only',
+    p_content,
+    jsonb_build_object('context_fingerprint', p_context_fingerprint),
+    jsonb_build_object(
+      'created_by_rpc', 'yzi_start_prepare_contact_run',
+      'rpc_version', 'v2',
+      'execution_status', 'not_executed'
+    ),
+    v_run_id, v_step1_id, v_artifact_id, p_content_hash
+  )
+  returning id into v_action_request_id;
+
+  -- Vertical association lives in yzi_imob_run_contexts (never on yzi_runs
+  -- directly — unit brief, decisão fechada). Composite FKs on this table
+  -- (already live) re-enforce property/lead/conversation tenant-scoping as
+  -- defense in depth even though the checks above already validated it.
+  insert into public.yzi_imob_run_contexts (
+    run_id, tenant_id, property_id, lead_id, conversation_id
+  ) values (
+    v_run_id, p_tenant_id, p_property_id, p_lead_id, p_conversation_id
+  );
+
+  perform set_config('yzi.run_write_gate', '', true);
+
+  perform public.yzi_internal_record_audit_event(
+    p_tenant_id, v_run_id, v_action_request_id,
+    'run.started', 'Run PREPARE_PROPERTY_CONTACT iniciada',
+    jsonb_build_object('workflow_id', 'PREPARE_PROPERTY_CONTACT',
+                       'property_id', p_property_id, 'lead_id', p_lead_id));
+  perform public.yzi_internal_record_audit_event(
+    p_tenant_id, v_run_id, v_action_request_id,
+    'step.started', 'Step prepare_contact_followup iniciado (attempt 1)',
+    jsonb_build_object('step_key', 'prepare_contact_followup', 'attempt', 1));
+  perform public.yzi_internal_record_audit_event(
+    p_tenant_id, v_run_id, v_action_request_id,
+    'step.output_gate_passed', 'Gate de conteúdo do rascunho aprovado no servidor',
+    jsonb_build_object('step_key', 'prepare_contact_followup'));
+  perform public.yzi_internal_record_audit_event(
+    p_tenant_id, v_run_id, v_action_request_id,
+    'artifact.created', 'Artefato contact_draft v1 criado',
+    jsonb_build_object('artifact_id', v_artifact_id, 'version', 1,
+                       'content_hash', p_content_hash));
+  perform public.yzi_internal_record_audit_event(
+    p_tenant_id, v_run_id, v_action_request_id,
+    'approval.requested', 'Checkpoint humano criado para contact_draft',
+    jsonb_build_object('gate', 'contact_draft'));
+
+  perform set_config('yzi.audit_caller_gate', '', true);
+
+  return query select v_run_id, v_step1_id, v_artifact_id, v_action_request_id,
+                      'awaiting_approval'::text;
+end;
+$$;
+
+-- PART 8 — VERIFICATION (read-only)
+-- Expect 1 row, args starting with p_tenant_id uuid, p_property_id uuid,
+-- p_lead_id uuid, ... (new signature live; old 5-arg signature gone).
+select p.proname, pg_get_function_identity_arguments(p.oid) as args
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'yzi_start_prepare_contact_run';

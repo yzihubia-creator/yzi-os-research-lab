@@ -78,17 +78,33 @@ export async function sendYziUserChatMessageAction(input: {
 // decisão via RPC e só então chama a função de avanço correspondente,
 // sempre relendo o estado do banco antes de retornar.
 
-/** Inicia a run `PREPARE_PROPERTY_CONTACT` para o imóvel informado. */
+/**
+ * Inicia a run `PREPARE_PROPERTY_CONTACT` para o par (imóvel, lead)
+ * informado. `activeAssetId` é o `property_id` real (nome do campo
+ * preservado para não exigir mudança na UI já aprovada). `leadId` é
+ * OBRIGATÓRIO — cada operação é o par explícito (imóvel, lead); nunca há
+ * inferência do "primeiro interesse" nem fallback automático para qualquer
+ * lead. `conversationId` continua opcional.
+ */
 export async function startPrepareContactRunAction(input: {
   tenantId: string;
   userId: string;
   userRole: string;
   activeAssetId: string;
+  leadId: string;
+  conversationId?: string | null;
 }): Promise<StartRunResult> {
-  if (!input.tenantId || !input.userId || !input.activeAssetId) {
+  if (!input.tenantId || !input.userId || !input.activeAssetId || !input.leadId) {
     return { status: "error", message: "Dados insuficientes para iniciar a run." };
   }
-  return startPrepareContactRun(input);
+  return startPrepareContactRun({
+    tenantId: input.tenantId,
+    userId: input.userId,
+    userRole: input.userRole,
+    propertyId: input.activeAssetId,
+    leadId: input.leadId,
+    conversationId: input.conversationId,
+  });
 }
 
 /** Recarrega o estado da run a partir do banco (reload/estado inicial). */
