@@ -9,7 +9,6 @@ import {
   CONNECTION_GROUPS,
   CONNECTION_STATE_LABEL,
   CONNECTION_STATE_ROLE,
-  connectionsByGroup,
   countActiveConnections,
   countAwaitingAuthorization,
   countNeedsAttention,
@@ -132,6 +131,20 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function displayDetail(value: string | null | undefined): string {
+  return value?.trim() || "Ainda nÃ£o disponÃ­vel";
+}
+
+function displayDate(value: string | null | undefined): string {
+  if (!value) return "Ainda nÃ£o disponÃ­vel";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Ainda nÃ£o disponÃ­vel";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
 function actionForState(state: ConnectionEntry["state"]): string | null {
   switch (state) {
     case "nao-configurado":
@@ -186,6 +199,26 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
       <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
         {channel.summary}
       </p>
+      {channel.displayName || channel.healthReason || channel.lastCheckedAt || channel.nextAction ? (
+        <div className="flex flex-col gap-1">
+          {channel.displayName ? (
+            <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
+              {channel.displayName}
+            </p>
+          ) : null}
+          {channel.healthReason ? (
+            <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
+              {channel.healthReason}
+            </p>
+          ) : null}
+          {channel.lastCheckedAt || channel.nextAction ? (
+            <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
+              Ãšltima verificaÃ§Ã£o: {displayDate(channel.lastCheckedAt)}
+              {channel.nextAction ? ` Â· ${channel.nextAction}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {compact ? null : <CapabilityList capabilities={channel.capabilities} />}
     </div>
   );
@@ -284,7 +317,7 @@ function MetaConnectPanel() {
 function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
   const groupLabel = CONNECTION_GROUPS.find((group) => group.id === entry.groupId)?.label ?? "";
   const isMeta = entry.id === "meta";
-  const action = isMeta ? null : actionForState(entry.state);
+  const action = isMeta ? null : entry.nextAction || actionForState(entry.state);
   const showConsumptionLink = CONSUMPTION_LINKED_IDS.has(entry.id);
 
   return (
@@ -304,6 +337,11 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
         <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
           {surfaceSummary(entry)}
         </p>
+        {entry.displayName || entry.healthReason ? (
+          <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-faint)]">
+            {[entry.displayName, entry.healthReason].filter(Boolean).join(" Â· ")}
+          </p>
+        ) : null}
       </div>
 
       {isMeta ? <MetaConnectPanel /> : null}
@@ -338,9 +376,9 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
           <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">Saúde</span>
           <div className="flex flex-col gap-1.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3">
-            <DetailRow label="Última sincronização" value="Ainda não disponível" />
-            <DetailRow label="Última falha" value="Ainda não disponível" />
-            <DetailRow label="Autorização" value="Ainda não disponível" />
+            <DetailRow label="Última verificação" value={displayDate(entry.lastCheckedAt)} />
+            <DetailRow label="Ação indicada" value={displayDetail(entry.nextAction)} />
+            <DetailRow label="Saúde" value={displayDetail(entry.healthReason)} />
           </div>
         </div>
       )}
@@ -392,20 +430,28 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
   );
 }
 
-export function YziImobConnectionsWorkspace() {
+function entriesByGroup(entries: ConnectionEntry[], groupId: ConnectionGroupId): ConnectionEntry[] {
+  return entries.filter((entry) => entry.groupId === groupId);
+}
+
+export function YziImobConnectionsWorkspace({
+  connections = CONNECTIONS_CATALOG,
+}: {
+  connections?: ConnectionEntry[];
+}) {
   const [activeGroup, setActiveGroup] = useState<ConnectionGroupId>("meta");
   const [selectedId, setSelectedId] = useState<string>("meta");
   const [assistantNote, setAssistantNote] = useState<string | null>(null);
 
-  const groupEntries = useMemo(() => connectionsByGroup(activeGroup), [activeGroup]);
+  const groupEntries = useMemo(() => entriesByGroup(connections, activeGroup), [connections, activeGroup]);
   const selectedEntry =
-    CONNECTIONS_CATALOG.find((entry) => entry.id === selectedId) ?? groupEntries[0];
+    connections.find((entry) => entry.id === selectedId) ?? groupEntries[0];
 
-  const activeCount = useMemo(() => countActiveConnections(CONNECTIONS_CATALOG), []);
-  const awaitingCount = useMemo(() => countAwaitingAuthorization(CONNECTIONS_CATALOG), []);
-  const notConfiguredCount = useMemo(() => countNotConfigured(CONNECTIONS_CATALOG), []);
-  const attentionCount = useMemo(() => countNeedsAttention(CONNECTIONS_CATALOG), []);
-  const impacts = useMemo(() => topOperationalImpacts(CONNECTIONS_CATALOG, 4), []);
+  const activeCount = useMemo(() => countActiveConnections(connections), [connections]);
+  const awaitingCount = useMemo(() => countAwaitingAuthorization(connections), [connections]);
+  const notConfiguredCount = useMemo(() => countNotConfigured(connections), [connections]);
+  const attentionCount = useMemo(() => countNeedsAttention(connections), [connections]);
+  const impacts = useMemo(() => topOperationalImpacts(connections, 4), [connections]);
 
   const counters: CounterItem[] = [
     {
@@ -449,7 +495,7 @@ export function YziImobConnectionsWorkspace() {
   function selectGroup(id: string) {
     const groupId = id as ConnectionGroupId;
     setActiveGroup(groupId);
-    const [firstEntry] = connectionsByGroup(groupId);
+    const [firstEntry] = entriesByGroup(connections, groupId);
     if (firstEntry) setSelectedId(firstEntry.id);
   }
 
@@ -573,8 +619,8 @@ export function YziImobConnectionsWorkspace() {
       </WorkspaceSection>
 
       <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-        Catálogo de conexões — nenhuma conta está conectada de verdade ainda. Consumo e créditos
-        vivem em Contas &amp; Consumo, não aqui.
+        Catálogo de conexões — o estado desta imobiliária vem do Supabase quando disponível.
+        Consumo e créditos vivem em Contas &amp; Consumo, não aqui.
       </p>
     </section>
   );
