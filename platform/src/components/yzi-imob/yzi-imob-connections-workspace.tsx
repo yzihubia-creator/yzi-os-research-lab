@@ -9,9 +9,7 @@ import {
   CONNECTION_GROUPS,
   CONNECTION_STATE_LABEL,
   CONNECTION_STATE_ROLE,
-  countActiveConnections,
-  countNeedsAttention,
-  countNotConfigured,
+  summarizeConnectionMetrics,
   type ConnectionChannel,
   type ConnectionEntry,
   type ConnectionGroupId,
@@ -524,58 +522,42 @@ export function YziImobConnectionsWorkspace({
   const selectedEntry =
     connections.find((entry) => entry.id === selectedId) ?? groupEntries[0];
 
-  const activeCount = useMemo(() => countActiveConnections(connections), [connections]);
-  const awaitingCount = useMemo(
-    () =>
-      connections.filter((entry) =>
-        ["aguardando-autorizacao", "parcialmente-conectado", "em-configuracao"].includes(entry.state),
-      ).length,
-    [connections],
-  );
-  const notConfiguredCount = useMemo(() => countNotConfigured(connections), [connections]);
-  const attentionCount = useMemo(() => countNeedsAttention(connections), [connections]);
+  const connectionSummary = useMemo(() => summarizeConnectionMetrics(connections), [connections]);
+  const activeCount = connectionSummary.connected;
+  const deployingCount = connectionSummary.deploying;
+  const upcomingCount = connectionSummary.upcoming;
+  const attentionCount = connectionSummary.attention;
   const impacts = useMemo(() => topOperationalImpactItems(connections, 4), [connections]);
 
+  // Mesma hierarquia cromática da Home: cada contador carrega o papel de cor do
+  // TIPO de estado que representa (Material System v1) — pronto/validado,
+  // leitura assistida em andamento, metadado sem estado, pendência.
   const counters: CounterItem[] = [
     {
-      label: "Ativas",
+      label: "Conectadas",
       value: String(activeCount),
-      detail:
-        activeCount === 0
-          ? "Nenhuma conexão ativa ainda."
-          : activeCount === 1
-            ? "1 conexão funcionando na operação."
-            : `${activeCount} conexões funcionando na operação.`,
+      detail: "Conexões prontas para uso.",
+      role: "coldGreen",
     },
     {
-      label: "Aguardando",
-      value: String(awaitingCount),
-      detail:
-        awaitingCount === 0
-          ? "Nenhuma conexão em configuração."
-          : awaitingCount === 1
-            ? "1 conexão em configuração."
-            : `${awaitingCount} conexões em configuração.`,
+      label: "Em implantação",
+      value: String(deployingCount),
+      detail: "Conexões com configuração ou validação em andamento.",
+      role: "cyan",
     },
     {
-      label: "Não configuradas",
-      value: String(notConfiguredCount),
-      detail: "Conexões disponíveis que ainda não foram configuradas.",
-      accent: notConfiguredCount > 0,
+      label: "Próximas integrações",
+      value: String(upcomingCount),
+      detail: "Integrações disponíveis para as próximas etapas.",
+      role: "neutral",
     },
     {
       label: "Com atenção",
       value: String(attentionCount),
-      detail:
-        attentionCount === 0
-          ? "Nenhuma conexão com falha ou autorização vencida."
-          : attentionCount === 1
-            ? "1 conexão precisando de ação."
-            : `${attentionCount} conexões precisando de ação.`,
-      accent: attentionCount > 0,
+      detail: "Conexões com falha ou autorização expirada.",
+      role: "amber",
     },
   ];
-
   const groupTabs: WorkspaceTab[] = CONNECTION_GROUPS.map((group) => ({
     id: group.id,
     label: group.label,
@@ -628,93 +610,104 @@ export function YziImobConnectionsWorkspace({
     );
   }
 
+  // Mesma gramática da Home: a conversa da YZI é uma coluna compacta dentro do
+  // conteúdo (max-w-2xl), enquanto a CounterStrip é uma faixa ESTRUTURAL que
+  // vive fora do max-w-6xl e ocupa a largura inteira do canvas. Por isso as
+  // duas nunca compartilham o mesmo wrapper de largura.
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 py-10">
-      <EntityHero
-        backHref="/cockpit/yzi-imob"
-        backLabel="Início"
-        kicker="Ecossistema integrado"
-        title="Conexões"
-        subtitle="Acompanhe os canais e serviços que permitem à YZI publicar, atender, anunciar e medir sua operação."
-        statusLabel={
-          activeCount === 0
-            ? "Conexões em configuração"
-            : attentionCount > 0
-              ? "Conexões precisam de atenção"
-              : "Operação conectada"
-        }
-        composerPlaceholder="Pergunte sobre suas conexões"
-        quickActions={[
-          { label: "O que precisa de atenção?" },
-          { label: "O que já está funcionando?" },
-          { label: "O que falta para publicar?" },
-          { label: "O que falta para atender?" },
-        ]}
-        assistantMessage={
-          assistantNote ??
-          "Eu uso estas conexões para executar a operação. Elas ainda estão sendo configuradas — quando uma autorização falta ou expira, algumas ações deixam de funcionar."
-        }
-        onAsk={answer}
-      />
+    <div className="flex w-full flex-col">
+      <section className="mx-auto flex w-full max-w-6xl flex-col px-8 pb-12 pt-10">
+        <EntityHero
+          compactComposer
+          backHref="/cockpit/yzi-imob"
+          backLabel="Início"
+          kicker="Ecossistema integrado"
+          title="Conexões"
+          subtitle="Acompanhe os canais e serviços que permitem à YZI publicar, atender, anunciar e medir sua operação."
+          statusLabel={
+            activeCount === 0
+              ? "Conexões em configuração"
+              : attentionCount > 0
+                ? "Conexões precisam de atenção"
+                : "Operação conectada"
+          }
+          composerPlaceholder="Pergunte sobre suas conexões"
+          quickActions={[
+            { label: "O que precisa de atenção?" },
+            { label: "O que já está funcionando?" },
+            { label: "O que falta para publicar?" },
+            { label: "O que falta para atender?" },
+          ]}
+          assistantMessage={
+            assistantNote ??
+            "Eu uso estas conexões para executar a operação. Elas ainda estão sendo configuradas — quando uma autorização falta ou expira, algumas ações deixam de funcionar."
+          }
+          onAsk={answer}
+        />
+      </section>
 
-      <div className="w-full min-w-0 self-stretch">
-        <CounterStrip counters={counters} />
-      </div>
+      {/* Faixa full-bleed do canvas — sem mx-auto, sem max-width, sem padding
+          lateral: começa e termina nos limites da área útil, como na Home. */}
+      <section className="w-full">
+        <CounterStrip counters={counters} variant="home" />
+      </section>
 
-      <WorkspaceSection
-        title="Visão geral"
-        description="Impacto operacional das conexões essenciais que ainda não estão prontas."
-        first
-      >
-        {impacts.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {impacts.map((impact) => (
-              <li
-                key={impact.id}
-                className="flex items-start gap-2.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]"
-              >
-                <span
-                  aria-hidden
-                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: imobRgba("amber", 0.85) }}
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 pb-10 pt-10">
+        <WorkspaceSection
+          title="Visão geral"
+          description="Impacto operacional das conexões essenciais que ainda não estão prontas."
+          first
+        >
+          {impacts.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {impacts.map((impact) => (
+                <li
+                  key={impact.id}
+                  className="flex items-start gap-2.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]"
+                >
+                  <span
+                    aria-hidden
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: imobRgba("amber", 0.85) }}
+                  />
+                  {impact.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-3.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+              Nenhum impacto pendente nas conexões essenciais no momento.
+            </p>
+          )}
+        </WorkspaceSection>
+
+        <WorkspaceSection
+          title="Conexões por grupo"
+          description="Cada grupo reúne canais e serviços com a mesma natureza operacional."
+        >
+          <WorkspaceTabs tabs={groupTabs} active={activeGroup} onChange={selectGroup} />
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
+            <div className="flex h-fit flex-col divide-y divide-[color:var(--yzi-border-subtle)] overflow-hidden rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
+              {groupEntries.map((entry) => (
+                <ConnectionRow
+                  key={entry.id}
+                  entry={entry}
+                  active={entry.id === selectedEntry?.id}
+                  onSelect={() => setSelectedId(entry.id)}
                 />
-                {impact.text}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-3.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-            Nenhum impacto pendente nas conexões essenciais no momento.
-          </p>
-        )}
-      </WorkspaceSection>
+              ))}
+            </div>
 
-      <WorkspaceSection
-        title="Conexões por grupo"
-        description="Cada grupo reúne canais e serviços com a mesma natureza operacional."
-      >
-        <WorkspaceTabs tabs={groupTabs} active={activeGroup} onChange={selectGroup} />
-
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
-          <div className="flex h-fit flex-col divide-y divide-[color:var(--yzi-border-subtle)] overflow-hidden rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
-            {groupEntries.map((entry) => (
-              <ConnectionRow
-                key={entry.id}
-                entry={entry}
-                active={entry.id === selectedEntry?.id}
-                onSelect={() => setSelectedId(entry.id)}
-              />
-            ))}
+            {selectedEntry ? <ConnectionDetail entry={selectedEntry} /> : null}
           </div>
+        </WorkspaceSection>
 
-          {selectedEntry ? <ConnectionDetail entry={selectedEntry} /> : null}
-        </div>
-      </WorkspaceSection>
-
-      <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-        Catálogo de conexões — o estado desta imobiliária vem do Supabase quando disponível.
-        Consumo e créditos vivem em Contas &amp; Consumo, não aqui.
-      </p>
-    </section>
+        <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
+          Catálogo de conexões — o estado desta imobiliária vem do Supabase quando disponível.
+          Consumo e créditos vivem em Contas &amp; Consumo, não aqui.
+        </p>
+      </section>
+    </div>
   );
 }

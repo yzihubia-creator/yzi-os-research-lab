@@ -7,6 +7,7 @@ import type { FormEvent, ReactNode } from "react";
 import { YziPresence } from "@/components/yzi-os/yzi-primitives";
 import { AuthorizationIcon, SendIcon } from "@/components/yzi-os/yzi-icons";
 import { CreativeIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
+import { imobRgba, type YziImobRole } from "@/components/yzi-imob/yzi-imob-status-colors";
 
 // Entity Workspace Kit v1 — a base canônica de todos os Entity Workspaces do
 // YZI IMOB (Property, Broker e, no futuro, Client/Campaign/Site). Estrutura
@@ -34,7 +35,9 @@ export function EntityHero({
   statusLabel,
   composerPlaceholder,
   quickActions,
+  assistantMessage,
   onAsk,
+  compactComposer = false,
 }: {
   backHref: string;
   backLabel: string;
@@ -44,7 +47,15 @@ export function EntityHero({
   statusLabel: string;
   composerPlaceholder: string;
   quickActions: EntityQuickAction[];
+  assistantMessage?: string;
   onAsk: (text: string) => void;
+  /**
+   * Telas-hub (Conexões) usam a MESMA lente da Home: coluna compacta e
+   * centralizada (max-w-2xl ≈ 672px) em vez de esticar na largura do canvas.
+   * Entity Workspaces (Property, Broker, Client…) mantêm o composer alinhado
+   * ao header — por isso o padrão é `false` e nenhuma tela existente muda.
+   */
+  compactComposer?: boolean;
 }) {
   const [ask, setAsk] = useState("");
 
@@ -89,9 +100,17 @@ export function EntityHero({
           Depois desta caixa, a conversa da YZI termina: o resto é Workspace. */}
       <form
         onSubmit={handleSubmit}
-        className="yzi-lens w-full overflow-hidden rounded-[var(--yzi-radius-lg)] text-left"
+        className={cx(
+          "yzi-lens w-full overflow-hidden rounded-[var(--yzi-radius-lg)] text-left",
+          compactComposer && "mx-auto max-w-2xl",
+        )}
       >
-        <div className="flex items-center gap-3 px-4 py-3.5">
+        <div
+          className={cx(
+            "flex items-center gap-3 px-4",
+            compactComposer ? "py-4" : "py-3.5",
+          )}
+        >
           <CreativeIcon
             aria-hidden
             className="h-4.5 w-4.5 shrink-0 text-[var(--yzi-text-faint)]"
@@ -138,7 +157,24 @@ export function EntityHero({
         </div>
       </form>
 
-      <p className="flex items-center gap-1.5 text-[0.68rem] text-[var(--yzi-text-faint)]">
+      {assistantMessage ? (
+        <div
+          className={cx(
+            "flex items-start gap-2.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]",
+            compactComposer && "mx-auto w-full max-w-2xl",
+          )}
+        >
+          <YziPresence state="ready" />
+          <p className="max-w-3xl">{assistantMessage}</p>
+        </div>
+      ) : null}
+
+      <p
+        className={cx(
+          "flex items-center gap-1.5 text-[0.68rem] text-[var(--yzi-text-faint)]",
+          compactComposer && "mx-auto w-full max-w-2xl",
+        )}
+      >
         <AuthorizationIcon className="h-3.5 w-3.5 shrink-0 text-[var(--yzi-accent-authorization)]" />
         Preview. Ações externas exigem autorização.
       </p>
@@ -155,11 +191,37 @@ export type CounterItem = {
   value: string;
   detail: string;
   accent?: boolean;
+  /**
+   * Papel de cor (Material System v1) do TIPO de dado. Só é LIDO na variante
+   * `home`: o número herda a cor do papel e a divisória ganha o mesmo tom em
+   * 0.22. Na variante `default` o papel é ignorado de propósito — a presença
+   * de `role` nunca muda a apresentação de uma tela que não pediu a densidade
+   * da Home.
+   */
+  role?: YziImobRole;
 };
 
-// Mesma barra estrutural da Home (Material System v1 §5): full-width, dark,
-// sem glass, borda só topo/base, divisórias verticais. 1/2/4 colunas.
-export function CounterStrip({ counters }: { counters: CounterItem[] }) {
+/**
+ * `default` — densidade histórica dos Entity Workspaces (Property, Broker,
+ * Client, Team, Settings, Property Create). Leitura cromática neutra/`accent`.
+ * `home` — faixa estrutural das telas-hub (Home e Conexões): mais alta,
+ * tipografia maior e hierarquia cromática por papel.
+ */
+export type CounterStripVariant = "default" | "home";
+
+// A ÚNICA barra estrutural do YZI IMOB (Material System v1 §5) — a Home também
+// renderiza esta função. Full-bleed, dark, sem glass, borda só topo/base,
+// divisórias verticais. 1/2/4 colunas. Quem chama é responsável por NÃO a
+// colocar dentro do max-width do conteúdo: a strip vive na largura do canvas.
+export function CounterStrip({
+  counters,
+  variant = "default",
+}: {
+  counters: CounterItem[];
+  variant?: CounterStripVariant;
+}) {
+  const isHome = variant === "home";
+
   return (
     <div className="yzi-imob-strip grid w-full grid-cols-1 overflow-hidden sm:grid-cols-2 md:grid-cols-4">
       {counters.map((counter, index) => {
@@ -170,24 +232,37 @@ export function CounterStrip({ counters }: { counters: CounterItem[] }) {
           "border-t sm:border-l md:border-t-0",
         ][index % 4];
 
+        // Papel de cor só participa da leitura na variante home.
+        const role = isHome ? counter.role : undefined;
+
         return (
           <div
             key={counter.label}
             className={cx(
-              "flex flex-col gap-2 border-[color:var(--yzi-border-subtle)] px-6 py-5 md:px-8 md:py-6",
+              "flex flex-col gap-2 border-[color:var(--yzi-border-subtle)] px-6 md:px-8",
+              isHome ? "py-6 md:py-7" : "py-5 md:py-6",
               dividers,
             )}
+            style={
+              role && dividers ? { borderLeftColor: imobRgba(role, 0.22) } : undefined
+            }
           >
             <span className="text-[0.58rem] font-medium uppercase tracking-[0.18em] text-[var(--yzi-text-faint)]">
               {counter.label}
             </span>
             <span
               className={cx(
-                "text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums md:text-[2rem]",
-                counter.accent
-                  ? "text-[var(--yzi-accent-authorization)]"
-                  : "text-[var(--yzi-text-primary)]",
+                "font-semibold leading-none tracking-tight tabular-nums",
+                isHome
+                  ? "text-[2rem] md:text-[2.25rem]"
+                  : "text-[1.75rem] md:text-[2rem]",
+                role
+                  ? null
+                  : counter.accent
+                    ? "text-[var(--yzi-accent-authorization)]"
+                    : "text-[var(--yzi-text-primary)]",
               )}
+              style={role ? { color: imobRgba(role, 0.92) } : undefined}
             >
               {counter.value}
             </span>

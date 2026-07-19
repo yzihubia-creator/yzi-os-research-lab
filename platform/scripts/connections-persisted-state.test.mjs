@@ -49,6 +49,7 @@ test("valid payload is parsed into the narrow UI contract", () => {
       nextAction: "Revisar domínio",
       displayName: "Site institucional",
       healthReason: "Verificado",
+      businessVerificationStatus: null,
       assets: [],
     },
   ]);
@@ -64,6 +65,25 @@ test("malformed payload and empty persisted state keep honest catalog defaults",
   const merged = buildConnectionsCatalogFromRpcPayload([]);
   assert.equal(byId(merged, "meta").state, "nao-configurado");
   assert.equal(byId(merged, "site").state, "nao-configurado");
+});
+
+test("Meta persisted row is awaiting unless explicitly not configured", () => {
+  const provisioning = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "provisioning",
+      metadata: { business_verification_status: "Em análise" },
+    },
+  ]);
+  const unknown = buildConnectionsCatalogFromRpcPayload([{ provider: "meta", status: "unknown_status" }]);
+  const disabled = buildConnectionsCatalogFromRpcPayload([{ provider: "meta", status: "disabled" }]);
+  const notConfigured = buildConnectionsCatalogFromRpcPayload([{ provider: "meta", status: "not_configured" }]);
+
+  assert.equal(byId(provisioning, "meta").state, "aguardando-autorizacao");
+  assert.equal(byId(provisioning, "meta").businessVerificationStatus, "Em análise");
+  assert.equal(byId(unknown, "meta").state, "aguardando-autorizacao");
+  assert.equal(byId(disabled, "meta").state, "aguardando-autorizacao");
+  assert.equal(byId(notConfigured, "meta").state, "nao-configurado");
 });
 
 test("RPC error fallback is represented by empty persisted payload", () => {
@@ -108,7 +128,7 @@ test("Meta stays a single connection while recognized assets update visual chann
   ]);
 
   const meta = byId(merged, "meta");
-  assert.equal(meta.state, "aguardando-autorizacao");
+  assert.equal(meta.state, "parcialmente-conectado");
   assert.equal(merged.filter((entry) => entry.id === "meta").length, 1);
   assert.equal(channelById(meta, "facebook").state, "conectado");
   assert.equal(channelById(meta, "instagram").state, "requer-atencao");
@@ -116,9 +136,231 @@ test("Meta stays a single connection while recognized assets update visual chann
   assert.equal(JSON.stringify(meta).includes("Não deve aparecer"), false);
 });
 
+test("Meta parser accepts current RPC asset aliases without inventing channels", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        {
+          kind: "page",
+          external_account_id: "page-1",
+          account_label: "Pagina Real",
+          metadata: { normalized_kind: "facebook_page", status: "connected" },
+        },
+        {
+          kind: "instagram",
+          external_account_id: "ig-1",
+          account_label: "perfil.real",
+          metadata: { normalized_kind: "instagram_business", status: "connected" },
+        },
+        {
+          kind: "ad_account",
+          external_account_id: "ad-1",
+          account_label: "Conta Real",
+          metadata: { normalized_kind: "meta_ad_account", status: "connected" },
+        },
+      ],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  assert.equal(meta.state, "parcialmente-conectado");
+  assert.equal(
+    meta.summary,
+    "A Meta já está conectada ao Instagram, Facebook e conta de anúncios. O WhatsApp ainda está em configuração.",
+  );
+  assert.equal(meta.primaryPendency, "Ativar o WhatsApp oficial");
+  assert.deepEqual(meta.impact, [
+    "Instagram, Facebook e conta de anúncios já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
+  ]);
+  assert.equal(meta.impact.join(" ").includes("não publica no Instagram ou Facebook"), false);
+  assert.equal(channelById(meta, "facebook").state, "conectado");
+  assert.equal(channelById(meta, "facebook").displayName, "Pagina Real");
+  assert.equal(channelById(meta, "instagram").state, "conectado");
+  assert.equal(channelById(meta, "instagram").displayName, "perfil.real");
+  assert.equal(channelById(meta, "meta-ads").state, "conectado");
+  assert.equal(channelById(meta, "meta-ads").displayName, "Conta Real");
+  assert.equal(channelById(meta, "whatsapp").state, "em-configuracao");
+  assert.equal(channelById(meta, "whatsapp").nextAction, "Ativar o WhatsApp oficial");
+
+  const instagramOrganic = byId(merged, "instagram-organico");
+  assert.equal(instagramOrganic.state, "parcialmente-conectado");
+  assert.equal(instagramOrganic.displayName, "perfil.real");
+  assert.equal(instagramOrganic.capabilities.find((capability) => capability.id === "identified")?.unlocked, true);
+  assert.equal(instagramOrganic.capabilities.find((capability) => capability.id === "publish")?.unlocked, false);
+  assert.equal(instagramOrganic.capabilities.find((capability) => capability.id === "metrics")?.unlocked, false);
+
+  const facebookOrganic = byId(merged, "facebook-organico");
+  assert.equal(facebookOrganic.state, "parcialmente-conectado");
+  assert.equal(facebookOrganic.displayName, "Pagina Real");
+  assert.equal(facebookOrganic.capabilities.find((capability) => capability.id === "identified")?.unlocked, true);
+  assert.equal(facebookOrganic.capabilities.find((capability) => capability.id === "publish")?.unlocked, false);
+  assert.equal(facebookOrganic.capabilities.find((capability) => capability.id === "metrics")?.unlocked, false);
+
+  const ads = byId(merged, "meta-ads");
+  assert.equal(ads.state, "parcialmente-conectado");
+  assert.equal(ads.displayName, "Conta Real");
+  assert.equal(ads.capabilities.find((capability) => capability.id === "identified")?.unlocked, true);
+  assert.equal(ads.capabilities.find((capability) => capability.id === "read")?.unlocked, true);
+  assert.equal(ads.capabilities.find((capability) => capability.id === "write")?.unlocked, false);
+  assert.equal(byId(merged, "google-ads").state, "em-breve");
+});
+
+test("asset fallback promotes only active labeled RPC assets, never the connection", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        {
+          kind: "page",
+          account_label: "OCM Negocios Imobiliarios",
+        },
+        {
+          kind: "instagram",
+          account_label: "ocm.imobiliaria",
+          status: "attention_required",
+        },
+        {
+          kind: "ad_account",
+          account_label: "OCM Anuncios",
+          metadata: { status: "connected" },
+        },
+      ],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  assert.equal(meta.state, "parcialmente-conectado");
+  assert.equal(channelById(meta, "facebook").state, "conectado");
+  assert.equal(channelById(meta, "facebook").displayName, "OCM Negocios Imobiliarios");
+  assert.equal(channelById(meta, "instagram").state, "requer-atencao");
+  assert.equal(channelById(meta, "instagram").displayName, "ocm.imobiliaria");
+  assert.equal(channelById(meta, "meta-ads").state, "conectado");
+  assert.equal(channelById(meta, "meta-ads").displayName, "OCM Anuncios");
+  assert.equal(channelById(meta, "whatsapp").state, "em-configuracao");
+});
+
+test("Meta becomes connected when all four channels are connected", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        { kind: "page", account_label: "OCM Negocios Imobiliarios" },
+        { kind: "instagram", account_label: "ocm.imobiliaria" },
+        { kind: "ad_account", account_label: "OCM Anuncios" },
+        { kind: "waba", account_label: "OCM WhatsApp" },
+      ],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  assert.equal(meta.state, "conectado");
+  assert.equal(meta.primaryPendency, null);
+  assert.deepEqual(meta.impact, []);
+  assert.equal(channelById(meta, "whatsapp").state, "conectado");
+});
+
+test("Meta without channels and active provisioning remains awaiting", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "provisioning",
+      assets: [],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  assert.equal(meta.state, "aguardando-autorizacao");
+  assert.equal(channelById(meta, "facebook").state, "nao-configurado");
+  assert.equal(channelById(meta, "instagram").state, "nao-configurado");
+  assert.equal(channelById(meta, "meta-ads").state, "nao-configurado");
+  assert.equal(channelById(meta, "whatsapp").state, "nao-configurado");
+});
+
+test("business verification pending does not downgrade connected Meta assets", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      metadata: { business_verification_status: "Pendente" },
+      assets: [
+        { kind: "page", account_label: "OCM Negocios Imobiliarios" },
+        { kind: "instagram", account_label: "ocm.imobiliaria" },
+        { kind: "ad_account", account_label: "OCM Anuncios" },
+      ],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  assert.equal(meta.state, "parcialmente-conectado");
+  assert.equal(meta.businessVerificationStatus, "Pendente");
+  assert.equal(channelById(meta, "facebook").state, "conectado");
+  assert.equal(channelById(meta, "instagram").state, "conectado");
+  assert.equal(channelById(meta, "meta-ads").state, "conectado");
+  assert.equal(channelById(meta, "whatsapp").state, "em-configuracao");
+});
+
+test("creative production remains inactive without brand kit templates or media", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        { kind: "page", account_label: "Pagina Real" },
+        { kind: "instagram", account_label: "perfil.real" },
+        { kind: "ad_account", account_label: "Conta Real" },
+      ],
+    },
+  ]);
+
+  assert.equal(byId(merged, "base-marca").state, "nao-configurado");
+  assert.equal(byId(merged, "templates").state, "nao-configurado");
+  assert.equal(byId(merged, "biblioteca-midias").state, "nao-configurado");
+  assert.equal(byId(merged, "geracao-criativa").state, "nao-configurado");
+});
+
+test("absent operational items are not invented from Meta assets", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [{ kind: "instagram", account_label: "perfil.real" }],
+    },
+  ]);
+
+  assert.equal(byId(merged, "instagram-organico").state, "parcialmente-conectado");
+  assert.equal(byId(merged, "facebook-organico").state, "nao-configurado");
+  assert.equal(byId(merged, "meta-ads").state, "nao-configurado");
+  assert.equal(byId(merged, "google-search-console").state, "nao-configurado");
+  assert.equal(byId(merged, "google-analytics").state, "nao-configurado");
+  assert.equal(byId(merged, "google-business-profile").state, "nao-configurado");
+});
+
+test("Meta assets are not duplicated as independent active connections", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        { kind: "page", account_label: "Pagina Real" },
+        { kind: "instagram", account_label: "perfil.real" },
+        { kind: "ad_account", account_label: "Conta Real" },
+      ],
+    },
+  ]);
+
+  assert.equal(merged.filter((entry) => entry.state === "conectado").length, 0);
+  assert.equal(merged.filter((entry) => entry.state === "em-breve").length, 1);
+  assert.equal(byId(merged, "google-ads").state, "em-breve");
+});
+
 test("status mapping is closed and unknown statuses cannot promote to connected", () => {
   assert.equal(mapPersistedStatus("connected"), "conectado");
-  assert.equal(mapPersistedStatus("partially_connected"), "aguardando-autorizacao");
+  assert.equal(mapPersistedStatus("partially_connected"), "parcialmente-conectado");
+  assert.equal(mapPersistedStatus("awaiting_account_selection"), "aguardando-autorizacao");
   assert.equal(mapPersistedStatus("awaiting_customer"), "aguardando-autorizacao");
   assert.equal(mapPersistedStatus("pending_authorization"), "aguardando-autorizacao");
   assert.equal(mapPersistedStatus("provisioning"), "aguardando-autorizacao");
@@ -167,6 +409,7 @@ test("catalog entries marked as coming soon are preserved", () => {
       nextAction: null,
       displayName: null,
       healthReason: null,
+      businessVerificationStatus: null,
       assets: [],
     },
   ]);
