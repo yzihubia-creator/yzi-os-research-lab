@@ -25,6 +25,8 @@ export type TenantContext =
   | { status: "tenant_found"; userId: string; tenant: TenantSummary; role: string }
   | { status: "error"; error: string };
 
+const TENANT_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$/;
+
 const NO_MEMBERSHIP_MESSAGE = "Você ainda não pertence a um tenant.";
 
 /**
@@ -90,6 +92,67 @@ export async function getTenantContext(): Promise<TenantContext> {
       status: "tenant_found",
       userId: user.id,
       tenant: { id, slug, name },
+      role,
+    };
+  } catch {
+    return { status: "error", error: "Erro inesperado ao resolver o contexto de tenant." };
+  }
+}
+
+export async function getTenantContextBySlug(slug: string): Promise<TenantContext> {
+  const user = await getSessionUser();
+  if (!user) {
+    return { status: "no_session" };
+  }
+
+  if (!TENANT_SLUG_RE.test(slug)) {
+    return { status: "no_membership", userId: user.id, message: NO_MEMBERSHIP_MESSAGE };
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants")
+      .select("id, slug, name")
+      .eq("slug", slug)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (tenantError) {
+      return { status: "error", error: "Falha ao resolver o tenant." };
+    }
+
+    if (!tenant) {
+      return { status: "no_membership", userId: user.id, message: NO_MEMBERSHIP_MESSAGE };
+    }
+
+    const { id, slug: tenantSlug, name } = tenant as TenantSummary;
+    const { data: membership, error: membershipError } = await supabase
+      .from("tenant_memberships")
+      .select("tenant_id, role, status")
+      .eq("tenant_id", id)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (membershipError) {
+      return { status: "error", error: "Falha ao resolver a membership do tenant." };
+    }
+
+    if (!membership) {
+      return { status: "no_membership", userId: user.id, message: NO_MEMBERSHIP_MESSAGE };
+    }
+
+    const { role } = membership as {
+      tenant_id: string;
+      role: string;
+    };
+
+    return {
+      status: "tenant_found",
+      userId: user.id,
+      tenant: { id, slug: tenantSlug, name },
       role,
     };
   } catch {
