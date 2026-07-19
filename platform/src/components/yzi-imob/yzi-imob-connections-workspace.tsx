@@ -53,6 +53,16 @@ function surfaceSummary(entry: ConnectionEntry): string {
   return entry.id === "meta" && entry.state === "nao-configurado" ? META_SURFACE_SUMMARY : entry.summary;
 }
 
+function metaRowSummary(entry: ConnectionEntry): string | null {
+  if (entry.id !== "meta" || !entry.channels?.length) return null;
+  const connectedCount = entry.channels.filter((channel) => channel.state === "conectado").length;
+  const whatsapp = entry.channels.find((channel) => channel.id === "whatsapp");
+  if (whatsapp?.state === "parcialmente-conectado") {
+    return `${connectedCount} canais conectados · WhatsApp em implantação`;
+  }
+  return null;
+}
+
 function isMetaPartiallyConnected(entry: ConnectionEntry): boolean {
   if (entry.id !== "meta" || !entry.channels?.length) return false;
   const connectedCount = entry.channels.filter((channel) => channel.state === "conectado").length;
@@ -60,7 +70,7 @@ function isMetaPartiallyConnected(entry: ConnectionEntry): boolean {
 }
 
 function isChannelInConfiguration(channel: ConnectionChannel): boolean {
-  return channel.state === "nao-configurado" && channel.nextAction === "Ativar o WhatsApp oficial";
+  return channel.state === "nao-configurado" && channel.nextAction === "Ativar número oficial";
 }
 
 function displayStateLabel(entry: ConnectionEntry): string {
@@ -137,9 +147,9 @@ function ConnectionRow({
         <StateChip state={entry.state} label={displayStateLabel(entry)} />
       </div>
       <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-        {surfaceSummary(entry)}
+        {metaRowSummary(entry) ?? surfaceSummary(entry)}
       </p>
-      {entry.primaryPendency ? (
+      {entry.id !== "meta" && entry.primaryPendency ? (
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
           {entry.primaryPendency}
         </p>
@@ -150,9 +160,9 @@ function ConnectionRow({
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-[0.74rem]">
+    <div className="flex items-start justify-between gap-3 text-[0.74rem]">
       <span className="shrink-0 text-[var(--yzi-text-faint)]">{label}</span>
-      <span className="truncate text-right text-[var(--yzi-text-secondary)]">{value}</span>
+      <span className="min-w-0 break-words text-right text-[var(--yzi-text-secondary)]">{value}</span>
     </div>
   );
 }
@@ -215,7 +225,61 @@ function CapabilityList({ capabilities }: { capabilities: ConnectionEntry["capab
   );
 }
 
+function RelatedAssetGroup({
+  title,
+  assets,
+  secondary,
+}: {
+  title: string;
+  assets: NonNullable<ConnectionChannel["relatedAssets"]>;
+  secondary?: boolean;
+}) {
+  if (!assets.length) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[0.64rem] font-medium uppercase tracking-[0.12em] text-[var(--yzi-text-faint)]">
+        {title}
+      </span>
+      <div className="flex flex-col gap-1.5">
+        {assets.map((asset) => (
+          <div
+            key={`${asset.kind}:${asset.label}`}
+            className={cx(
+              "flex flex-col gap-1 rounded-[var(--yzi-radius-sm)] border px-3 py-2.5",
+              secondary
+                ? "border-[color:var(--yzi-border-subtle)] bg-transparent opacity-85"
+                : "border-[color:var(--yzi-border-subtle)]",
+            )}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span
+                className={cx(
+                  "min-w-0 truncate text-[0.74rem]",
+                  secondary
+                    ? "font-normal text-[var(--yzi-text-faint)]"
+                    : "font-medium text-[var(--yzi-text-secondary)]",
+                )}
+              >
+                {asset.label}
+              </span>
+              <StateChip state={asset.state} />
+            </div>
+            {asset.description ? (
+              <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
+                {asset.description}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compact?: boolean }) {
+  const phoneAssets = channel.relatedAssets?.filter((asset) => asset.category === "phone") ?? [];
+  const accountAssets = channel.relatedAssets?.filter((asset) => asset.category === "account") ?? [];
+
   return (
     <div className="flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
@@ -245,6 +309,12 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
               {channel.nextAction ? ` · ${channel.nextAction}` : ""}
             </p>
           ) : null}
+        </div>
+      ) : null}
+      {channel.relatedAssets?.length ? (
+        <div className="mt-1 flex flex-col gap-3">
+          <RelatedAssetGroup title="Números" assets={phoneAssets} />
+          <RelatedAssetGroup title="Contas associadas" assets={accountAssets} secondary />
         </div>
       ) : null}
       {compact ? null : <CapabilityList capabilities={channel.capabilities} />}

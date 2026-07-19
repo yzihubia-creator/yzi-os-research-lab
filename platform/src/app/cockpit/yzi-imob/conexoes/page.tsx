@@ -7,7 +7,10 @@ type TenantConnectionsRpcClient = {
   rpc(
     fn: "get_yzi_imob_tenant_connections",
     args: { p_tenant_id: string },
-  ): PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
+  ): PromiseLike<{
+    data: unknown;
+    error: { code?: string; message?: string; details?: string; hint?: string } | null;
+  }>;
 };
 
 async function loadTenantConnectionsPayload(tenantId: string): Promise<unknown | null> {
@@ -19,7 +22,14 @@ async function loadTenantConnectionsPayload(tenantId: string): Promise<unknown |
     });
 
     if (error) {
-      console.error("[yzi-imob/conexoes] tenant_connections_rpc_error");
+      console.error("[yzi-imob/conexoes] tenant_connections_rpc_error", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        tenantId,
+        routeKind: "legacy",
+      });
       return null;
     }
 

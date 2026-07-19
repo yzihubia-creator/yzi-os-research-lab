@@ -132,8 +132,86 @@ test("Meta stays a single connection while recognized assets update visual chann
   assert.equal(merged.filter((entry) => entry.id === "meta").length, 1);
   assert.equal(channelById(meta, "facebook").state, "conectado");
   assert.equal(channelById(meta, "instagram").state, "requer-atencao");
-  assert.equal(channelById(meta, "whatsapp").state, "aguardando-autorizacao");
+  assert.equal(channelById(meta, "whatsapp").state, "conectado");
   assert.equal(JSON.stringify(meta).includes("Não deve aparecer"), false);
+});
+
+test("WhatsApp phone numbers drive operational state without WABA downgrade", () => {
+  const merged = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        {
+          kind: "whatsapp_phone_number",
+          account_label: "+1 555-194-9020",
+          status: "connected",
+          external_account_id: "phone-test-id",
+          metadata: {
+            verified_name: "Numero de teste",
+            provider_status: "CONNECTED",
+            code_verification_status: "VERIFIED",
+            platform_type: "CLOUD_API",
+            parent_waba_id: "waba-hidden",
+            discovery_complete: true,
+            token: "never",
+          },
+        },
+        {
+          kind: "whatsapp_phone_number",
+          account_label: "+55 83 9872-5431",
+          status: "configuring",
+          external_account_id: "phone-official-id",
+          metadata: {
+            verified_name: "Numero oficial",
+            provider_status: "PENDING",
+            code_verification_status: "VERIFIED",
+            platform_type: "CLOUD_API",
+            discovery_complete: true,
+          },
+        },
+        {
+          kind: "whatsapp_business_account",
+          account_label: "OCM Negocios Imobiliarios",
+          status: "configuring",
+          metadata: {
+            provider_status: "PENDING",
+            discovery_complete: true,
+            graph_confirmed: true,
+          },
+        },
+        {
+          kind: "waba",
+          account_label: "Test WhatsApp Business Account",
+          status: "configuring",
+          metadata: {
+            provider_status: "PENDING",
+            discovery_complete: true,
+            graph_confirmed: true,
+          },
+        },
+      ],
+    },
+  ]);
+
+  const meta = byId(merged, "meta");
+  const whatsapp = channelById(meta, "whatsapp");
+  assert.equal(meta.state, "parcialmente-conectado");
+  assert.equal(whatsapp.state, "parcialmente-conectado");
+  assert.equal(whatsapp.summary, "O número de teste está conectado. O número oficial segue em configuração.");
+  assert.deepEqual(
+    whatsapp.relatedAssets?.map((asset) => [asset.label, asset.state, asset.description]),
+    [
+      ["+1 555-194-9020", "conectado", "Disponível para validação técnica."],
+      ["+55 83 9872-5431", "em-configuracao", "Número verificado, aguardando ativação técnica final."],
+      ["OCM Negocios Imobiliarios", "em-configuracao", null],
+      ["Test WhatsApp Business Account", "em-configuracao", null],
+    ],
+  );
+  assert.equal(JSON.stringify(whatsapp).includes("phone-test-id"), false);
+  assert.equal(JSON.stringify(whatsapp).includes("phone-official-id"), false);
+  assert.equal(JSON.stringify(whatsapp).includes("waba-hidden"), false);
+  assert.equal(JSON.stringify(whatsapp).includes("never"), false);
 });
 
 test("Meta parser accepts current RPC asset aliases without inventing channels", () => {
@@ -168,11 +246,11 @@ test("Meta parser accepts current RPC asset aliases without inventing channels",
   assert.equal(meta.state, "parcialmente-conectado");
   assert.equal(
     meta.summary,
-    "A Meta já está conectada ao Instagram, Facebook e conta de anúncios. O WhatsApp ainda está em configuração.",
+    "A Meta já está conectada ao Instagram, Facebook e Meta Ads. O WhatsApp ainda está em configuração.",
   );
-  assert.equal(meta.primaryPendency, "Ativar o WhatsApp oficial");
+  assert.equal(meta.primaryPendency, "Concluir ativação técnica do número oficial");
   assert.deepEqual(meta.impact, [
-    "Instagram, Facebook e conta de anúncios já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
+    "Instagram, Facebook e Meta Ads já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
   ]);
   assert.equal(meta.impact.join(" ").includes("não publica no Instagram ou Facebook"), false);
   assert.equal(channelById(meta, "facebook").state, "conectado");
@@ -182,7 +260,7 @@ test("Meta parser accepts current RPC asset aliases without inventing channels",
   assert.equal(channelById(meta, "meta-ads").state, "conectado");
   assert.equal(channelById(meta, "meta-ads").displayName, "Conta Real");
   assert.equal(channelById(meta, "whatsapp").state, "em-configuracao");
-  assert.equal(channelById(meta, "whatsapp").nextAction, "Ativar o WhatsApp oficial");
+  assert.equal(channelById(meta, "whatsapp").nextAction, "Ativar número oficial");
 
   const instagramOrganic = byId(merged, "instagram-organico");
   assert.equal(instagramOrganic.state, "parcialmente-conectado");
@@ -251,7 +329,7 @@ test("Meta becomes connected when all four channels are connected", () => {
         { kind: "page", account_label: "OCM Negocios Imobiliarios" },
         { kind: "instagram", account_label: "ocm.imobiliaria" },
         { kind: "ad_account", account_label: "OCM Anuncios" },
-        { kind: "waba", account_label: "OCM WhatsApp" },
+        { kind: "waba", account_label: "OCM WhatsApp", status: "connected" },
       ],
     },
   ]);

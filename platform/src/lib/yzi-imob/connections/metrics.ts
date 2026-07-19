@@ -1,6 +1,13 @@
 import type { ConnectionEntry } from "./types";
 
-const DERIVED_META_ENTRY_IDS = new Set(["instagram-organico", "facebook-organico", "meta-ads"]);
+const PRIMARY_CONNECTION_IDS = new Set([
+  "meta",
+  "site",
+  "google-search-console",
+  "google-analytics",
+  "google-business-profile",
+  "google-ads",
+]);
 
 type ConnectionSummaryMetric = {
   connected: number;
@@ -10,7 +17,7 @@ type ConnectionSummaryMetric = {
 };
 
 export function isPrimaryConnectionSummaryEntry(entry: ConnectionEntry): boolean {
-  return !DERIVED_META_ENTRY_IDS.has(entry.id);
+  return PRIMARY_CONNECTION_IDS.has(entry.id);
 }
 
 export function summarizeConnectionMetrics(catalog: ConnectionEntry[]): ConnectionSummaryMetric {
@@ -29,6 +36,9 @@ export function summarizeConnectionMetrics(catalog: ConnectionEntry[]): Connecti
         summary.connected += 1;
         break;
       case "parcialmente-conectado":
+        summary.connected += 1;
+        summary.deploying += 1;
+        break;
       case "em-configuracao":
       case "aguardando-autorizacao":
         summary.deploying += 1;

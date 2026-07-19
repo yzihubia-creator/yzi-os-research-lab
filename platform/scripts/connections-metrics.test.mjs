@@ -28,7 +28,7 @@ test("Meta with four channels counts once as a connected connection", () => {
         { kind: "page", account_label: "Pagina Real" },
         { kind: "instagram", account_label: "perfil.real" },
         { kind: "ad_account", account_label: "Conta Real" },
-        { kind: "waba", account_label: "WhatsApp Real" },
+        { kind: "waba", account_label: "WhatsApp Real", status: "connected" },
       ],
     },
   ]);
@@ -37,7 +37,7 @@ test("Meta with four channels counts once as a connected connection", () => {
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
     connected: 1,
     deploying: 0,
-    upcoming: 9,
+    upcoming: 5,
     attention: 0,
   });
 });
@@ -60,9 +60,32 @@ test("partially connected Meta enters deployment without counting derived entrie
   assert.equal(byId(catalog, "facebook-organico").state, "parcialmente-conectado");
   assert.equal(byId(catalog, "meta-ads").state, "parcialmente-conectado");
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
-    connected: 0,
+    connected: 1,
     deploying: 1,
-    upcoming: 9,
+    upcoming: 5,
+    attention: 0,
+  });
+});
+
+test("WhatsApp assets keep Meta counted once while partially connected", () => {
+  const catalog = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "meta",
+      status: "awaiting_account_selection",
+      assets: [
+        { kind: "whatsapp_phone_number", account_label: "+1 555-194-9020", status: "connected" },
+        { kind: "whatsapp_phone_number", account_label: "+55 83 9872-5431", status: "configuring" },
+        { kind: "whatsapp_business_account", account_label: "OCM Negocios Imobiliarios", status: "configuring" },
+        { kind: "waba", account_label: "Test WhatsApp Business Account", status: "configuring" },
+      ],
+    },
+  ]);
+
+  assert.equal(byId(catalog, "meta").state, "parcialmente-conectado");
+  assert.deepEqual(summarizeConnectionMetrics(catalog), {
+    connected: 1,
+    deploying: 1,
+    upcoming: 5,
     attention: 0,
   });
 });
@@ -74,7 +97,7 @@ test("coming soon items enter upcoming integrations", () => {
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
     connected: 0,
     deploying: 0,
-    upcoming: 10,
+    upcoming: 6,
     attention: 0,
   });
 });
@@ -104,7 +127,7 @@ test("explicit error enters attention", () => {
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
     connected: 0,
     deploying: 0,
-    upcoming: 9,
+    upcoming: 5,
     attention: 1,
   });
 });
@@ -125,7 +148,7 @@ test("no connection is promoted by display-only Meta assets", () => {
   assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "instagram-organico")), false);
   assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "facebook-organico")), false);
   assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "meta-ads")), false);
-  assert.equal(summarizeConnectionMetrics(catalog).connected, 0);
+  assert.equal(summarizeConnectionMetrics(catalog).connected, 1);
 });
 
 test("connection quantity pluralization handles zero, one, and many", () => {

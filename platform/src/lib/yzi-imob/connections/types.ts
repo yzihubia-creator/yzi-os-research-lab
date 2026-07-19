@@ -73,7 +73,16 @@ export type ConnectionChannel = {
   nextAction?: string | null;
   displayName?: string | null;
   healthReason?: string | null;
+  relatedAssets?: ConnectionChannelAsset[];
   capabilities: ConnectionCapabilityLink[];
+};
+
+export type ConnectionChannelAsset = {
+  kind: string;
+  category?: "phone" | "account";
+  label: string;
+  state: ConnectionState;
+  description?: string | null;
 };
 
 export type ConnectionEntry = {

@@ -15,6 +15,7 @@ export type SafePersistedConnectionAsset = {
   nextAction: string | null;
   displayName: string | null;
   healthReason: string | null;
+  metadata: SafePersistedAssetMetadata;
 };
 
 export type SafePersistedConnection = SafeConnectionState & {
@@ -25,13 +26,24 @@ type MetaAssetKind =
   | "facebook_page"
   | "instagram_business"
   | "meta_ad_account"
-  | "whatsapp_business_account";
+  | "whatsapp_business_account"
+  | "whatsapp_phone_number";
+
+type SafePersistedAssetMetadata = {
+  verifiedName: string | null;
+  providerStatus: string | null;
+  codeVerificationStatus: string | null;
+  platformType: string | null;
+  discoveryComplete: boolean | null;
+  graphConfirmed: boolean | null;
+};
 
 const META_ASSET_KINDS = new Set<string>([
   "facebook_page",
   "instagram_business",
   "meta_ad_account",
   "whatsapp_business_account",
+  "whatsapp_phone_number",
 ]);
 
 const META_ASSET_CHANNEL: Record<MetaAssetKind, string> = {
@@ -39,6 +51,7 @@ const META_ASSET_CHANNEL: Record<MetaAssetKind, string> = {
   instagram_business: "instagram",
   meta_ad_account: "meta-ads",
   whatsapp_business_account: "whatsapp",
+  whatsapp_phone_number: "whatsapp",
 };
 
 const STATE_RANK: Record<ConnectionState, number> = {
@@ -57,6 +70,8 @@ export function mapPersistedStatus(status: string | null): ConnectionState {
       return "conectado";
     case "partially_connected":
       return "parcialmente-conectado";
+    case "configuring":
+      return "em-configuracao";
     case "awaiting_account_selection":
     case "awaiting_customer":
     case "pending_authorization":
@@ -167,6 +182,7 @@ function readAssets(value: unknown): SafePersistedConnectionAsset[] {
       lastCheckedAt: readDateString(record.last_checked_at),
       nextAction: readSafeText(record.next_action),
       ...readSafeMetadata(record),
+      metadata: readSafeAssetMetadata(record),
     });
   }
 
@@ -192,14 +208,17 @@ function mergeMetaChannels(
     const primaryAsset = channelAssets.reduce((current, next) =>
       STATE_RANK[next.status] > STATE_RANK[current.status] ? next : current,
     );
+    const operationalAsset = channel.id === "whatsapp" ? selectWhatsappOperationalAsset(channelAssets) : primaryAsset;
 
     return {
       ...channel,
-      state: primaryAsset.status,
-      lastCheckedAt: primaryAsset.lastCheckedAt,
-      nextAction: primaryAsset.nextAction,
-      displayName: primaryAsset.displayName,
-      healthReason: primaryAsset.healthReason,
+      state: operationalAsset.status,
+      lastCheckedAt: operationalAsset.lastCheckedAt,
+      nextAction: operationalAsset.nextAction,
+      displayName: operationalAsset.displayName,
+      healthReason: operationalAsset.healthReason,
+      summary: channel.id === "whatsapp" ? whatsappChannelSummary(channelAssets, channel.summary) : channel.summary,
+      relatedAssets: channel.id === "whatsapp" ? whatsappRelatedAssets(channelAssets) : undefined,
     };
   });
 }
@@ -213,12 +232,13 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
   }
 
   const connectedChannels = channels.filter((channel) => channel.state === "conectado");
+  const partiallyConnectedChannels = channels.filter((channel) => channel.state === "parcialmente-conectado");
   const missingChannels = channels.filter((channel) => channel.state === "nao-configurado");
 
   if (connectedChannels.length === channels.length) {
     entry.state = "conectado";
     entry.summary =
-      "A Meta está conectada ao WhatsApp, Instagram, Facebook e conta de anúncios.";
+      "A Meta está conectada ao WhatsApp, Instagram, Facebook e Meta Ads.";
     entry.primaryPendency = null;
     entry.impact = [];
     entry.nextAction = null;
@@ -226,21 +246,38 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
     return;
   }
 
+  const whatsapp = channels.find((channel) => channel.id === "whatsapp");
+  if (whatsapp?.state === "parcialmente-conectado") {
+    entry.state = "parcialmente-conectado";
+    entry.summary =
+      "Instagram, Facebook e Meta Ads estão conectados. O WhatsApp está parcialmente operacional: o número de teste está conectado e o número oficial segue em configuração.";
+    entry.primaryPendency = "Concluir ativação técnica do número oficial";
+    entry.impact = ["WhatsApp disponível para validação técnica; atendimento oficial ainda depende da ativação final."];
+    entry.nextAction = "Concluir ativação técnica do número oficial";
+    entry.businessVerificationStatus ??= "Pendente";
+    return;
+  }
+
+  if (partiallyConnectedChannels.length > 0) {
+    entry.state = "parcialmente-conectado";
+    entry.businessVerificationStatus ??= "Pendente";
+  }
+
   if (connectedChannels.length > 0 && missingChannels.length > 0) {
     entry.state = "parcialmente-conectado";
     entry.summary =
-      "A Meta já está conectada ao Instagram, Facebook e conta de anúncios. O WhatsApp ainda está em configuração.";
-    entry.primaryPendency = "Ativar o WhatsApp oficial";
+      "A Meta já está conectada ao Instagram, Facebook e Meta Ads. O WhatsApp ainda está em configuração.";
+    entry.primaryPendency = "Concluir ativação técnica do número oficial";
     entry.impact = [
-      "Instagram, Facebook e conta de anúncios já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
+      "Instagram, Facebook e Meta Ads já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
     ];
-    entry.nextAction = "Ativar o WhatsApp oficial";
+    entry.nextAction = "Concluir ativação técnica do número oficial";
     entry.businessVerificationStatus ??= "Pendente";
 
     const whatsapp = channels.find((channel) => channel.id === "whatsapp");
     if (whatsapp?.state === "nao-configurado") {
       whatsapp.state = "em-configuracao";
-      whatsapp.nextAction = "Ativar o WhatsApp oficial";
+      whatsapp.nextAction = "Ativar número oficial";
     }
   }
 }
@@ -338,9 +375,81 @@ function normalizeMetaAssetKind(kind: string): MetaAssetKind | null {
     case "whatsapp_business_account":
     case "waba":
       return "whatsapp_business_account";
+    case "whatsapp_phone_number":
+      return "whatsapp_phone_number";
     default:
       return null;
   }
+}
+
+function selectWhatsappOperationalAsset(
+  assets: SafePersistedConnectionAsset[],
+): SafePersistedConnectionAsset {
+  const phoneAssets = assets.filter((asset) => asset.kind === "whatsapp_phone_number");
+  const connectedPhone = phoneAssets.find((asset) => asset.status === "conectado");
+  if (connectedPhone) {
+    return phoneAssets.some((asset) => asset.status !== "conectado")
+      ? { ...connectedPhone, status: "parcialmente-conectado" }
+      : connectedPhone;
+  }
+
+  const configuringPhone = phoneAssets.find((asset) => asset.status === "em-configuracao");
+  if (configuringPhone) return configuringPhone;
+
+  return assets.reduce((current, next) =>
+    STATE_RANK[next.status] > STATE_RANK[current.status] ? next : current,
+  );
+}
+
+function whatsappChannelSummary(assets: SafePersistedConnectionAsset[], fallback: string): string {
+  const phoneAssets = assets.filter((asset) => asset.kind === "whatsapp_phone_number");
+  const hasConnected = phoneAssets.some((asset) => asset.status === "conectado");
+  const hasConfiguring = phoneAssets.some((asset) => asset.status === "em-configuracao");
+  if (hasConnected && hasConfiguring) {
+    return "O número de teste está conectado. O número oficial segue em configuração.";
+  }
+  if (hasConnected) return "Número WhatsApp conectado para validação técnica.";
+  if (hasConfiguring) return "Número WhatsApp em configuração técnica.";
+  return fallback;
+}
+
+function whatsappRelatedAssets(assets: SafePersistedConnectionAsset[]) {
+  return assets.map((asset) => ({
+    kind: asset.kind,
+    category: asset.kind === "whatsapp_phone_number" ? "phone" as const : "account" as const,
+    label: whatsappAssetLabel(asset),
+    state: asset.status,
+    description: whatsappAssetDescription(asset),
+  }));
+}
+
+function whatsappAssetLabel(asset: SafePersistedConnectionAsset): string {
+  if (asset.kind === "whatsapp_phone_number") {
+    return asset.displayName ?? asset.metadata.verifiedName ?? "Número WhatsApp";
+  }
+  return asset.displayName ?? "WhatsApp Business Account";
+}
+
+function whatsappAssetDescription(asset: SafePersistedConnectionAsset): string | null {
+  if (asset.kind === "whatsapp_phone_number" && asset.status === "conectado") {
+    return "Disponível para validação técnica.";
+  }
+  if (asset.kind === "whatsapp_phone_number" && asset.status === "em-configuracao") {
+    return "Número verificado, aguardando ativação técnica final.";
+  }
+  return null;
+}
+
+function readSafeAssetMetadata(record: Record<string, unknown>): SafePersistedAssetMetadata {
+  const metadata = asRecord(record.metadata);
+  return {
+    verifiedName: readSafeText(metadata?.verified_name),
+    providerStatus: readSafeText(metadata?.provider_status),
+    codeVerificationStatus: readSafeText(metadata?.code_verification_status),
+    platformType: readSafeText(metadata?.platform_type),
+    discoveryComplete: readBoolean(metadata?.discovery_complete),
+    graphConfirmed: readBoolean(metadata?.graph_confirmed),
+  };
 }
 
 function mapPersistedAssetStatus(record: Record<string, unknown>): ConnectionState {
@@ -350,6 +459,11 @@ function mapPersistedAssetStatus(record: Record<string, unknown>): ConnectionSta
   const metadata = asRecord(record.metadata);
   const metadataStatus = readString(metadata?.status);
   if (metadataStatus) return mapPersistedStatus(metadataStatus);
+
+  const kind = readAssetKind(record);
+  if (kind === "whatsapp_business_account" || kind === "whatsapp_phone_number") {
+    return "nao-configurado";
+  }
 
   const hasDisplayLabel = Boolean(
     readSafeText(record.account_label) ??
@@ -388,6 +502,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function readSafeText(value: unknown): string | null {
