@@ -10,10 +10,8 @@ import {
   CONNECTION_STATE_LABEL,
   CONNECTION_STATE_ROLE,
   countActiveConnections,
-  countAwaitingAuthorization,
   countNeedsAttention,
   countNotConfigured,
-  topOperationalImpacts,
   type ConnectionChannel,
   type ConnectionEntry,
   type ConnectionGroupId,
@@ -54,11 +52,41 @@ const META_SURFACE_SUMMARY =
   "A conexão com a Meta permite localizar e configurar os canais disponíveis para a imobiliária.";
 
 function surfaceSummary(entry: ConnectionEntry): string {
-  return entry.id === "meta" ? META_SURFACE_SUMMARY : entry.summary;
+  return entry.id === "meta" && entry.state === "nao-configurado" ? META_SURFACE_SUMMARY : entry.summary;
 }
 
-function StateChip({ state }: { state: ConnectionEntry["state"] }) {
-  const role = CONNECTION_STATE_ROLE[state];
+function isMetaPartiallyConnected(entry: ConnectionEntry): boolean {
+  if (entry.id !== "meta" || !entry.channels?.length) return false;
+  const connectedCount = entry.channels.filter((channel) => channel.state === "conectado").length;
+  return entry.state === "aguardando-autorizacao" && connectedCount > 0 && connectedCount < entry.channels.length;
+}
+
+function isChannelInConfiguration(channel: ConnectionChannel): boolean {
+  return channel.state === "nao-configurado" && channel.nextAction === "Ativar o WhatsApp oficial";
+}
+
+function displayStateLabel(entry: ConnectionEntry): string {
+  if (entry.state === "parcialmente-conectado") return "Parcialmente conectada";
+  return isMetaPartiallyConnected(entry)
+    ? "Parcialmente conectada"
+    : CONNECTION_STATE_LABEL[entry.state];
+}
+
+function displayChannelStateLabel(channel: ConnectionChannel): string {
+  return isChannelInConfiguration(channel) ? "Em configuração" : CONNECTION_STATE_LABEL[channel.state];
+}
+
+function StateChip({
+  state,
+  label,
+}: {
+  state: ConnectionEntry["state"];
+  label?: string;
+}) {
+  const role =
+    label === "Parcialmente conectada" || label === "Em configuração"
+      ? "amber"
+      : CONNECTION_STATE_ROLE[state];
   return (
     <span
       className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.64rem]"
@@ -73,7 +101,7 @@ function StateChip({ state }: { state: ConnectionEntry["state"] }) {
         className="h-1.5 w-1.5 rounded-full"
         style={{ backgroundColor: imobRgba(role, 0.9) }}
       />
-      {CONNECTION_STATE_LABEL[state]}
+      {label ?? CONNECTION_STATE_LABEL[state]}
     </span>
   );
 }
@@ -108,7 +136,7 @@ function ConnectionRow({
         >
           {entry.label}
         </span>
-        <StateChip state={entry.state} />
+        <StateChip state={entry.state} label={displayStateLabel(entry)} />
       </div>
       <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
         {surfaceSummary(entry)}
@@ -132,13 +160,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 function displayDetail(value: string | null | undefined): string {
-  return value?.trim() || "Ainda nÃ£o disponÃ­vel";
+  return value?.trim() || "Ainda não disponível";
 }
 
 function displayDate(value: string | null | undefined): string {
-  if (!value) return "Ainda nÃ£o disponÃ­vel";
+  if (!value) return "Ainda não disponível";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Ainda nÃ£o disponÃ­vel";
+  if (Number.isNaN(date.getTime())) return "Ainda não disponível";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
@@ -150,6 +178,8 @@ function actionForState(state: ConnectionEntry["state"]): string | null {
     case "nao-configurado":
       return "Conectar";
     case "aguardando-autorizacao":
+    case "parcialmente-conectado":
+    case "em-configuracao":
       return "Revisar autorização";
     case "requer-atencao":
       return "Reconectar";
@@ -194,7 +224,7 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
         <span className="text-[0.8rem] font-medium text-[var(--yzi-text-primary)]">
           {channel.label}
         </span>
-        <StateChip state={channel.state} />
+        <StateChip state={channel.state} label={displayChannelStateLabel(channel)} />
       </div>
       <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
         {channel.summary}
@@ -213,8 +243,8 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
           ) : null}
           {channel.lastCheckedAt || channel.nextAction ? (
             <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
-              Ãšltima verificaÃ§Ã£o: {displayDate(channel.lastCheckedAt)}
-              {channel.nextAction ? ` Â· ${channel.nextAction}` : ""}
+              Última verificação: {displayDate(channel.lastCheckedAt)}
+              {channel.nextAction ? ` · ${channel.nextAction}` : ""}
             </p>
           ) : null}
         </div>
@@ -225,77 +255,51 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
 }
 
 /* ------------------------------------------------------------------ */
-/* MetaConnectPanel — bloco operacional único de conexão Meta.         */
-/* Estado somente em memória; backend ainda não ligado nesta unidade,  */
-/* então qualquer ação termina no estado honesto                       */
-/* "Conexão segura em preparação".                                     */
+/* MetaManagedPanel — bloco operacional de provisionamento gerenciado. */
+/* Sem manipulação de autorização no frontend.                         */
 /* ------------------------------------------------------------------ */
 
-function MetaConnectPanel() {
-  const [authInput, setAuthInput] = useState("");
+function MetaManagedPanel() {
   const [statusNote, setStatusNote] = useState<string | null>(null);
 
-  function connect() {
-    setStatusNote("Conexão segura em preparação");
+  function showManagedAction(action: string) {
+    setStatusNote(`${action}: solicitação registrada para acompanhamento operacional.`);
   }
 
   return (
     <div className="flex flex-col gap-4 border-t border-[color:var(--yzi-border-subtle)] pt-4">
       <div className="flex flex-col gap-1.5">
         <h4 className="text-[0.92rem] font-semibold text-[var(--yzi-text-primary)]">
-          Conectar a Meta
+          Configuração gerenciada pela YZIHUB
         </h4>
         <p className="text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          Conecte a conta da imobiliária para localizar os canais disponíveis.
+          A conexão da Meta é configurada durante a implantação. Acompanhe os canais
+          identificados e eventuais pendências abaixo.
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={connect}
-        className="w-full rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.36)] bg-[rgba(var(--imob-cold),0.16)] px-4 py-2.5 text-[0.8rem] font-medium text-[rgb(var(--imob-ice))] transition-colors hover:bg-[rgba(var(--imob-cold),0.24)]"
-      >
-        Conectar com a Meta
-      </button>
-
-      <div className="flex items-center gap-3" aria-hidden>
-        <span className="h-px flex-1 bg-[var(--yzi-border-subtle)]" />
-        <span className="text-[0.66rem] text-[var(--yzi-text-faint)]">
-          ou use uma autorização existente
-        </span>
-        <span className="h-px flex-1 bg-[var(--yzi-border-subtle)]" />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label
-          htmlFor="meta-auth-input"
-          className="text-[0.72rem] text-[var(--yzi-text-secondary)]"
-        >
-          Token ou link de autorização
-        </label>
-        <input
-          id="meta-auth-input"
-          name="meta-auth-input"
-          type="text"
-          value={authInput}
-          onChange={(event) => setAuthInput(event.target.value)}
-          placeholder="Cole o token ou link fornecido pela Meta"
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-[0.84rem] text-[var(--yzi-text-primary)] outline-none transition-colors placeholder:text-[var(--yzi-text-faint)] focus:border-[color:rgba(var(--imob-ice),0.35)]"
-        />
+      <div className="flex flex-wrap items-center gap-2.5">
         <button
           type="button"
-          onClick={connect}
-          disabled={!authInput.trim()}
-          className="w-full rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-4 py-2.5 text-[0.78rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => showManagedAction("Atualizar estado")}
+          className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.36)] bg-[rgba(var(--imob-cold),0.16)] px-3 py-1.5 text-[0.72rem] font-medium text-[rgb(var(--imob-ice))] transition-colors hover:bg-[rgba(var(--imob-cold),0.24)]"
         >
-          Verificar e conectar
+          Atualizar estado
         </button>
-        <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          A informação será usada somente para conectar a conta e não ficará visível depois.
-        </p>
+        <button
+          type="button"
+          onClick={() => showManagedAction("Ver detalhes")}
+          className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
+        >
+          Ver detalhes
+        </button>
+        <button
+          type="button"
+          onClick={() => showManagedAction("Solicitar suporte")}
+          className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
+        >
+          Solicitar suporte
+        </button>
       </div>
 
       {statusNote ? (
@@ -332,19 +336,36 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
           <h3 className="text-[1.05rem] font-semibold text-[var(--yzi-text-primary)]">
             {entry.label}
           </h3>
-          <StateChip state={entry.state} />
+          <StateChip state={entry.state} label={displayStateLabel(entry)} />
         </div>
         <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
           {surfaceSummary(entry)}
         </p>
         {entry.displayName || entry.healthReason ? (
           <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-faint)]">
-            {[entry.displayName, entry.healthReason].filter(Boolean).join(" Â· ")}
+            {[entry.displayName, entry.healthReason].filter(Boolean).join(" · ")}
           </p>
         ) : null}
       </div>
 
-      {isMeta ? <MetaConnectPanel /> : null}
+      {isMeta ? <MetaManagedPanel /> : null}
+
+      {isMeta ? (
+        <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
+          <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
+            Estados da conexão
+          </span>
+          <div className="flex flex-col gap-1.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3">
+            <DetailRow label="Estado técnico" value={displayStateLabel(entry)} />
+            <DetailRow
+              label="Verificação empresarial"
+              value={displayDetail(entry.businessVerificationStatus)}
+            />
+            <DetailRow label="Última verificação" value={displayDate(entry.lastCheckedAt)} />
+            <DetailRow label="Pendência operacional" value={displayDetail(entry.nextAction)} />
+          </div>
+        </div>
+      ) : null}
 
       {entry.channels && entry.channels.length > 0 ? (
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
@@ -387,8 +408,11 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
           <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">Impacto</span>
           <ul className="flex flex-col gap-1.5">
-            {entry.impact.map((line) => (
-              <li key={line} className="text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+            {entry.impact.map((line, impactIndex) => (
+              <li
+                key={`${entry.id}:impact:${impactIndex}`}
+                className="text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]"
+              >
                 {line}
               </li>
             ))}
@@ -434,6 +458,59 @@ function entriesByGroup(entries: ConnectionEntry[], groupId: ConnectionGroupId):
   return entries.filter((entry) => entry.groupId === groupId);
 }
 
+type OperationalImpactItem = {
+  id: string;
+  text: string;
+};
+
+function isTopOperationalImpactCandidate(entry: ConnectionEntry): boolean {
+  return entry.priority === "essencial" && entry.state !== "conectado" && entry.state !== "em-breve";
+}
+
+function firstImpactItem(entry: ConnectionEntry): OperationalImpactItem | null {
+  const impactIndex = entry.impact.findIndex((impact) => impact);
+  return impactIndex >= 0
+    ? {
+        id: `${entry.id}:impact:${impactIndex}`,
+        text: entry.impact[impactIndex],
+      }
+    : null;
+}
+
+function topOperationalImpactItems(catalog: ConnectionEntry[], limit: number): OperationalImpactItem[] {
+  const items: OperationalImpactItem[] = [];
+  const consolidatedIds = new Set<string>();
+  const instagram = catalog.find((entry) => entry.id === "instagram-organico");
+  const facebook = catalog.find((entry) => entry.id === "facebook-organico");
+  const shouldConsolidateOrganicMeta =
+    instagram &&
+    facebook &&
+    isTopOperationalImpactCandidate(instagram) &&
+    isTopOperationalImpactCandidate(facebook) &&
+    instagram.state === "parcialmente-conectado" &&
+    facebook.state === "parcialmente-conectado" &&
+    instagram.impact.length > 0 &&
+    facebook.impact.length > 0;
+
+  for (const entry of catalog) {
+    if (!isTopOperationalImpactCandidate(entry)) continue;
+    if (consolidatedIds.has(entry.id)) continue;
+    if (shouldConsolidateOrganicMeta && entry.id === "instagram-organico") {
+      items.push({
+        id: "presenca-digital:instagram-facebook:publish-metrics",
+        text: "Instagram e Facebook foram identificados, mas publicação e métricas ainda precisam ser validadas.",
+      });
+      consolidatedIds.add("instagram-organico");
+      consolidatedIds.add("facebook-organico");
+    } else {
+      const item = firstImpactItem(entry);
+      if (item) items.push(item);
+    }
+    if (items.length >= limit) break;
+  }
+  return items;
+}
+
 export function YziImobConnectionsWorkspace({
   connections = CONNECTIONS_CATALOG,
 }: {
@@ -448,10 +525,16 @@ export function YziImobConnectionsWorkspace({
     connections.find((entry) => entry.id === selectedId) ?? groupEntries[0];
 
   const activeCount = useMemo(() => countActiveConnections(connections), [connections]);
-  const awaitingCount = useMemo(() => countAwaitingAuthorization(connections), [connections]);
+  const awaitingCount = useMemo(
+    () =>
+      connections.filter((entry) =>
+        ["aguardando-autorizacao", "parcialmente-conectado", "em-configuracao"].includes(entry.state),
+      ).length,
+    [connections],
+  );
   const notConfiguredCount = useMemo(() => countNotConfigured(connections), [connections]);
   const attentionCount = useMemo(() => countNeedsAttention(connections), [connections]);
-  const impacts = useMemo(() => topOperationalImpacts(connections, 4), [connections]);
+  const impacts = useMemo(() => topOperationalImpactItems(connections, 4), [connections]);
 
   const counters: CounterItem[] = [
     {
@@ -460,15 +543,19 @@ export function YziImobConnectionsWorkspace({
       detail:
         activeCount === 0
           ? "Nenhuma conexão ativa ainda."
-          : `${activeCount} conexão(ões) funcionando na operação.`,
+          : activeCount === 1
+            ? "1 conexão funcionando na operação."
+            : `${activeCount} conexões funcionando na operação.`,
     },
     {
       label: "Aguardando",
       value: String(awaitingCount),
       detail:
         awaitingCount === 0
-          ? "Nenhuma autorização em andamento."
-          : `${awaitingCount} autorização(ões) em andamento.`,
+          ? "Nenhuma conexão em configuração."
+          : awaitingCount === 1
+            ? "1 conexão em configuração."
+            : `${awaitingCount} conexões em configuração.`,
     },
     {
       label: "Não configuradas",
@@ -482,7 +569,9 @@ export function YziImobConnectionsWorkspace({
       detail:
         attentionCount === 0
           ? "Nenhuma conexão com falha ou autorização vencida."
-          : `${attentionCount} conexão(ões) precisando de ação.`,
+          : attentionCount === 1
+            ? "1 conexão precisando de ação."
+            : `${attentionCount} conexões precisando de ação.`,
       accent: attentionCount > 0,
     },
   ];
@@ -506,7 +595,7 @@ export function YziImobConnectionsWorkspace({
       setAssistantNote(
         impacts.length === 0
           ? "Nada precisa de atenção agora nas conexões essenciais."
-          : impacts.join(" "),
+          : impacts.map((impact) => impact.text).join(" "),
       );
       return;
     }
@@ -514,7 +603,9 @@ export function YziImobConnectionsWorkspace({
       setAssistantNote(
         activeCount === 0
           ? "Nenhuma conexão está ativa ainda — todas aguardam configuração."
-          : `${activeCount} conexão(ões) funcionando.`,
+          : activeCount === 1
+            ? "1 conexão funcionando."
+            : `${activeCount} conexões funcionando.`,
       );
       return;
     }
@@ -566,7 +657,9 @@ export function YziImobConnectionsWorkspace({
         onAsk={answer}
       />
 
-      <CounterStrip counters={counters} />
+      <div className="w-full min-w-0 self-stretch">
+        <CounterStrip counters={counters} />
+      </div>
 
       <WorkspaceSection
         title="Visão geral"
@@ -575,9 +668,9 @@ export function YziImobConnectionsWorkspace({
       >
         {impacts.length > 0 ? (
           <ul className="flex flex-col gap-2">
-            {impacts.map((line) => (
+            {impacts.map((impact) => (
               <li
-                key={line}
+                key={impact.id}
                 className="flex items-start gap-2.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]"
               >
                 <span
@@ -585,7 +678,7 @@ export function YziImobConnectionsWorkspace({
                   className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ backgroundColor: imobRgba("amber", 0.85) }}
                 />
-                {line}
+                {impact.text}
               </li>
             ))}
           </ul>

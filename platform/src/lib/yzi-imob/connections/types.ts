@@ -16,12 +16,19 @@ export type ConnectionGroupId =
 // Ver docs/yzi-imob/yzi-imob-conexoes-backend-contract-v1.md.
 export type ConnectionState =
   | "conectado"
+  | "parcialmente-conectado"
+  | "em-configuracao"
   | "aguardando-autorizacao"
   | "nao-configurado"
   | "requer-atencao"
   | "em-breve";
 
 export type ConnectionCapabilityId =
+  | "identified"
+  | "read"
+  | "write"
+  | "publish"
+  | "metrics"
   | "receber-contatos"
   | "responder-mensagens"
   | "publicar-conteudo"
@@ -79,6 +86,7 @@ export type ConnectionEntry = {
   nextAction?: string | null;
   displayName?: string | null;
   healthReason?: string | null;
+  businessVerificationStatus?: string | null;
   priority: ConnectionPriority;
   capabilities: ConnectionCapabilityLink[];
   // Presente apenas em conexões-ecossistema (Meta): os canais internos.
