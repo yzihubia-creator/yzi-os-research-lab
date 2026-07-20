@@ -218,8 +218,14 @@ test("POST processing responses are idempotent and do not expose internal ids", 
   assert.match(ROUTE_SOURCE, /processingResult\.duplicate[\s\S]+webhookLog\("inbound_duplicate", \{ reason: controlledReason\(processingResult\.reason\) \}\)/);
   assert.match(ROUTE_SOURCE, /processingResult\.ignored[\s\S]+webhookLog\("inbound_ignored", \{ reason: controlledReason\(processingResult\.reason\) \}\)/);
   assert.match(ROUTE_SOURCE, /return NextResponse\.json\(\{ status: "accepted" \}\)/);
-  assert.doesNotMatch(ROUTE_SOURCE, /conversationId|messageId|tenantId|senderId/);
-  assert.doesNotMatch(ROUTE_SOURCE, /conversationId:|messageId:|tenantId:|senderId:|eventId:/);
+  // conversationId/messageId are read from processingResult only to enqueue the
+  // WhatsApp inbound handoff (server-to-server RPC call), never to build an
+  // HTTP response. Every NextResponse.json(...) payload must stay free of them.
+  const responsePayloads = [...ROUTE_SOURCE.matchAll(/NextResponse\.json\(\{[^}]*\}/g)].map((m) => m[0]);
+  assert.ok(responsePayloads.length > 0);
+  for (const payload of responsePayloads) {
+    assert.doesNotMatch(payload, /conversationId|messageId|tenantId|senderId|eventId/);
+  }
 });
 
 test("processor failures fail closed with sanitized server logs", () => {

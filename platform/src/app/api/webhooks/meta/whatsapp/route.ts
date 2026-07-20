@@ -7,6 +7,7 @@ import {
   verifyMetaWhatsappChallenge,
 } from "@/lib/yzi-imob/connections/meta-whatsapp";
 import { persistMetaWhatsappWebhookEvents } from "@/lib/yzi-imob/connections/meta-whatsapp-server";
+import { enqueueWhatsappInboundHandoff } from "@/lib/yzi-imob/connections/whatsapp-inbound-handoff";
 import { processWhatsappInboundEvent } from "@/lib/yzi-imob/connections/whatsapp-inbound-processor";
 
 export const runtime = "nodejs";
@@ -97,6 +98,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       webhookLog("inbound_ignored", { reason: controlledReason(processingResult.reason) });
     } else {
       webhookLog("inbound_processed");
+    }
+
+    if (!processingResult.ignored && (processingResult.processed || processingResult.duplicate)) {
+      const { conversationId, messageId } = processingResult;
+      if (!conversationId || !messageId || !UUID_RE.test(conversationId) || !UUID_RE.test(messageId)) {
+        webhookError("inbound_processing_failed", { reason: "missing_handoff_ids" });
+        return NextResponse.json({ status: "error" }, { status: 500 });
+      }
+
+      try {
+        const handoffResult = await enqueueWhatsappInboundHandoff({ conversationId, messageId });
+        if (handoffResult.status === "duplicate") {
+          webhookLog("inbound_handoff_duplicate", { status: handoffResult.status });
+        } else {
+          webhookLog("inbound_handoff_queued", { status: handoffResult.status });
+        }
+      } catch {
+        webhookError("inbound_handoff_failed", { reason: "handoff_error" });
+        return NextResponse.json({ status: "error" }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ status: "accepted" });
