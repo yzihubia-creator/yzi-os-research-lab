@@ -129,8 +129,8 @@ async function persistMetaWhatsappAssets(input: {
     select waba_count, phone_number_count, persisted_at
     from yzi_meta_whatsapp_private.upsert_meta_whatsapp_assets(
       ${input.connectionId}::uuid,
-      ${JSON.stringify(input.wabas)}::jsonb,
-      ${JSON.stringify(input.phoneNumbers)}::jsonb
+      ${sql.json(input.wabas as unknown as postgres.JSONValue)},
+      ${sql.json(input.phoneNumbers as unknown as postgres.JSONValue)}
     )
   `;
 }
@@ -178,7 +178,7 @@ export async function persistMetaWhatsappWebhookEvents(
           ${event.phoneNumberId}::text,
           ${event.wabaId}::text,
           ${event.normalizedStatus}::text,
-          ${JSON.stringify(event.payloadMin)}::jsonb
+          ${sql.json(event.payloadMin as unknown as postgres.JSONValue)}
         )
       `;
       const row = rows[0];
