@@ -95,7 +95,7 @@ export default async function YziImobConversationWorkspacePage({
 
   const conversation = conversationResult.conversation;
   const [lead, messagesResult] = await Promise.all([
-    getLead(tenantId, conversation.leadId),
+    conversation.leadId ? getLead(tenantId, conversation.leadId) : Promise.resolve(null),
     listRecentMessages({ tenantId, conversationId, limit: 50 }),
   ]);
 

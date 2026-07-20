@@ -33,6 +33,7 @@ const DIRECTION_LABEL: Record<string, string> = {
 
 const SENDER_LABEL: Record<string, string> = {
   lead: "Lead",
+  external_contact: "Contato externo",
   yzi: "YZI",
   human: "Humano",
 };
@@ -66,8 +67,15 @@ export function YziImobConversationWorkspace({
 }) {
   // A query devolve mais recente primeiro; a exibição do histórico de chat é
   // cronológica (mais antiga primeiro), então invertemos só na apresentação.
-  const chronologicalMessages = [...messages].reverse();
-  const leadName = lead?.full_name ?? "Lead não encontrado neste tenant";
+  const chronologicalMessages = [...messages]
+    .filter((message) => message.direction === "inbound" || message.direction === "outbound")
+    .reverse();
+  const isExternalContact = conversation.isExternalContact;
+  const title = isExternalContact ? "Contato externo" : lead?.full_name ?? "Lead não encontrado neste tenant";
+  const channelLabel = CHANNEL_LABEL[conversation.channel] ?? conversation.channelLabel;
+  const identitySubtitle = isExternalContact
+    ? `${channelLabel} · ${conversation.externalIdentityMasked ?? "identidade indisponível"}`
+    : channelLabel;
 
   return (
     <div className="flex w-full flex-col">
@@ -88,15 +96,20 @@ export function YziImobConversationWorkspace({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-balance text-[1.9rem] font-semibold leading-tight tracking-[-0.01em] text-[var(--yzi-text-primary)]">
-            {leadName}
+            {title}
           </h1>
           <span className="rounded-full border border-[color:rgba(var(--imob-ice),0.4)] bg-[rgba(var(--imob-cold),0.12)] px-2.5 py-1 text-[0.66rem] text-[rgb(var(--imob-ice))]">
             {STATUS_LABEL[conversation.status] ?? conversation.status}
           </span>
           <span className="rounded-full border border-[color:var(--yzi-border-subtle)] px-2.5 py-1 text-[0.66rem] text-[var(--yzi-text-faint)]">
-            {CHANNEL_LABEL[conversation.channel] ?? conversation.channel}
+            {identitySubtitle}
           </span>
         </div>
+        {isExternalContact ? (
+          <p className="text-[0.78rem] text-[var(--yzi-text-secondary)]">
+            Ainda não qualificado como lead.
+          </p>
+        ) : null}
       </section>
 
       <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-7 px-8 py-10 lg:grid-cols-[1.4fr_1fr]">
@@ -176,9 +189,20 @@ export function YziImobConversationWorkspace({
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3 rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
             <h2 className="text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">
-              Dados do lead
+              {isExternalContact ? "Contato" : "Dados do lead"}
             </h2>
-            {lead ? (
+            {isExternalContact ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <WorkspaceField label="Tipo" value="Contato externo" readOnly />
+                <WorkspaceField label="Qualificação" value="Ainda não qualificado como lead" readOnly />
+                <WorkspaceField label="Canal" value={channelLabel} readOnly />
+                <WorkspaceField
+                  label="Identidade"
+                  value={conversation.externalIdentityMasked ?? "Identidade externa indisponível"}
+                  readOnly
+                />
+              </div>
+            ) : lead ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <WorkspaceField label="Nome" value={lead.full_name} readOnly />
                 <WorkspaceField label="ID do lead" value={lead.id} readOnly />
@@ -200,7 +224,7 @@ export function YziImobConversationWorkspace({
               <WorkspaceField label="ID" value={conversation.id} readOnly />
               <WorkspaceField
                 label="Canal"
-                value={CHANNEL_LABEL[conversation.channel] ?? conversation.channel}
+                value={channelLabel}
                 readOnly
               />
               <WorkspaceField
@@ -218,9 +242,9 @@ export function YziImobConversationWorkspace({
           </div>
 
           <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-            Dados reais, tenant-scoped. Estágio de qualificação, agenda, corretor vinculado e ações
-            manuais não estão disponíveis nesta tela: dependem de campos que ainda não existem no
-            schema atual e não foram inventados aqui.
+            {isExternalContact
+              ? "Dados reais, tenant-scoped. Este contato externo não é tratado como lead: ficha, score, temperatura, imóvel, corretor, pipeline, proposta e visita permanecem indisponíveis nesta unidade."
+              : "Dados reais, tenant-scoped. Estágio de qualificação, agenda, corretor vinculado e ações manuais não estão disponíveis nesta tela: dependem de campos que ainda não existem no schema atual e não foram inventados aqui."}
           </p>
         </div>
       </section>

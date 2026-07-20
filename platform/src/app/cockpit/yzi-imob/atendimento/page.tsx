@@ -173,6 +173,12 @@ async function ConversationBoard({ tenantId }: { tenantId: string }) {
               ) : (
                 columnConversations.map((conversation) => {
                   const lead = conversation.leadId ? leadsById.get(conversation.leadId) : null;
+                  const title = conversation.isExternalContact
+                    ? "Contato externo"
+                    : lead?.fullName ?? "Lead não encontrado";
+                  const subtitle = conversation.isExternalContact
+                    ? `${conversation.channelLabel} · ${conversation.externalIdentityMasked ?? "identidade indisponível"}`
+                    : `Canal: ${conversation.channelLabel}`;
                   return (
                     <Link
                       key={conversation.id}
@@ -181,10 +187,10 @@ async function ConversationBoard({ tenantId }: { tenantId: string }) {
                       style={{ borderLeft: `2px solid rgb(${accent})` }}
                     >
                       <span className="truncate text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
-                        {lead?.fullName ?? "Lead não encontrado"}
+                        {title}
                       </span>
                       <span className="truncate text-[0.66rem] text-[var(--yzi-text-secondary)]">
-                        Canal: {conversation.channel}
+                        {subtitle}
                       </span>
                       <span className="truncate text-[0.6rem] text-[var(--yzi-text-faint)]">
                         {formatLastActivity(conversation)}

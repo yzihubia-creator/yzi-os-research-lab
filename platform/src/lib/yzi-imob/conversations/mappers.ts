@@ -1,4 +1,5 @@
 import type { Conversation, Message } from "./types";
+import { conversationChannelLabel, maskExternalSenderId } from "./external-identity";
 
 // Mapeamento puro linha-de-banco → tipo de domínio. Sem I/O, sem fallback
 // inventado: campos ausentes/tipos errados viram string vazia explícita, o
@@ -22,16 +23,31 @@ function strOrNull(source: Record<string, unknown>, key: string): string | null 
 
 export function mapConversationRow(row: unknown): Conversation {
   const record = asRecord(row);
+  const leadId = strOrNull(record, "lead_id");
+  const externalSenderId = strOrNull(record, "external_sender_id");
+  const channel = str(record, "channel");
+  const isExternalContact = !leadId && Boolean(externalSenderId);
+
+  if (!leadId && !externalSenderId) {
+    throw new Error("conversation_identity_missing: lead_id or external_sender_id is required");
+  }
+
   return {
     id: str(record, "id"),
     tenantId: str(record, "tenant_id"),
-    leadId: str(record, "lead_id"),
-    channel: str(record, "channel"),
+    leadId,
+    externalSenderId,
+    channel,
+    channelLabel: conversationChannelLabel(channel),
     status: str(record, "status"),
     startedAt: str(record, "started_at"),
     lastMessageAt: strOrNull(record, "last_message_at"),
     createdAt: str(record, "created_at"),
     updatedAt: str(record, "updated_at"),
+    displayName: isExternalContact ? "Contato externo" : null,
+    externalIdentityMasked: isExternalContact ? maskExternalSenderId(externalSenderId) : null,
+    isExternalContact,
+    lead: null,
   };
 }
 

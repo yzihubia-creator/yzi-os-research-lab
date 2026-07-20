@@ -11,13 +11,19 @@
 export type Conversation = {
   id: string;
   tenantId: string;
-  leadId: string;
+  leadId: string | null;
+  externalSenderId: string | null;
   channel: string;
+  channelLabel: string;
   status: string;
   startedAt: string;
   lastMessageAt: string | null;
   createdAt: string;
   updatedAt: string;
+  displayName: string | null;
+  externalIdentityMasked: string | null;
+  isExternalContact: boolean;
+  lead: null;
 };
 
 export type Message = {
