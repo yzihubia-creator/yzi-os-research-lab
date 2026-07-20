@@ -28,11 +28,6 @@ const WHATSAPP_PROCESSOR_SOURCE = readFileSync(
   new URL("../src/lib/yzi-imob/connections/whatsapp-inbound-processor.ts", import.meta.url),
   "utf8",
 );
-const WEBHOOK_ROUTE_SOURCE = readFileSync(
-  new URL("../src/app/api/webhooks/meta/whatsapp/route.ts", import.meta.url),
-  "utf8",
-);
-
 test("mapper preserves lead conversations and derives external contact contract", () => {
   assert.match(MAPPERS_SOURCE, /const leadId = strOrNull\(record, "lead_id"\)/);
   assert.match(MAPPERS_SOURCE, /const externalSenderId = strOrNull\(record, "external_sender_id"\)/);
@@ -82,9 +77,8 @@ test("external_contact renders as inbound contact and callbacks do not enter cha
   assert.match(WORKSPACE_SOURCE, /filter\(\(message\) => message\.direction === "inbound" \|\| message\.direction === "outbound"\)/);
 });
 
-test("no automatic lead, webhook processor call, YZI call, or outbound message is introduced", () => {
+test("no automatic lead, YZI call, or outbound message is introduced in atendimento UI", () => {
   assert.doesNotMatch(LIST_PAGE_SOURCE + DETAIL_PAGE_SOURCE + WORKSPACE_SOURCE, /insert\s*\(\s*\{[\s\S]*yzi_imob_leads|from\("yzi_imob_leads"\)\.insert/i);
-  assert.doesNotMatch(WEBHOOK_ROUTE_SOURCE, /processWhatsappInboundEvent/);
   assert.doesNotMatch(WORKSPACE_SOURCE, /fetch\(|openai|generateText|streamText|recordMessage/i);
   assert.doesNotMatch(WHATSAPP_PROCESSOR_SOURCE, /direction[\s\S]{0,80}'outbound'/i);
 });

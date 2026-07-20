@@ -202,6 +202,39 @@ test("webhook without matching asset returns controlled HTTP 200 response shape"
   assert.doesNotMatch(ROUTE_SOURCE, /status:\s*202/);
 });
 
+test("POST calls inbound processor only after successful persistence", () => {
+  const signatureIndex = ROUTE_SOURCE.indexOf("verifyMetaSignature");
+  const persistIndex = ROUTE_SOURCE.indexOf("persistMetaWhatsappWebhookEvents(events)");
+  const processIndex = ROUTE_SOURCE.indexOf("processWhatsappInboundEvent(result.eventId)");
+  assert.ok(signatureIndex > -1);
+  assert.ok(persistIndex > signatureIndex);
+  assert.ok(processIndex > persistIndex);
+  assert.match(ROUTE_SOURCE, /if \(!UUID_RE\.test\(result\.eventId\)\)[\s\S]+reason: "invalid_event_id"[\s\S]+status: 500/);
+  assert.match(ROUTE_SOURCE, /if \(result\.status === "error"\)[\s\S]+return NextResponse\.json\(\{ status: "error" \}, \{ status: 500 \}\)/);
+  assert.match(ROUTE_SOURCE, /if \(result\.status === "ignored"\)[\s\S]+return NextResponse\.json\(\{ status: "accepted", persisted: false, code: result\.code \}\)/);
+});
+
+test("POST processing responses are idempotent and do not expose internal ids", () => {
+  assert.match(ROUTE_SOURCE, /processingResult\.duplicate[\s\S]+webhookLog\("inbound_duplicate", \{ reason: controlledReason\(processingResult\.reason\) \}\)/);
+  assert.match(ROUTE_SOURCE, /processingResult\.ignored[\s\S]+webhookLog\("inbound_ignored", \{ reason: controlledReason\(processingResult\.reason\) \}\)/);
+  assert.match(ROUTE_SOURCE, /return NextResponse\.json\(\{ status: "accepted" \}\)/);
+  assert.doesNotMatch(ROUTE_SOURCE, /conversationId|messageId|tenantId|senderId/);
+  assert.doesNotMatch(ROUTE_SOURCE, /conversationId:|messageId:|tenantId:|senderId:|eventId:/);
+});
+
+test("processor failures fail closed with sanitized server logs", () => {
+  assert.match(ROUTE_SOURCE, /catch \{[\s\S]+webhookError\("inbound_processing_failed", \{ reason: "processor_error" \}\)/);
+  assert.match(ROUTE_SOURCE, /return NextResponse\.json\(\{ status: "error" \}, \{ status: 500 \}\)/);
+  assert.match(ROUTE_SOURCE, /CONTROLLED_REASON_RE/);
+  assert.doesNotMatch(ROUTE_SOURCE, /processed_at|payloadMin|phoneNumberId|wabaId/);
+});
+
+test("route introduces no outbound WhatsApp send, YZI call, or lead creation", () => {
+  assert.doesNotMatch(ROUTE_SOURCE, /graph\.facebook|messages\?|recordMessage|sender_action|outbound/i);
+  assert.doesNotMatch(ROUTE_SOURCE, /openai|generateText|streamText/i);
+  assert.doesNotMatch(ROUTE_SOURCE, /yzi_imob_leads|insert\s*\(/i);
+});
+
 test("official number is not promoted without API evidence", () => {
   assert.equal(
     normalizeWhatsappNumberStatus({
