@@ -35,7 +35,7 @@ export type Message = {
 export const RECOMMENDED_CHANNELS = ["whatsapp"] as const;
 export const RECOMMENDED_CONVERSATION_STATUSES = ["open", "paused", "closed"] as const;
 export const RECOMMENDED_DIRECTIONS = ["inbound", "outbound"] as const;
-export const RECOMMENDED_SENDER_TYPES = ["lead", "yzi", "human"] as const;
+export const RECOMMENDED_SENDER_TYPES = ["lead", "external_contact", "yzi", "human"] as const;
 
 export type ConversationErrorCode =
   | "lead_not_found"
