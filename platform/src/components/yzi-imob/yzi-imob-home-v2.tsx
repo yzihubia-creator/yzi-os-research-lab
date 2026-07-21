@@ -9,7 +9,6 @@ import { AuthorizationIcon, SendIcon } from "@/components/yzi-os/yzi-icons";
 import { CreativeIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
 import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { CounterStrip, type CounterItem } from "@/components/yzi-imob/yzi-imob-workspace-kit";
-import { MOCK_GROWTH_ASSETS, useGrowthCampaignState } from "@/components/yzi-imob/growth";
 import {
   hourGreeting,
   operatorName,
@@ -20,8 +19,17 @@ import {
 // A YZI é a entidade: orb com presença viva, saudação central, composer-lente.
 // A identificação da vertical vive no chrome superior esquerdo (header do
 // shell) — não no centro do hero. Mesma atmosfera e material do Command Center,
-// porém em paleta fria (petróleo/gelo) própria da vertical. Nenhuma rota, dado
-// ou auth muda aqui; estados honestos preservados.
+// porém em paleta fria (petróleo/gelo) própria da vertical. Nesta unidade, a
+// home passa a mostrar somente leituras reais de imóveis quando disponíveis.
+
+type HomeDataState = "tenant_found" | "no_membership" | "no_session" | "error";
+
+type HomeMetrics = {
+  total: number;
+  active: number;
+  incomplete: number;
+  recent: number;
+};
 
 // Um chip por destino — sem dois caminhos para a mesma tela e cada rótulo
 // aponta para a rota que promete.
@@ -32,31 +40,101 @@ const HERO_ACTIONS: Array<{ label: string; href: string }> = [
   { label: "Agendar visita", href: "/cockpit/yzi-imob/agenda" },
 ];
 
-// Faixa de contadores — leitura rápida, não analytics. Valores ilustrativos
-// (mock honesto); nenhuma fonte de dados real conectada. A nota "Preview" logo
-// acima já enquadra a superfície como pré-visualização. Cada contador carrega
-// um papel de cor (Material System v1) coerente com o TIPO de dado que
-// representa — nunca decorativo: leads novos = qualificação (cyan), visitas
-// marcadas = decisão/agenda pendente (lilás), reações a criativos =
-// comunicação (cyan), imóveis em preparo = pendência (âmbar).
-const COUNTERS: CounterItem[] = [
-  { label: "Leads novos", value: "12", detail: "Entraram hoje", role: "cyan" },
-  { label: "Visitas marcadas", value: "4", detail: "Próximas 72h", role: "lilac" },
-  {
-    label: "Postagens com reação",
-    value: "18",
-    detail: "Reagiram aos criativos",
-    role: "cyan",
-  },
-  { label: "Imóveis em preparo", value: "7", detail: "Aguardando mídia", role: "amber" },
-];
+function buildCounters(
+  dataState: HomeDataState,
+  metrics: HomeMetrics | null,
+): CounterItem[] {
+  if (dataState === "tenant_found" && metrics) {
+    return [
+      {
+        label: "Imóveis cadastrados",
+        value: String(metrics.total),
+        detail: "Estoque real desta operação.",
+        role: "cyan",
+      },
+      {
+        label: "Imóveis ativos",
+        value: String(metrics.active),
+        detail: "Com status operacional ativo.",
+        role: "coldGreen",
+      },
+      {
+        label: "Cadastro incompleto",
+        value: String(metrics.incomplete),
+        detail: "Ainda pedem complementação.",
+        role: "amber",
+      },
+      {
+        label: "Cadastrados recentemente",
+        value: String(metrics.recent),
+        detail: "Criados nos últimos 30 dias.",
+        role: "lilac",
+      },
+    ];
+  }
 
-// Linhas honestas de operação, sem KPI wall: cada uma é um estado de espera,
-// não uma métrica. Rotas reais existentes; nenhum dado real ainda.
-const STATIC_OPERATION_LINES: Array<{ label: string; detail: string }> = [
-  { label: "Imóveis pendentes", detail: "Sem imóveis aguardando revisão." },
-  { label: "Leads sem corretor", detail: "Nenhum lead sem atribuição." },
-];
+  const unavailableDetail =
+    dataState === "no_membership"
+      ? "Sua conta ainda não está vinculada a uma operação."
+      : dataState === "no_session"
+        ? "Faça login para carregar a leitura operacional."
+        : "Leitura indisponível no momento.";
+
+  return [
+    {
+      label: "Imóveis cadastrados",
+      value: "Indisponível",
+      detail: unavailableDetail,
+      role: "neutral",
+    },
+    {
+      label: "Imóveis ativos",
+      value: "Indisponível",
+      detail: unavailableDetail,
+      role: "neutral",
+    },
+    {
+      label: "Cadastro incompleto",
+      value: "Indisponível",
+      detail: unavailableDetail,
+      role: "neutral",
+    },
+    {
+      label: "Cadastrados recentemente",
+      value: "Indisponível",
+      detail: unavailableDetail,
+      role: "neutral",
+    },
+  ];
+}
+
+function buildOperationLines(
+  dataState: HomeDataState,
+  metrics: HomeMetrics | null,
+): Array<{ label: string; detail: string }> {
+  const imoveisPendentesDetail =
+    dataState === "tenant_found" && metrics
+      ? metrics.incomplete === 0
+        ? "Nenhum imóvel aguardando complementação."
+        : `${metrics.incomplete} imóve${metrics.incomplete > 1 ? "is" : "l"} com cadastro incompleto.`
+      : dataState === "no_membership"
+        ? "A leitura operacional depende do vínculo da sua conta a uma imobiliária."
+        : dataState === "no_session"
+          ? "Faça login para carregar a leitura operacional."
+          : "Leitura indisponível no momento.";
+
+  return [
+    { label: "Imóveis pendentes", detail: imoveisPendentesDetail },
+    {
+      label: "Criativos aguardando",
+      detail: "Ainda sem fonte real conectada para esta leitura.",
+    },
+    {
+      label: "Leads sem corretor",
+      detail: "Ainda sem fonte real conectada para esta leitura.",
+    },
+  ];
+}
 
 // Atraso de entrada por camada — profundidade também no tempo, não só no espaço.
 function rise(delayMs: number): CSSProperties {
@@ -65,8 +143,12 @@ function rise(delayMs: number): CSSProperties {
 
 export function YziImobHomeV2({
   operatorEmail,
+  dataState,
+  metrics,
 }: {
   operatorEmail?: string | null;
+  dataState: HomeDataState;
+  metrics: HomeMetrics | null;
 }) {
   const [ask, setAsk] = useState("");
   const router = useRouter();
@@ -76,27 +158,8 @@ export function YziImobHomeV2({
     () => hourGreeting(new Date().getHours()),
     () => "Olá",
   );
-
-  // Reflexo do Growth OS: conta peças que ainda dependem de decisão do
-  // gestor (status base "Em revisão" ou pedido de ajuste em aberto), lendo o
-  // mesmo estado mockado usado em Campanhas e no Property Workspace.
-  const { statusFor } = useGrowthCampaignState();
-  const pendingPieces = MOCK_GROWTH_ASSETS.filter((asset) => {
-    const status = statusFor(asset.id, asset.status);
-    return status === "Em revisão" || status === "Ajuste solicitado";
-  }).length;
-
-  const operationLines = [
-    STATIC_OPERATION_LINES[0],
-    {
-      label: "Criativos aguardando",
-      detail:
-        pendingPieces === 0
-          ? "Nenhum criativo em fila."
-          : `${pendingPieces} peça${pendingPieces > 1 ? "s" : ""} aguardando aprovação em Campanhas.`,
-    },
-    STATIC_OPERATION_LINES[1],
-  ];
+  const counters = buildCounters(dataState, metrics);
+  const operationLines = buildOperationLines(dataState, metrics);
 
   function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,7 +209,6 @@ export function YziImobHomeV2({
             </button>
           </div>
 
-          {/* Divisória interna: luz concentrada ao centro — mesma superfície. */}
           <div
             aria-hidden
             className="h-px w-full bg-[linear-gradient(90deg,transparent,var(--yzi-glass-border),transparent)]"
@@ -177,23 +239,14 @@ export function YziImobHomeV2({
             className="h-3.5 w-3.5 shrink-0"
             style={{ color: imobRgba("lilac", 0.85) }}
           />
-          Preview. Ações externas exigem autorização.
+          Leitura real de imóveis quando disponível. Demais blocos aguardam integração.
         </p>
       </section>
 
-      {/* Counter Strip — barra estrutural FULL-BLEED do workspace: vive fora do
-          max-width do conteúdo, ocupa 100% da área útil depois da sidebar e
-          reage ao colapso/expansão dela (o canvas é flex-1; a strip é w-full,
-          sem max-width nem mx-auto). Banda azulada, borda só topo/base,
-          divisórias verticais sutis; padding interno responsivo nas células.
-          Colunas: mobile 1 · tablet 2 · desktop 4. */}
       <section className="yzi-rise w-full pb-9" style={rise(320)}>
-        <CounterStrip counters={COUNTERS} variant="home" />
+        <CounterStrip counters={counters} variant="home" />
       </section>
 
-      {/* Operação imobiliária — seção full-width com título e LINHA de cards
-          arredondados (layout "Seus Cursos" da referência). Estados honestos:
-          cada card é uma espera, não uma métrica. */}
       <section
         className="yzi-rise mx-auto w-full max-w-6xl px-6 pb-12 md:px-8"
         style={rise(400)}
