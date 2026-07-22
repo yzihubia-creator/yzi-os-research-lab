@@ -3,57 +3,255 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import {
-  AGENDA_PENDENCY_GROUPS,
-  APPOINTMENT_KIND_ACCENT,
-  APPOINTMENT_KIND_LABEL,
-  APPOINTMENT_STATUS_ACCENT,
-  APPOINTMENT_STATUS_LABEL,
-  DEMO_APPOINTMENTS,
-  WEEKDAY_LABEL,
-  buildMonthGrid,
-  buildWeekRow,
-  monthTitle,
-  weekTitle,
-  type AppointmentKind,
-  type AppointmentStatus,
-  type CalendarDay,
-  type DemoAppointment,
-} from "@/components/yzi-imob/yzi-imob-agenda-mock";
 import { ArrowRightIcon, SearchIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
+import {
+  imobRgba,
+  type YziImobRole,
+} from "@/components/yzi-imob/yzi-imob-status-colors";
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
-import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
-
-// Agenda — um CALENDÁRIO de verdade, protagonista da tela. A grade de dias é
-// a estrutura; os eventos são habitantes compactos dela. Clicar em um evento
-// abre o inspector lateral (mesmo padrão do sistema) sem sair do calendário.
-// O calendário conversa com a operação: cliente, imóvel, corretor, lead e
-// atendimento. Estado honesto: nenhum compromisso é real, nada confirma ou
-// reagenda de verdade.
+import {
+  type YziImobAppointment,
+  type YziImobAppointmentConfirmationStatus,
+  type YziImobAppointmentStatus,
+} from "@/lib/yzi-imob/agenda/types";
 
 type ViewMode = "mes" | "semana";
+type AccessState = "ready" | "no_membership" | "tenant_error" | "read_error";
 
-const KIND_FILTER_OPTIONS: Array<{ value: AppointmentKind | "todos"; label: string }> = [
-  { value: "todos", label: "Todos os tipos" },
-  { value: "visita", label: "Visitas" },
-  { value: "reuniao", label: "Reuniões" },
-  { value: "followup", label: "Follow-ups" },
+type CalendarDay = {
+  date: Date;
+  offset: number;
+  dayNumber: number;
+  inCurrentMonth: boolean;
+  isToday: boolean;
+};
+
+type CalendarAppointment = YziImobAppointment & {
+  dayOffset: number;
+  dateLabel: string;
+  timeLabel: string;
+  endTimeLabel: string | null;
+  searchText: string;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAY_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+
+const STATUS_LABEL: Record<YziImobAppointmentStatus, string> = {
+  scheduled: "Agendado",
+  completed: "Concluido",
+  cancelled: "Cancelado",
+  no_show: "Nao compareceu",
+};
+
+const STATUS_ACCENT: Record<YziImobAppointmentStatus, YziImobRole> = {
+  scheduled: "cyan",
+  completed: "coldGreen",
+  cancelled: "wine",
+  no_show: "amber",
+};
+
+const CONFIRMATION_LABEL: Record<YziImobAppointmentConfirmationStatus, string> = {
+  pending: "Pendente",
+  confirmed: "Confirmado",
+  declined: "Recusado",
+};
+
+const CONFIRMATION_ACCENT: Record<YziImobAppointmentConfirmationStatus, YziImobRole> = {
+  pending: "amber",
+  confirmed: "coldGreen",
+  declined: "wine",
+};
+
+const STATUS_FILTER_OPTIONS: Array<{ value: YziImobAppointmentStatus | "todos"; label: string }> = [
+  { value: "todos", label: "Todos os status" },
+  { value: "scheduled", label: STATUS_LABEL.scheduled },
+  { value: "completed", label: STATUS_LABEL.completed },
+  { value: "cancelled", label: STATUS_LABEL.cancelled },
+  { value: "no_show", label: STATUS_LABEL.no_show },
 ];
 
-const STATUS_FILTER_OPTIONS: Array<{ value: AppointmentStatus | "todos"; label: string }> = [
-  { value: "todos", label: "Todos os status" },
-  { value: "confirmado", label: "Confirmado" },
-  { value: "aguardando-corretor", label: "Aguardando corretor" },
-  { value: "feedback-pendente", label: "Feedback pendente" },
-  { value: "reagendar", label: "Reagendar" },
+const CONFIRMATION_FILTER_OPTIONS: Array<{
+  value: YziImobAppointmentConfirmationStatus | "todos";
+  label: string;
+}> = [
+  { value: "todos", label: "Todas as confirmacoes" },
+  { value: "pending", label: CONFIRMATION_LABEL.pending },
+  { value: "confirmed", label: CONFIRMATION_LABEL.confirmed },
+  { value: "declined", label: CONFIRMATION_LABEL.declined },
 ];
 
 const selectClass =
   "h-8 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-2 text-[0.72rem] text-[var(--yzi-text-secondary)] outline-none transition-colors hover:text-[var(--yzi-text-primary)]";
 
-/* ------------------------------------------------------------------ */
-/* Evento no quadrante do calendário                                    */
-/* ------------------------------------------------------------------ */
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function buildCalendarDay(date: Date, currentMonth: number, today: Date): CalendarDay {
+  const start = startOfLocalDay(date);
+  const todayStart = startOfLocalDay(today);
+  const offset = Math.round((start.getTime() - todayStart.getTime()) / DAY_MS);
+
+  return {
+    date: start,
+    offset,
+    dayNumber: start.getDate(),
+    inCurrentMonth: start.getMonth() === currentMonth,
+    isToday: offset === 0,
+  };
+}
+
+function buildMonthGrid(monthOffset: number, today = new Date()): CalendarDay[][] {
+  const cursor = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const currentMonth = cursor.getMonth();
+  const firstGridDay = addDays(cursor, -cursor.getDay());
+  const weeks: CalendarDay[][] = [];
+
+  for (let weekIndex = 0; weekIndex < 6; weekIndex += 1) {
+    const week: CalendarDay[] = [];
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      week.push(buildCalendarDay(addDays(firstGridDay, weekIndex * 7 + dayIndex), currentMonth, today));
+    }
+    weeks.push(week);
+  }
+
+  return weeks;
+}
+
+function buildWeekRow(weekOffset: number, today = new Date()): CalendarDay[] {
+  const base = startOfLocalDay(today);
+  const weekStart = addDays(base, weekOffset * 7 - base.getDay());
+  return Array.from({ length: 7 }, (_, index) => buildCalendarDay(addDays(weekStart, index), base.getMonth(), today));
+}
+
+function monthTitle(monthOffset: number): string {
+  const date = new Date();
+  date.setMonth(date.getMonth() + monthOffset);
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+}
+
+function weekTitle(weekOffset: number): string {
+  const base = startOfLocalDay(new Date());
+  const start = addDays(base, weekOffset * 7 - base.getDay());
+  const end = addDays(start, 6);
+  const formatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+  return `${formatter.format(start)} - ${formatter.format(end)}`;
+}
+
+function formatDateLabel(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(iso));
+}
+
+function formatTimeLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function statusLabel(status: string): string {
+  return STATUS_LABEL[status as YziImobAppointmentStatus] ?? status;
+}
+
+function statusRole(status: string): YziImobRole {
+  return STATUS_ACCENT[status as YziImobAppointmentStatus] ?? "neutral";
+}
+
+function confirmationLabel(status: string): string {
+  return CONFIRMATION_LABEL[status as YziImobAppointmentConfirmationStatus] ?? status;
+}
+
+function confirmationRole(status: string): YziImobRole {
+  return CONFIRMATION_ACCENT[status as YziImobAppointmentConfirmationStatus] ?? "neutral";
+}
+
+function emptyLabel(value: string | null | undefined): string {
+  return value?.trim() || "Ainda sem dados";
+}
+
+function mapCalendarAppointment(appointment: YziImobAppointment): CalendarAppointment {
+  const start = new Date(appointment.startsAt);
+  const todayStart = startOfLocalDay(new Date());
+  const dayOffset = Math.round((startOfLocalDay(start).getTime() - todayStart.getTime()) / DAY_MS);
+  const timeLabel = formatTimeLabel(appointment.startsAt) ?? "Ainda sem dados";
+  const endTimeLabel = formatTimeLabel(appointment.endsAt);
+
+  return {
+    ...appointment,
+    dayOffset,
+    dateLabel: formatDateLabel(appointment.startsAt),
+    timeLabel,
+    endTimeLabel,
+    searchText: [
+      appointment.title,
+      appointment.leadName ?? "",
+      appointment.propertyTitle ?? "",
+      appointment.status,
+      appointment.confirmationStatus,
+      appointment.notes ?? "",
+    ]
+      .join(" ")
+      .toLowerCase(),
+  };
+}
+
+function AccessMessage({ accessState }: { accessState: AccessState }) {
+  const messages: Record<AccessState, { title: string; body: string }> = {
+    ready: {
+      title: "Nenhum agendamento real neste tenant",
+      body: "Quando houver registros em yzi_imob_appointments, eles aparecerao neste calendario.",
+    },
+    no_membership: {
+      title: "Sua operacao ainda nao esta disponivel",
+      body: "Nao encontramos uma imobiliaria vinculada a sua conta.",
+    },
+    tenant_error: {
+      title: "Nao foi possivel resolver o tenant",
+      body: "Tente novamente em instantes. Se o problema continuar, fale com o administrador.",
+    },
+    read_error: {
+      title: "Nao foi possivel carregar a agenda",
+      body: "A consulta real falhou. Nenhum agendamento ficticio foi exibido.",
+    },
+  };
+  const message = messages[accessState];
+
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4">
+      <p className="text-[0.82rem] font-semibold text-[var(--yzi-text-primary)]">{message.title}</p>
+      <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+        {message.body}
+      </p>
+    </div>
+  );
+}
+
+function EmptyAgendaMessage({ hasAnyAppointments }: { hasAnyAppointments: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4">
+      <p className="text-[0.82rem] font-semibold text-[var(--yzi-text-primary)]">
+        {hasAnyAppointments ? "Nenhum agendamento encontrado" : "Nenhum agendamento real neste tenant"}
+      </p>
+      <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+        {hasAnyAppointments
+          ? "Ajuste busca ou filtros para ver outros registros reais."
+          : "Quando houver registros em yzi_imob_appointments, eles aparecerao neste calendario."}
+      </p>
+    </div>
+  );
+}
 
 function EventChip({
   appointment,
@@ -61,52 +259,45 @@ function EventChip({
   compact,
   onSelect,
 }: {
-  appointment: DemoAppointment;
+  appointment: CalendarAppointment;
   selected: boolean;
   compact: boolean;
   onSelect: () => void;
 }) {
-  const kindRole = APPOINTMENT_KIND_ACCENT[appointment.kind];
+  const role = statusRole(appointment.status);
+
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cx(
         "flex w-full flex-col gap-0.5 rounded-[var(--yzi-radius-sm)] px-2 py-1.5 text-left transition-colors",
-        selected
-          ? "bg-[rgba(255,255,255,0.07)]"
-          : "hover:bg-[rgba(255,255,255,0.04)]",
+        selected ? "bg-[rgba(255,255,255,0.07)]" : "hover:bg-[rgba(255,255,255,0.04)]",
       )}
-      style={selected ? { boxShadow: `inset 0 0 0 1px ${imobRgba(kindRole, 0.5)}` } : undefined}
+      style={selected ? { boxShadow: `inset 0 0 0 1px ${imobRgba(role, 0.5)}` } : undefined}
     >
       <span className="flex items-center gap-1.5 text-[0.64rem] leading-none">
         <span
           aria-hidden
           className="h-1.5 w-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: imobRgba(kindRole, 0.95) }}
+          style={{ backgroundColor: imobRgba(role, 0.95) }}
         />
         <span className="tabular-nums text-[var(--yzi-text-secondary)]">
           {appointment.timeLabel}
         </span>
-        <span style={{ color: imobRgba(kindRole, 0.9) }}>
-          {APPOINTMENT_KIND_LABEL[appointment.kind]}
-        </span>
+        <span style={{ color: imobRgba(role, 0.9) }}>{statusLabel(appointment.status)}</span>
       </span>
       <span className="truncate text-[0.7rem] font-medium leading-snug text-[var(--yzi-text-primary)]">
         {appointment.title}
       </span>
-      {!compact && appointment.clientLabel ? (
+      {!compact && appointment.leadName ? (
         <span className="truncate text-[0.64rem] text-[var(--yzi-text-faint)]">
-          {appointment.clientLabel}
+          {appointment.leadName}
         </span>
       ) : null}
     </button>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Quadrante (célula de dia)                                            */
-/* ------------------------------------------------------------------ */
 
 function DayCell({
   day,
@@ -117,7 +308,7 @@ function DayCell({
   maxVisible,
 }: {
   day: CalendarDay;
-  appointments: DemoAppointment[];
+  appointments: CalendarAppointment[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   tall: boolean;
@@ -138,9 +329,7 @@ function DayCell({
       <span
         className={cx(
           "ml-auto grid h-6 min-w-6 place-items-center rounded-full px-1 text-[0.7rem] tabular-nums",
-          day.isToday
-            ? "font-semibold"
-            : "text-[var(--yzi-text-faint)]",
+          day.isToday ? "font-semibold" : "text-[var(--yzi-text-faint)]",
         )}
         style={
           day.isToday
@@ -169,10 +358,6 @@ function DayCell({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Inspector do evento — widget lateral, sem sair do calendário         */
-/* ------------------------------------------------------------------ */
-
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[0.74rem]">
@@ -186,18 +371,19 @@ function EventInspector({
   appointment,
   onClose,
 }: {
-  appointment: DemoAppointment;
+  appointment: CalendarAppointment;
   onClose: () => void;
 }) {
-  const kindRole = APPOINTMENT_KIND_ACCENT[appointment.kind];
-  const statusRole = APPOINTMENT_STATUS_ACCENT[appointment.status];
+  const appointmentRole = statusRole(appointment.status);
+  const confirmation = confirmationRole(appointment.confirmationStatus);
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4 shadow-[var(--yzi-edge-highlight)]">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
-          <span className="text-[0.64rem] font-medium" style={{ color: imobRgba(kindRole, 0.95) }}>
-            {APPOINTMENT_KIND_LABEL[appointment.kind]} · {appointment.timeLabel}
+          <span className="text-[0.64rem] font-medium" style={{ color: imobRgba(appointmentRole, 0.95) }}>
+            {appointment.dateLabel} · {appointment.timeLabel}
+            {appointment.endTimeLabel ? ` - ${appointment.endTimeLabel}` : ""}
           </span>
           <p className="text-[0.92rem] font-semibold leading-snug text-[var(--yzi-text-primary)]">
             {appointment.title}
@@ -206,215 +392,168 @@ function EventInspector({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Fechar detalhes do evento"
+          aria-label="Fechar detalhes do agendamento"
           className="grid h-6 w-6 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] text-[var(--yzi-text-faint)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--yzi-text-primary)]"
         >
-          ✕
+          x
         </button>
       </div>
 
-      <span
-        className="w-fit rounded-full border px-2.5 py-1 text-[0.66rem]"
-        style={{
-          borderColor: imobRgba(statusRole, 0.32),
-          backgroundColor: imobRgba(statusRole, 0.1),
-          color: imobRgba(statusRole, 0.95),
-        }}
-      >
-        {APPOINTMENT_STATUS_LABEL[appointment.status]}
-      </span>
+      <div className="flex flex-wrap gap-1.5">
+        <span
+          className="w-fit rounded-full border px-2.5 py-1 text-[0.66rem]"
+          style={{
+            borderColor: imobRgba(appointmentRole, 0.32),
+            backgroundColor: imobRgba(appointmentRole, 0.1),
+            color: imobRgba(appointmentRole, 0.95),
+          }}
+        >
+          {statusLabel(appointment.status)}
+        </span>
+        <span
+          className="w-fit rounded-full border px-2.5 py-1 text-[0.66rem]"
+          style={{
+            borderColor: imobRgba(confirmation, 0.32),
+            backgroundColor: imobRgba(confirmation, 0.1),
+            color: imobRgba(confirmation, 0.95),
+          }}
+        >
+          {confirmationLabel(appointment.confirmationStatus)}
+        </span>
+      </div>
 
       <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3">
-        <DetailRow label="Cliente" value={appointment.clientLabel ?? "—"} />
-        <DetailRow label="Imóvel" value={appointment.propertyLabel ?? "—"} />
-        <DetailRow label="Corretor" value={appointment.brokerLabel} />
-        <DetailRow label="Origem do lead" value={appointment.originLabel} />
+        <DetailRow label="Lead" value={emptyLabel(appointment.leadName)} />
+        <DetailRow label="Imovel" value={emptyLabel(appointment.propertyTitle)} />
       </div>
 
       <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3">
         <p className="text-[0.64rem] font-medium uppercase tracking-[0.12em] text-[var(--yzi-text-faint)]">
-          Observações
+          Observacao
         </p>
         <p className="text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          {appointment.notes}
+          {emptyLabel(appointment.notes)}
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-3">
-        <p className="text-[0.64rem] font-medium uppercase tracking-[0.12em] text-[var(--yzi-text-faint)]">
-          Linha do tempo
-        </p>
-        <ul className="flex flex-col gap-1.5">
-          {appointment.timeline.map((step, index) => (
-            <li key={step} className="flex items-start gap-2">
-              <span
-                aria-hidden
-                className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: imobRgba(
-                    index === appointment.timeline.length - 1 ? statusRole : "graphite",
-                    0.85,
-                  ),
-                }}
-              />
-              <span className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                {step}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-3">
-        <p className="text-[0.64rem] font-medium uppercase tracking-[0.12em] text-[var(--yzi-text-faint)]">
-          Ações
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            disabled
-            title="Em preparação"
-            className="cursor-not-allowed rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.7rem] text-[var(--yzi-text-faint)] opacity-60"
-          >
-            Confirmar pelo WhatsApp
-          </button>
-          <button
-            type="button"
-            disabled
-            title="Em preparação"
-            className="cursor-not-allowed rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.7rem] text-[var(--yzi-text-faint)] opacity-60"
-          >
-            Reagendar
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {appointment.propertyLabel ? (
+      {appointment.leadId || appointment.propertyId ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-[color:var(--yzi-border-subtle)] pt-3">
+          {appointment.propertyId ? (
             <Link
-              href="/cockpit/yzi-imob/imoveis"
+              href={`/cockpit/yzi-imob/imoveis/${appointment.propertyId}`}
               className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
             >
-              Abrir imóvel <ArrowRightIcon className="h-3 w-3" />
+              Abrir imovel <ArrowRightIcon className="h-3 w-3" />
             </Link>
           ) : null}
-          {appointment.clientLabel ? (
+          {appointment.leadId ? (
             <Link
-              href="/cockpit/yzi-imob/clientes"
+              href={`/cockpit/yzi-imob/clientes/${appointment.leadId}`}
               className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
             >
               Ver lead <ArrowRightIcon className="h-3 w-3" />
             </Link>
           ) : null}
-          <Link
-            href="/cockpit/yzi-imob/corretores"
-            className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
-          >
-            Abrir corretor <ArrowRightIcon className="h-3 w-3" />
-          </Link>
-          <Link
-            href="/cockpit/yzi-imob/atendimento"
-            className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
-          >
-            Abrir atendimento <ArrowRightIcon className="h-3 w-3" />
-          </Link>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AgendaSummary({
+  appointments,
+  accessState,
+  hasAnyAppointments,
+  onSelect,
+}: {
+  appointments: readonly CalendarAppointment[];
+  accessState: AccessState;
+  hasAnyAppointments: boolean;
+  onSelect: (id: string) => void;
+}) {
+  if (accessState !== "ready") {
+    return <AccessMessage accessState={accessState} />;
+  }
+
+  if (appointments.length === 0) {
+    return <EmptyAgendaMessage hasAnyAppointments={hasAnyAppointments} />;
+  }
+
+  const nextAppointments = appointments
+    .filter((appointment) => appointment.dayOffset >= 0)
+    .slice(0, 5);
+  const visible = nextAppointments.length > 0 ? nextAppointments : appointments.slice(0, 5);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[var(--yzi-text-faint)]">
+        Proximos
+      </p>
+      <div className="flex flex-col gap-1">
+        {visible.map((appointment) => {
+          const role = statusRole(appointment.status);
+          return (
+            <button
+              key={appointment.id}
+              type="button"
+              onClick={() => onSelect(appointment.id)}
+              className="flex items-center gap-2 rounded-[var(--yzi-radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+            >
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: imobRgba(role, 0.9) }}
+              />
+              <span className="min-w-0 flex-1 truncate text-[0.72rem] text-[var(--yzi-text-primary)]">
+                {appointment.title}
+              </span>
+              <span className="shrink-0 text-[0.64rem] text-[var(--yzi-text-faint)]">
+                {appointment.timeLabel}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Pendências — painel lateral extremamente compacto                    */
-/* ------------------------------------------------------------------ */
-
-function PendencyPanel({ onSelect }: { onSelect: (id: string) => void }) {
-  const byId = useMemo(
-    () => new Map(DEMO_APPOINTMENTS.map((appointment) => [appointment.id, appointment])),
-    [],
-  );
-
-  return (
-    <div className="flex flex-col gap-4">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[var(--yzi-text-faint)]">
-        Pendências
-      </p>
-      {AGENDA_PENDENCY_GROUPS.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <p className="flex items-center justify-between text-[0.7rem] text-[var(--yzi-text-secondary)]">
-            {group.label}
-            <span className="tabular-nums text-[var(--yzi-text-faint)]">
-              {group.appointmentIds.length}
-            </span>
-          </p>
-          {group.appointmentIds.map((id) => {
-            const appointment = byId.get(id);
-            if (!appointment) return null;
-            const role = APPOINTMENT_STATUS_ACCENT[appointment.status];
-            return (
-              <button
-                key={`${group.label}-${id}`}
-                type="button"
-                onClick={() => onSelect(id)}
-                className="flex items-center gap-2 rounded-[var(--yzi-radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
-              >
-                <span
-                  aria-hidden
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: imobRgba(role, 0.9) }}
-                />
-                <span className="min-w-0 flex-1 truncate text-[0.72rem] text-[var(--yzi-text-primary)]">
-                  {appointment.title}
-                </span>
-                <span className="shrink-0 text-[0.64rem] text-[var(--yzi-text-faint)]">
-                  {appointment.brokerLabel.split(" ")[0]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Workspace                                                            */
-/* ------------------------------------------------------------------ */
-
-export function YziImobAgendaWorkspace() {
+export function YziImobAgendaWorkspace({
+  appointments,
+  accessState,
+}: {
+  appointments: readonly YziImobAppointment[];
+  accessState: AccessState;
+}) {
   const [view, setView] = useState<ViewMode>("mes");
-  const [cursor, setCursor] = useState(0); // meses ou semanas, conforme a vista
+  const [cursor, setCursor] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [brokerFilter, setBrokerFilter] = useState("todos");
-  const [kindFilter, setKindFilter] = useState<AppointmentKind | "todos">("todos");
-  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "todos">("todos");
+  const [statusFilter, setStatusFilter] = useState<YziImobAppointmentStatus | "todos">("todos");
+  const [confirmationFilter, setConfirmationFilter] =
+    useState<YziImobAppointmentConfirmationStatus | "todos">("todos");
 
-  const brokers = useMemo(
-    () => Array.from(new Set(DEMO_APPOINTMENTS.map((a) => a.brokerLabel))).sort(),
-    [],
+  const calendarAppointments = useMemo(
+    () => appointments.map(mapCalendarAppointment),
+    [appointments],
   );
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
-    return DEMO_APPOINTMENTS.filter((appointment) => {
-      if (brokerFilter !== "todos" && appointment.brokerLabel !== brokerFilter) return false;
-      if (kindFilter !== "todos" && appointment.kind !== kindFilter) return false;
-      if (statusFilter !== "todos" && appointment.status !== statusFilter) return false;
-      if (!text) return true;
-      return [
-        appointment.title,
-        appointment.clientLabel ?? "",
-        appointment.propertyLabel ?? "",
-        appointment.brokerLabel,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(text);
-    }).sort((a, b) => a.timeLabel.localeCompare(b.timeLabel));
-  }, [query, brokerFilter, kindFilter, statusFilter]);
+    return calendarAppointments
+      .filter((appointment) => {
+        if (statusFilter !== "todos" && appointment.status !== statusFilter) return false;
+        if (confirmationFilter !== "todos" && appointment.confirmationStatus !== confirmationFilter) {
+          return false;
+        }
+        if (!text) return true;
+        return appointment.searchText.includes(text);
+      })
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }, [calendarAppointments, query, statusFilter, confirmationFilter]);
 
   const byOffset = useMemo(() => {
-    const map = new Map<number, DemoAppointment[]>();
+    const map = new Map<number, CalendarAppointment[]>();
     for (const appointment of filtered) {
       const list = map.get(appointment.dayOffset) ?? [];
       list.push(appointment);
@@ -429,7 +568,7 @@ export function YziImobAgendaWorkspace() {
   );
   const title = view === "mes" ? monthTitle(cursor) : weekTitle(cursor);
   const selected = selectedId
-    ? DEMO_APPOINTMENTS.find((appointment) => appointment.id === selectedId) ?? null
+    ? calendarAppointments.find((appointment) => appointment.id === selectedId) ?? null
     : null;
 
   function switchView(next: ViewMode) {
@@ -441,7 +580,6 @@ export function YziImobAgendaWorkspace() {
 
   return (
     <section className="flex w-full flex-col gap-5 px-6 py-6 md:px-8">
-      {/* Toolbar do calendário — controles simples, sem virar dashboard. */}
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-[1.2rem] font-semibold tracking-[-0.01em] text-[var(--yzi-text-primary)]">
           Agenda
@@ -460,7 +598,7 @@ export function YziImobAgendaWorkspace() {
           <button
             type="button"
             onClick={() => setCursor((value) => value - 1)}
-            aria-label={view === "mes" ? "Mês anterior" : "Semana anterior"}
+            aria-label={view === "mes" ? "Mes anterior" : "Semana anterior"}
             className="grid h-8 w-8 place-items-center rounded-[var(--yzi-radius-sm)] text-[var(--yzi-text-faint)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--yzi-text-primary)]"
           >
             <ArrowRightIcon className="h-3.5 w-3.5 rotate-180" />
@@ -468,7 +606,7 @@ export function YziImobAgendaWorkspace() {
           <button
             type="button"
             onClick={() => setCursor((value) => value + 1)}
-            aria-label={view === "mes" ? "Próximo mês" : "Próxima semana"}
+            aria-label={view === "mes" ? "Proximo mes" : "Proxima semana"}
             className="grid h-8 w-8 place-items-center rounded-[var(--yzi-radius-sm)] text-[var(--yzi-text-faint)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--yzi-text-primary)]"
           >
             <ArrowRightIcon className="h-3.5 w-3.5" />
@@ -497,7 +635,7 @@ export function YziImobAgendaWorkspace() {
                     : "text-[var(--yzi-text-secondary)] hover:text-[var(--yzi-text-primary)]",
                 )}
               >
-                {mode === "semana" ? "Semana" : "Mês"}
+                {mode === "semana" ? "Semana" : "Mes"}
               </button>
             ))}
           </div>
@@ -505,7 +643,7 @@ export function YziImobAgendaWorkspace() {
           <div className="flex h-8 items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-2.5">
             <SearchIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--yzi-text-faint)]" />
             <label htmlFor="agenda-search" className="sr-only">
-              Buscar eventos
+              Buscar agendamentos
             </label>
             <input
               id="agenda-search"
@@ -517,35 +655,10 @@ export function YziImobAgendaWorkspace() {
           </div>
 
           <select
-            aria-label="Filtrar por corretor"
-            value={brokerFilter}
-            onChange={(event) => setBrokerFilter(event.target.value)}
-            className={selectClass}
-          >
-            <option value="todos">Todos os corretores</option>
-            {brokers.map((broker) => (
-              <option key={broker} value={broker}>
-                {broker}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filtrar por tipo"
-            value={kindFilter}
-            onChange={(event) => setKindFilter(event.target.value as AppointmentKind | "todos")}
-            className={selectClass}
-          >
-            {KIND_FILTER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
             aria-label="Filtrar por status"
             value={statusFilter}
             onChange={(event) =>
-              setStatusFilter(event.target.value as AppointmentStatus | "todos")
+              setStatusFilter(event.target.value as YziImobAppointmentStatus | "todos")
             }
             className={selectClass}
           >
@@ -555,11 +668,26 @@ export function YziImobAgendaWorkspace() {
               </option>
             ))}
           </select>
+          <select
+            aria-label="Filtrar por confirmacao"
+            value={confirmationFilter}
+            onChange={(event) =>
+              setConfirmationFilter(
+                event.target.value as YziImobAppointmentConfirmationStatus | "todos",
+              )
+            }
+            className={selectClass}
+          >
+            {CONFIRMATION_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="flex items-start gap-5">
-        {/* O calendário — protagonista da tela. */}
         <div className="min-w-0 flex-1 overflow-hidden rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] shadow-[var(--yzi-edge-highlight)]">
           <div className="grid grid-cols-7">
             {WEEKDAY_LABEL.map((weekday) => (
@@ -588,26 +716,38 @@ export function YziImobAgendaWorkspace() {
           ))}
         </div>
 
-        {/* Painel lateral — inspector do evento ou pendências compactas. */}
         <aside className="hidden w-[300px] shrink-0 flex-col gap-4 lg:flex">
           {selected ? (
             <EventInspector appointment={selected} onClose={() => setSelectedId(null)} />
           ) : (
-            <PendencyPanel onSelect={setSelectedId} />
+            <AgendaSummary
+              appointments={filtered}
+              accessState={accessState}
+              hasAnyAppointments={calendarAppointments.length > 0}
+              onSelect={setSelectedId}
+            />
           )}
         </aside>
       </div>
 
-      {/* Em telas menores o inspector aparece abaixo do calendário. */}
       {selected ? (
         <div className="lg:hidden">
           <EventInspector appointment={selected} onClose={() => setSelectedId(null)} />
         </div>
-      ) : null}
+      ) : (
+        <div className="lg:hidden">
+          <AgendaSummary
+            appointments={filtered}
+            accessState={accessState}
+            hasAnyAppointments={calendarAppointments.length > 0}
+            onSelect={setSelectedId}
+          />
+        </div>
+      )}
 
       <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-        Demonstração — compromissos ilustrativos. Nenhuma confirmação é enviada e nenhum
-        reagendamento acontece de verdade.
+        Dados reais do tenant. Confirmacao externa, recorrencia, notificacoes e integracoes nao
+        foram adicionadas nesta foundation.
       </p>
     </section>
   );
