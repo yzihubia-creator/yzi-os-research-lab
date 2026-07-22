@@ -1,178 +1,334 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import {
-  CLIENT_FINALIDADE_OPTIONS,
-  CLIENT_STATUS_LABEL,
-  DEMO_CLIENTS,
-  clientCounters,
-  toClientInspection,
-  type DemoClient,
-} from "@/components/yzi-imob/yzi-imob-entity-workspace-mock";
-import {
-  ATUACAO_BAIRROS,
-  ATUACAO_TIPOS,
-} from "@/components/yzi-imob/yzi-imob-entity-workspace-mock";
-import {
-  ComingSoonPanel,
   CounterStrip,
   EntityHero,
   WorkspaceGrid,
   WorkspaceSection,
   WorkspaceTabs,
+  cx,
+  type CounterItem,
 } from "@/components/yzi-imob/yzi-imob-workspace-kit";
-import {
-  WorkspaceDropdown,
-  WorkspaceField,
-  WorkspaceMultiSelect,
-  WorkspaceTextarea,
-} from "@/components/yzi-imob/yzi-imob-workspace-fields";
+import { WorkspaceField } from "@/components/yzi-imob/yzi-imob-workspace-fields";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
+import type { YziInspection } from "@/components/yzi-imob/yzi-imob-workspace-context";
 import {
   CLIENT_STAGE_ACCENT,
   imobRgba,
   type YziImobRole,
 } from "@/components/yzi-imob/yzi-imob-status-colors";
-
-// Client Workspace (Entity Workspace Pattern): mesma arquitetura do Property e
-// Broker Workspace. Cliente != lead cru — tem vínculo consolidado (visita
-// marcada, proposta, reserva, contrato, pós-venda). Estado local, mock
-// honesto: sem backend, banco ou persistência real.
+import type {
+  YziImobLeadConversation,
+  YziImobLeadInterest,
+  YziImobLeadWorkspaceData,
+} from "@/lib/yzi-imob/leads/types";
 
 const TABS = [
   { id: "perfil", label: "Perfil" },
   { id: "interesses", label: "Interesses" },
-  { id: "imoveis", label: "Imóveis" },
-  { id: "visitas", label: "Visitas" },
-  { id: "propostas", label: "Propostas" },
-  { id: "documentos", label: "Documentos" },
-  { id: "historico", label: "Histórico" },
-  { id: "ia", label: "IA" },
+  { id: "imoveis", label: "Imoveis" },
+  { id: "conversas", label: "Conversas" },
 ];
 
-const HERO_BY_STATUS: Record<DemoClient["status"], string> = {
-  lead: "Ainda não qualificado. Estou acompanhando o primeiro contato.",
-  qualificado: "Interesse confirmado. Estou acompanhando a busca e preferências dele.",
-  cliente: "Vínculo consolidado. Acompanho visitas, propostas e novidades compatíveis.",
-  inativo: "Sem atividade recente. Nenhuma ação automática está em andamento.",
+const LEAD_STATUS_LABEL: Record<string, string> = {
+  lead: "Lead",
+  qualificado: "Qualificado",
+  cliente: "Cliente",
+  inativo: "Inativo",
 };
 
-type ClientRecord = {
-  telefone: string;
-  whatsapp: string;
-  email: string;
-  cidade: string;
-  bairrosInteresse: string[];
-  tiposImovel: string[];
-  finalidade: string;
-  valorMin: string;
-  valorMax: string;
-  conhecimento: string;
-  consentimento: boolean;
-  newsletter: boolean;
+const HERO_BY_STATUS: Record<string, string> = {
+  lead: "Lead real carregado. Acompanhe somente os dados confirmados neste tenant.",
+  qualificado: "Lead qualificado real. Interesses e conversas abaixo vem das tabelas operacionais.",
+  cliente: "Cliente real carregado. Esta tela exibe somente fontes confirmadas.",
+  inativo: "Lead real inativo. Nenhuma acao automatica esta em andamento nesta tela.",
 };
 
-function toClientRecord(client: DemoClient | null): ClientRecord {
-  return {
-    telefone: client?.telefone ?? "",
-    whatsapp: client?.whatsapp ?? "",
-    email: client?.email ?? "",
-    cidade: client?.cidade ?? "",
-    bairrosInteresse: client?.bairrosInteresse ?? [],
-    tiposImovel: client?.tiposImovel ?? [],
-    finalidade: client?.finalidade ?? "compra",
-    valorMin: client?.valorMin ?? "",
-    valorMax: client?.valorMax ?? "",
-    conhecimento: client?.conhecimento ?? "",
-    consentimento: Boolean(client && client.whatsapp.trim().length > 0),
-    newsletter: Boolean(client && client.email.trim().length > 0),
-  };
+function emptyLabel(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "Ainda sem dados";
+  return String(value);
 }
 
-// Visitas, propostas e imóveis relacionados são demonstrativos — derivados do
-// cliente mock, sem depender de dado real de catálogo/corretor.
-function demoVisitas(client: DemoClient) {
-  if (client.imoveisVisitados === 0) return [];
-  return Array.from({ length: client.imoveisVisitados }).map((_, index) => ({
-    id: `${client.id}-visita-${index + 1}`,
-    imovel: index === 0 ? "Imóvel de interesse principal" : `Imóvel visitado ${index + 1}`,
-    corretor: client.corretorResponsavel || "Sem corretor",
-    status: index === 0 ? "Realizada" : "Realizada",
-    feedback: index === 0 ? "Gostou muito, aguardando decisão." : "Feedback registrado.",
-    data: index === 0 ? client.ultimaInteracao : "Data anterior",
-  }));
+function statusLabel(status: string | null): string {
+  if (!status) return "Ainda sem dados";
+  return LEAD_STATUS_LABEL[status] ?? status;
 }
 
-function demoPropostas(client: DemoClient) {
-  if (client.propostasAtivas === 0) return [];
+function statusRole(status: string | null): YziImobRole {
+  if (status && status in CLIENT_STAGE_ACCENT) {
+    return CLIENT_STAGE_ACCENT[status as keyof typeof CLIENT_STAGE_ACCENT];
+  }
+  return "neutral";
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "Ainda sem dados";
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function latestInteraction(conversations: readonly YziImobLeadConversation[]): string | null {
+  let latest: string | null = null;
+  for (const conversation of conversations) {
+    const candidate = conversation.lastMessageAt ?? conversation.startedAt;
+    if (!candidate) continue;
+    if (!latest || Date.parse(candidate) > Date.parse(latest)) latest = candidate;
+  }
+  return latest;
+}
+
+function maxInterestScore(interests: readonly YziImobLeadInterest[]): number | null {
+  const scores = interests
+    .map((interest) => interest.score)
+    .filter((score): score is number => score !== null);
+  return scores.length ? Math.max(...scores) : null;
+}
+
+function contactSummary(data: YziImobLeadWorkspaceData): string {
+  return data.lead.phone || data.lead.email || "Ainda sem dados";
+}
+
+function leadCounters(data: YziImobLeadWorkspaceData): CounterItem[] {
+  const latest = latestInteraction(data.conversations);
   return [
     {
-      id: `${client.id}-proposta-1`,
-      imovel: "Imóvel de interesse principal",
-      valor: client.valorMax || "Não informado",
-      status: "Em análise",
-      proximaAcao: "Aguardar retorno do proprietário.",
+      label: "Interesses",
+      value: String(data.interests.length),
+      detail: data.interests.length ? "Registros reais de interesse" : "Ainda sem dados",
+    },
+    {
+      label: "Maior score",
+      value: emptyLabel(maxInterestScore(data.interests)),
+      detail: "Maior score real de interesse",
+      accent: maxInterestScore(data.interests) !== null,
+    },
+    {
+      label: "Ultima interacao",
+      value: latest ? formatDateTime(latest) : "-",
+      detail: latest ? "Registrada em conversation" : "Ainda sem dados",
+    },
+    {
+      label: "Conversas",
+      value: String(data.conversations.length),
+      detail: data.conversations.length ? "Relacionadas ao lead" : "Ainda sem dados",
     },
   ];
 }
 
-// Cada evento do histórico carrega um papel de cor por TIPO de evento — não
-// decorativo: criação/lead = cyan, comunicação (WhatsApp/email) = cyan,
-// visita = lilás (decisão/agenda), proposta = âmbar (aguardando decisão),
-// vínculo consolidado = primária fria (estado pronto/ativo).
-type HistoricoItem = { label: string; role: YziImobRole };
-
-function demoHistorico(client: DemoClient): HistoricoItem[] {
-  const items: HistoricoItem[] = [
-    { label: "Lead criado a partir do primeiro contato.", role: "cyan" },
+function toLeadInspection(data: YziImobLeadWorkspaceData): YziInspection {
+  const checklist = [
+    { label: "Lead carregado", done: true },
+    { label: "Contato disponivel", done: Boolean(data.lead.phone || data.lead.email) },
+    { label: "Interesse registrado", done: data.interests.length > 0 },
+    { label: "Conversation registrada", done: data.conversations.length > 0 },
+    { label: "Notes preenchido", done: Boolean(data.lead.notes) },
   ];
-  if (client.whatsapp) items.push({ label: "Conversa iniciada via WhatsApp.", role: "cyan" });
-  if (client.email) items.push({ label: "Email capturado.", role: "cyan" });
-  if (client.imoveisVisitados > 0) {
-    items.push({
-      label: `${client.imoveisVisitados} visita(s) marcada(s) e realizada(s).`,
-      role: "lilac",
-    });
-  }
-  if (client.propostasAtivas > 0) items.push({ label: "Proposta enviada.", role: "amber" });
-  if (client.status === "cliente") {
-    items.push({ label: "Vínculo consolidado como cliente.", role: "primary" });
-  }
-  return items;
+  const doneCount = checklist.filter((item) => item.done).length;
+
+  return {
+    name: data.lead.fullName,
+    subtitle: `${emptyLabel(data.lead.source)} - ${contactSummary(data)}`,
+    statusLabel: statusLabel(data.lead.status),
+    situation: data.conversations.length
+      ? "Lead real com conversation relacionada neste tenant."
+      : "Lead real sem conversation relacionada.",
+    pendencies: [
+      data.interests.length ? "Interesses reais carregados." : "Ainda sem interesse registrado.",
+      data.conversations.length ? "Conversas reais carregadas." : "Ainda sem conversation registrada.",
+    ],
+    checklist,
+    score: Math.round((doneCount / checklist.length) * 100),
+    scoreLabel: "Lead Readiness",
+    nextAction: "Usar somente dados confirmados antes de qualquer acao.",
+    suggestions: data.interests.length
+      ? [`Interesses registrados: ${data.interests.length}.`]
+      : ["Ainda sem interesses registrados."],
+    history: data.conversations.length
+      ? data.conversations.map(
+          (conversation) =>
+            `${emptyLabel(conversation.channel)} - ultima interacao: ${formatDateTime(
+              conversation.lastMessageAt ?? conversation.startedAt,
+            )}`,
+        )
+      : ["Ainda sem historico de conversa."],
+  };
 }
 
-export function YziImobClientWorkspace() {
-  const params = useParams<{ id: string }>();
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-6 text-center text-[0.8rem] text-[var(--yzi-text-faint)]">
+      {children}
+    </p>
+  );
+}
+
+function ReadOnlyTextBlock({
+  label,
+  value,
+  span2 = false,
+}: {
+  label: string;
+  value: string | null;
+  span2?: boolean;
+}) {
+  return (
+    <div className={cx("flex flex-col gap-1.5", span2 && "sm:col-span-2")}>
+      <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">{label}</span>
+      <div className="min-h-[2.75rem] whitespace-pre-wrap rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-3 py-2.5 text-[0.82rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+        {value?.trim() || "Ainda sem dados"}
+      </div>
+    </div>
+  );
+}
+
+function InterestList({ interests }: { interests: readonly YziImobLeadInterest[] }) {
+  if (interests.length === 0) {
+    return <EmptyState>Ainda sem interesse registrado.</EmptyState>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {interests.map((interest) => (
+        <li
+          key={`${interest.propertyId}-${interest.source ?? "source"}-${interest.status ?? "status"}`}
+          className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[var(--yzi-text-primary)]">
+              {interest.propertyTitle ?? interest.propertyId}
+            </span>
+            <span
+              className="rounded-full border px-2.5 py-1 text-[0.66rem]"
+              style={{
+                borderColor: imobRgba("cyan", 0.32),
+                backgroundColor: imobRgba("cyan", 0.1),
+                color: imobRgba("cyan", 0.95),
+              }}
+            >
+              Score: {emptyLabel(interest.score)}
+            </span>
+          </div>
+          <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
+            Status: {emptyLabel(interest.status)} - Origem: {emptyLabel(interest.source)}
+          </span>
+          <span className="text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Imovel: {interest.propertyId}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RelatedProperties({ interests }: { interests: readonly YziImobLeadInterest[] }) {
+  const properties = Array.from(
+    new Map(interests.map((interest) => [interest.propertyId, interest])).values(),
+  );
+
+  if (properties.length === 0) {
+    return <EmptyState>Ainda sem imovel relacionado.</EmptyState>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {properties.map((interest) => (
+        <li
+          key={interest.propertyId}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
+        >
+          <span className="text-[var(--yzi-text-primary)]">
+            {interest.propertyTitle ?? "Ainda sem dados"}
+          </span>
+          <span className="text-[0.68rem] text-[var(--yzi-text-faint)]">
+            {interest.propertyId}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ConversationList({
+  conversations,
+}: {
+  conversations: readonly YziImobLeadConversation[];
+}) {
+  if (conversations.length === 0) {
+    return <EmptyState>Ainda sem conversa relacionada.</EmptyState>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {conversations.map((conversation, index) => (
+        <li
+          key={`${conversation.leadId}-${conversation.channel ?? "channel"}-${conversation.startedAt ?? index}`}
+          className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[var(--yzi-text-primary)]">
+              Canal: {emptyLabel(conversation.channel)}
+            </span>
+            <span
+              className="rounded-full border px-2.5 py-1 text-[0.66rem]"
+              style={{
+                borderColor: imobRgba("lilac", 0.32),
+                backgroundColor: imobRgba("lilac", 0.1),
+                color: imobRgba("lilac", 0.95),
+              }}
+            >
+              {emptyLabel(conversation.status)}
+            </span>
+          </div>
+          <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
+            Inicio: {formatDateTime(conversation.startedAt)}
+          </span>
+          <span className="text-[0.72rem] text-[var(--yzi-text-faint)]">
+            Ultima interacao: {formatDateTime(conversation.lastMessageAt)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function YziImobClientWorkspace({
+  data,
+  notFoundMessage = "Este lead nao existe neste tenant ou nao pode ser lido.",
+}: {
+  data: YziImobLeadWorkspaceData | null;
+  notFoundMessage?: string;
+}) {
   const router = useRouter();
   const { select } = useYziImobWorkspace();
-
-  const id = params.id;
-  const isNew = id === "novo";
-  const client: DemoClient | null = isNew
-    ? null
-    : (DEMO_CLIENTS.find((c) => c.id === id) ?? null);
-  const notFound = !isNew && !client;
-
   const [tab, setTab] = useState<string>("perfil");
-  const [record, setRecord] = useState<ClientRecord>(() => toClientRecord(client));
 
   useEffect(() => {
-    if (notFound) return;
-    if (client) select(toClientInspection(client));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    if (data) select(toLeadInspection(data));
+  }, [data, select]);
 
-  if (notFound) {
+  const counters = useMemo(() => (data ? leadCounters(data) : []), [data]);
+
+  if (!data) {
     return (
       <section className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center gap-3 px-8 py-10 text-center">
         <p className="text-[1.1rem] font-semibold text-[var(--yzi-text-primary)]">
-          Cliente não encontrado.
+          Cliente nao encontrado.
         </p>
         <p className="text-[0.86rem] text-[var(--yzi-text-secondary)]">
-          Este cliente não existe na base de demonstração.
+          {notFoundMessage}
         </p>
         <Link
           href="/cockpit/yzi-imob/clientes"
@@ -184,26 +340,8 @@ export function YziImobClientWorkspace() {
     );
   }
 
-  function set<K extends keyof ClientRecord>(key: K, value: ClientRecord[K]) {
-    setRecord((current) => ({ ...current, [key]: value }));
-  }
-
-  const statusLabel = client ? CLIENT_STATUS_LABEL[client.status] : "Novo";
-  const heroSubtitle = client
-    ? HERO_BY_STATUS[client.status]
-    : "Vamos cadastrar este cliente para começar a acompanhar a busca dele.";
-  const counters = client
-    ? clientCounters(client)
-    : [
-        { label: "Imóveis visitados", value: "0", detail: "Nenhuma visita ainda" },
-        { label: "Propostas ativas", value: "0", detail: "Nenhuma no momento" },
-        { label: "Última interação", value: "—", detail: "Sem histórico" },
-        { label: "Corretor responsável", value: "—", detail: "Ainda sem vínculo" },
-      ];
-
-  const visitas = client ? demoVisitas(client) : [];
-  const propostas = client ? demoPropostas(client) : [];
-  const historico = client ? demoHistorico(client) : [];
+  const role = statusRole(data.lead.status);
+  const leadStatusLabel = statusLabel(data.lead.status);
 
   return (
     <div className="flex w-full flex-col">
@@ -212,34 +350,39 @@ export function YziImobClientWorkspace() {
           backHref="/cockpit/yzi-imob/clientes"
           backLabel="Clientes"
           kicker="Client Workspace"
-          title={client?.nome ?? "Novo cliente"}
-          subtitle={heroSubtitle}
-          statusLabel={statusLabel}
-          composerPlaceholder="Pergunte à YZI sobre este cliente — preferências, imóveis, propostas..."
+          title={data.lead.fullName}
+          subtitle={HERO_BY_STATUS[data.lead.status ?? ""] ?? "Lead real carregado neste tenant."}
+          statusLabel={leadStatusLabel}
+          composerPlaceholder="Pergunte a YZI sobre este lead, interesses e conversas reais..."
           quickActions={[
-            { label: "O que sabemos sobre este cliente?" },
-            { label: "Quais imóveis sugerir?" },
-            { label: "Resumir o cliente" },
+            { label: "Resumir o lead" },
+            { label: "Quais imoveis relacionados?" },
+            { label: "Ver ultima interacao" },
           ]}
           onAsk={() => router.push("/cockpit/yzi-imob/briefing")}
         />
-        {client ? (
+        <div className="flex flex-wrap gap-2">
           <div
             className="flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[0.72rem]"
             style={{
-              borderColor: imobRgba(CLIENT_STAGE_ACCENT[client.status], 0.32),
-              backgroundColor: imobRgba(CLIENT_STAGE_ACCENT[client.status], 0.1),
-              color: imobRgba(CLIENT_STAGE_ACCENT[client.status], 0.95),
+              borderColor: imobRgba(role, 0.32),
+              backgroundColor: imobRgba(role, 0.1),
+              color: imobRgba(role, 0.95),
             }}
           >
             <span
               aria-hidden
               className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: imobRgba(CLIENT_STAGE_ACCENT[client.status], 0.9) }}
+              style={{ backgroundColor: imobRgba(role, 0.9) }}
             />
-            {statusLabel}
+            {leadStatusLabel}
           </div>
-        ) : null}
+          {data.lead.temperature ? (
+            <div className="w-fit rounded-full border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)]">
+              Temperatura: {data.lead.temperature}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="w-full py-7">
@@ -254,300 +397,63 @@ export function YziImobClientWorkspace() {
             <WorkspaceSection
               first
               title="Identidade"
-              description="Quem é este cliente dentro da operação. Os IDs são gerados pelo sistema."
+              description="Dados reais do lead dentro deste tenant."
             >
               <WorkspaceGrid>
-                <WorkspaceField label="Nome" value={client?.nome ?? "Gerado ao salvar"} readOnly />
-                <WorkspaceField label="ID do cliente" value={client?.clienteId ?? "—"} readOnly />
-                <WorkspaceField label="Origem" value={client?.origem ?? "—"} readOnly />
-                <WorkspaceField label="Status" value={statusLabel} readOnly />
-              </WorkspaceGrid>
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Contato">
-              <WorkspaceGrid>
+                <WorkspaceField label="Nome" value={data.lead.fullName} readOnly />
+                <WorkspaceField label="ID do lead" value={data.lead.id} readOnly />
+                <WorkspaceField label="Origem" value={emptyLabel(data.lead.source)} readOnly />
+                <WorkspaceField label="Status" value={leadStatusLabel} readOnly />
                 <WorkspaceField
-                  label="Telefone"
-                  value={record.telefone}
-                  onChange={(value) => set("telefone", value)}
-                />
-                <WorkspaceField
-                  label="WhatsApp"
-                  value={record.whatsapp}
-                  onChange={(value) => set("whatsapp", value)}
-                />
-                <WorkspaceField
-                  label="Email"
-                  value={record.email}
-                  onChange={(value) => set("email", value)}
-                />
-              </WorkspaceGrid>
-            </WorkspaceSection>
-
-            <WorkspaceSection title="Localização">
-              <WorkspaceGrid>
-                <WorkspaceField
-                  label="Cidade/Estado"
-                  value={record.cidade}
-                  onChange={(value) => set("cidade", value)}
-                />
-                <WorkspaceField
-                  label="Corretor responsável"
-                  value={client?.corretorResponsavel || "Sem corretor vinculado"}
+                  label="Temperatura"
+                  value={emptyLabel(data.lead.temperature)}
                   readOnly
                 />
               </WorkspaceGrid>
             </WorkspaceSection>
 
-            <WorkspaceSection
-              title="Consentimento"
-              description="Base para contato e comunicação com este cliente."
-            >
+            <WorkspaceSection title="Contato">
               <WorkspaceGrid>
-                <label
-                  className="flex items-center gap-2 text-[0.82rem]"
-                  style={{
-                    color: record.consentimento ? imobRgba("cyan", 0.9) : "var(--yzi-text-secondary)",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={record.consentimento}
-                    onChange={(event) => set("consentimento", event.target.checked)}
-                  />
-                  Consentimento para contato
-                </label>
-                <label
-                  className="flex items-center gap-2 text-[0.82rem]"
-                  style={{
-                    color: record.newsletter ? imobRgba("cyan", 0.9) : "var(--yzi-text-secondary)",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={record.newsletter}
-                    onChange={(event) => set("newsletter", event.target.checked)}
-                  />
-                  Newsletter / novidades por email
-                </label>
+                <WorkspaceField label="Telefone" value={emptyLabel(data.lead.phone)} readOnly />
+                <WorkspaceField label="Email" value={emptyLabel(data.lead.email)} readOnly />
+              </WorkspaceGrid>
+            </WorkspaceSection>
+
+            <WorkspaceSection title="Notes">
+              <WorkspaceGrid>
+                <ReadOnlyTextBlock label="Notes" value={data.lead.notes} span2 />
               </WorkspaceGrid>
             </WorkspaceSection>
           </div>
         ) : tab === "interesses" ? (
-          <div className="flex flex-col gap-7">
-            <WorkspaceSection
-              first
-              title="Interesses de busca"
-              description="Usado pela YZI para sugerir imóveis compatíveis."
-            >
-              <WorkspaceGrid>
-                <WorkspaceDropdown
-                  label="Finalidade"
-                  value={record.finalidade}
-                  onChange={(value) => set("finalidade", value)}
-                  options={CLIENT_FINALIDADE_OPTIONS}
-                />
-                <WorkspaceField
-                  label="Faixa de valor — mínimo"
-                  value={record.valorMin}
-                  onChange={(value) => set("valorMin", value)}
-                />
-                <WorkspaceField
-                  label="Faixa de valor — máximo"
-                  value={record.valorMax}
-                  onChange={(value) => set("valorMax", value)}
-                />
-              </WorkspaceGrid>
-              <WorkspaceMultiSelect
-                label="Tipo de imóvel"
-                options={ATUACAO_TIPOS}
-                value={record.tiposImovel}
-                onChange={(value) => set("tiposImovel", value)}
-                span2
-              />
-              <WorkspaceMultiSelect
-                label="Bairros de interesse"
-                options={ATUACAO_BAIRROS}
-                value={record.bairrosInteresse}
-                onChange={(value) => set("bairrosInteresse", value)}
-                span2
-              />
-            </WorkspaceSection>
-
-            <WorkspaceSection
-              title="Perfil da busca"
-              description="Contexto adicional para qualificar o interesse."
-            >
-              <WorkspaceGrid>
-                <WorkspaceField label="Quartos" value="Não informado" readOnly />
-                <WorkspaceField label="Vagas" value="Não informado" readOnly />
-                <WorkspaceField label="Prazo" value="Não informado" readOnly />
-                <WorkspaceField label="Motivação" value="Não informado" readOnly />
-              </WorkspaceGrid>
-              <WorkspaceTextarea
-                label="Objeções"
-                value=""
-                onChange={() => undefined}
-                rows={2}
-                placeholder="Objeções observadas durante o atendimento."
-                span2
-              />
-              <WorkspaceTextarea
-                label="Observações internas"
-                value=""
-                onChange={() => undefined}
-                rows={2}
-                placeholder="Observações internas da equipe."
-                span2
-              />
-            </WorkspaceSection>
-          </div>
+          <WorkspaceSection
+            first
+            title="Interesses em imoveis"
+            description="Registros reais de yzi_imob_property_interests para este lead."
+          >
+            <InterestList interests={data.interests} />
+          </WorkspaceSection>
         ) : tab === "imoveis" ? (
           <WorkspaceSection
             first
-            title="Imóveis relacionados"
-            description="Situação deste cliente em relação aos imóveis do catálogo."
+            title="Imoveis relacionados"
+            description="Imoveis encontrados a partir dos interesses reais do lead."
           >
-            {client && client.imoveisVisitados > 0 ? (
-              <ul className="flex flex-col gap-2">
-                {visitas.map((visita) => (
-                  <li
-                    key={visita.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
-                  >
-                    <span className="text-[var(--yzi-text-primary)]">{visita.imovel}</span>
-                    <span
-                      className="rounded-full border px-2.5 py-1 text-[0.66rem]"
-                      style={{
-                        borderColor: imobRgba("lilac", 0.32),
-                        backgroundColor: imobRgba("lilac", 0.1),
-                        color: imobRgba("lilac", 0.95),
-                      }}
-                    >
-                      Visitado
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[0.8rem] text-[var(--yzi-text-faint)]">
-                Nenhum imóvel relacionado ainda.
-              </p>
-            )}
-          </WorkspaceSection>
-        ) : tab === "visitas" ? (
-          <WorkspaceSection first title="Visitas" description="Histórico de visitas deste cliente.">
-            {visitas.length ? (
-              <ul className="flex flex-col gap-2">
-                {visitas.map((visita) => (
-                  <li
-                    key={visita.id}
-                    className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[var(--yzi-text-primary)]">{visita.imovel}</span>
-                      <span className="text-[0.68rem] text-[var(--yzi-text-faint)]">{visita.data}</span>
-                    </div>
-                    <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
-                      Corretor: {visita.corretor} · {visita.status}
-                    </span>
-                    <span className="text-[0.72rem] text-[var(--yzi-text-faint)]">
-                      Feedback: {visita.feedback}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[0.8rem] text-[var(--yzi-text-faint)]">
-                Nenhuma visita registrada ainda.
-              </p>
-            )}
-          </WorkspaceSection>
-        ) : tab === "propostas" ? (
-          <WorkspaceSection
-            first
-            title="Propostas"
-            description="Demonstração — nenhuma proposta é real."
-          >
-            {propostas.length ? (
-              <ul className="flex flex-col gap-2">
-                {propostas.map((proposta) => (
-                  <li
-                    key={proposta.id}
-                    className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.82rem]"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[var(--yzi-text-primary)]">{proposta.imovel}</span>
-                      <span
-                        className="rounded-full border px-2.5 py-1 text-[0.66rem]"
-                        style={{
-                          borderColor: imobRgba("amber", 0.32),
-                          backgroundColor: imobRgba("amber", 0.1),
-                          color: imobRgba("amber", 0.95),
-                        }}
-                      >
-                        {proposta.status}
-                      </span>
-                    </div>
-                    <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
-                      Valor proposto: {proposta.valor}
-                    </span>
-                    <span className="text-[0.72rem] text-[var(--yzi-text-faint)]">
-                      Próxima ação: {proposta.proximaAcao}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[0.8rem] text-[var(--yzi-text-faint)]">
-                Nenhuma proposta ativa no momento.
-              </p>
-            )}
-          </WorkspaceSection>
-        ) : tab === "documentos" ? (
-          <ComingSoonPanel
-            label="Documentos"
-            note="Em breve. Nenhum upload real acontece nesta demonstração."
-          />
-        ) : tab === "historico" ? (
-          <WorkspaceSection first title="Histórico" description="Linha do tempo deste cliente.">
-            <ul className="flex flex-col gap-1.5">
-              {historico.map((item) => (
-                <li
-                  key={item.label}
-                  className="flex items-start gap-2 text-[0.8rem] leading-snug text-[var(--yzi-text-secondary)]"
-                >
-                  <span
-                    aria-hidden
-                    className="mt-1.5 h-1 w-1 shrink-0 rounded-full"
-                    style={{ backgroundColor: imobRgba(item.role, 0.85) }}
-                  />
-                  {item.label}
-                </li>
-              ))}
-            </ul>
+            <RelatedProperties interests={data.interests} />
           </WorkspaceSection>
         ) : (
           <WorkspaceSection
             first
-            title="Conhecimento da YZI"
-            description="Preferências, contexto familiar, objeções, estilo de vida e urgência — usado pela YZI para sugerir imóveis compatíveis."
+            title="Conversas relacionadas"
+            description="Conversas reais vinculadas a este lead."
           >
-            <WorkspaceTextarea
-              label="Conhecimento da YZI"
-              value={record.conhecimento}
-              onChange={(value) => set("conhecimento", value)}
-              rows={14}
-              placeholder={
-                "Descreva o que sabemos sobre este cliente.\n\nPreferências · contexto familiar · objeções · estilo de vida · urgência · notas importantes."
-              }
-            />
+            <ConversationList conversations={data.conversations} />
           </WorkspaceSection>
         )}
 
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          Workspace de demonstração. Nenhum dado é salvo e nenhuma alteração acontece sem
-          autorização.
+          Dados reais lidos no tenant atual. Campos sem fonte confirmada ficam ocultos ou marcados
+          como Ainda sem dados.
         </p>
       </section>
     </div>
