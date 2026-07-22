@@ -5,6 +5,14 @@ import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContextBySlug } from "@/lib/tenant/tenant-context";
 import { buildConnectionsCatalogFromRpcPayload } from "@/lib/yzi-imob/connections/persisted-state";
 
+type MetaOAuthCallbackStatus =
+  | "success"
+  | "cancelled"
+  | "expired"
+  | "invalid_state"
+  | "provider_error"
+  | "internal_error";
+
 type TenantConnectionsRpcClient = {
   rpc(
     fn: "get_yzi_imob_tenant_connections",
@@ -17,9 +25,33 @@ type TenantConnectionsRpcClient = {
 
 type PageProps = {
   params: Promise<{ tenantSlug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function loadTenantConnectionsPayload(tenantId: string): Promise<unknown | null> {
+type TenantConnectionsLoadResult =
+  | { status: "ok"; payload: unknown }
+  | { status: "error"; message: string };
+
+const META_OAUTH_CALLBACK_STATUSES = new Set<MetaOAuthCallbackStatus>([
+  "success",
+  "cancelled",
+  "expired",
+  "invalid_state",
+  "provider_error",
+  "internal_error",
+]);
+
+function readMetaOAuthStatus(
+  searchParams: Record<string, string | string[] | undefined> | undefined,
+): MetaOAuthCallbackStatus | null {
+  const rawValue = searchParams?.meta_oauth;
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  return value && META_OAUTH_CALLBACK_STATUSES.has(value as MetaOAuthCallbackStatus)
+    ? (value as MetaOAuthCallbackStatus)
+    : null;
+}
+
+async function loadTenantConnectionsPayload(tenantId: string): Promise<TenantConnectionsLoadResult> {
   try {
     const supabase = await createServerSupabaseClient();
     const rpcClient: TenantConnectionsRpcClient = supabase;
@@ -30,36 +62,28 @@ async function loadTenantConnectionsPayload(tenantId: string): Promise<unknown |
     if (error) {
       console.error("[yzi-imob/conexoes/tenant] tenant_connections_rpc_error", {
         code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        tenantId,
         routeKind: "explicit_slug",
       });
-      return null;
+      return {
+        status: "error",
+        message: "Nao foi possivel carregar as conexoes deste tenant com a sessao atual.",
+      };
     }
 
-    return data;
+    return { status: "ok", payload: data };
   } catch {
     console.error("[yzi-imob/conexoes/tenant] tenant_connections_unavailable");
-    return null;
+    return {
+      status: "error",
+      message: "Nao foi possivel carregar as conexoes agora.",
+    };
   }
 }
 
-function TenantAccessState({ title, message }: { title: string; message: string }) {
-  return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-8 py-10">
-      <p className="text-[0.72rem] font-medium uppercase tracking-[0.16em] text-[var(--yzi-text-faint)]">
-        Conexões
-      </p>
-      <h1 className="text-xl font-semibold text-[var(--yzi-text-primary)]">{title}</h1>
-      <p className="text-sm leading-relaxed text-[var(--yzi-text-secondary)]">{message}</p>
-    </section>
-  );
-}
-
-export default async function YziImobTenantConexoesPage({ params }: PageProps) {
+export default async function YziImobTenantConexoesPage({ params, searchParams }: PageProps) {
   const { tenantSlug } = await params;
+  const resolvedSearchParams = await searchParams;
+  const metaOAuthStatus = readMetaOAuthStatus(resolvedSearchParams);
   const tenantContext = await getTenantContextBySlug(tenantSlug);
 
   if (tenantContext.status === "no_session") {
@@ -68,24 +92,44 @@ export default async function YziImobTenantConexoesPage({ params }: PageProps) {
 
   if (tenantContext.status === "no_membership") {
     return (
-      <TenantAccessState
-        title="Acesso não disponível"
-        message="Não foi possível abrir as conexões deste tenant com a sessão atual."
+      <YziImobConnectionsWorkspace
+        accessState="no_membership"
+        connections={[]}
+        metaOAuthStatus={metaOAuthStatus}
       />
     );
   }
 
   if (tenantContext.status === "error") {
     return (
-      <TenantAccessState
-        title="Conexões indisponíveis"
-        message="Não foi possível carregar este tenant agora."
+      <YziImobConnectionsWorkspace
+        accessState="tenant-error"
+        connections={[]}
+        metaOAuthStatus={metaOAuthStatus}
       />
     );
   }
 
-  const payload = await loadTenantConnectionsPayload(tenantContext.tenant.id);
-  const connections = payload === null ? undefined : buildConnectionsCatalogFromRpcPayload(payload);
+  const result = await loadTenantConnectionsPayload(tenantContext.tenant.id);
+  if (result.status === "error") {
+    return (
+      <YziImobConnectionsWorkspace
+        accessState="read-error"
+        connections={[]}
+        metaOAuthStatus={metaOAuthStatus}
+        readErrorMessage={result.message}
+        tenantId={tenantContext.tenant.id}
+      />
+    );
+  }
 
-  return <YziImobConnectionsWorkspace connections={connections} />;
+  const connections = buildConnectionsCatalogFromRpcPayload(result.payload);
+
+  return (
+    <YziImobConnectionsWorkspace
+      connections={connections}
+      metaOAuthStatus={metaOAuthStatus}
+      tenantId={tenantContext.tenant.id}
+    />
+  );
 }

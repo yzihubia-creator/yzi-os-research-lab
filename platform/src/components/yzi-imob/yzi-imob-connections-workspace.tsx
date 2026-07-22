@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
 
+import { startMetaOAuthAuthorizationAction } from "@/app/cockpit/yzi-imob/conexoes/actions";
 import {
   CONNECTIONS_CATALOG,
   CONNECTION_CAPABILITY_LABEL,
@@ -24,6 +26,10 @@ import {
   type WorkspaceTab,
 } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
+import type {
+  MetaOAuthEntryCatalogId,
+  StartMetaOAuthResult,
+} from "@/lib/yzi-imob/connections/meta-oauth-start";
 
 // Conexões Operacionais v2 — centro de vínculo, autorização, disponibilidade
 // e capacidade operacional. Não é a tela de consumo/custos (isso é APIs &
@@ -31,16 +37,44 @@ import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
 // A Meta é UMA conexão-ecossistema: WhatsApp, Instagram, Página do Facebook
 // e Conta de anúncios são canais dentro dela, com estado próprio, nunca
 // quatro integrações independentes.
-// Catálogo estático (Connection Catalog): hoje não existe Tenant Connection
-// nesta base, então toda linha reflete o estado honesto "não configurado"/
-// "disponível em breve" — nenhum número ou saúde é inventado.
+// O catálogo define a superfície do produto; o estado real do tenant entra pela
+// RPC get_yzi_imob_tenant_connections quando a sessão tem permissão.
+// Sem leitura real, a tela exibe estado de acesso/erro, nunca sucesso simulado.
 // Ver docs/yzi-imob/yzi-imob-conexoes-backend-contract-v1.md.
 
 // Entradas cuja capacidade se relaciona a consumo cobrado pela YZI — as
 // únicas que ganham o link "Ver consumo e limites" para Contas & Consumo.
 // Métricas de leitura (Analytics, Search Console, Business Profile, Google
 // Ads) não têm consumo YZI associado hoje.
+export type ConnectionsAccessState =
+  | "ready"
+  | "no_session"
+  | "no_membership"
+  | "tenant-error"
+  | "read-error";
+
+type MetaOAuthCallbackStatus =
+  | "success"
+  | "cancelled"
+  | "expired"
+  | "invalid_state"
+  | "provider_error"
+  | "internal_error";
+
+type ConnectionsWorkspaceProps = {
+  accessState?: ConnectionsAccessState;
+  connections?: ConnectionEntry[];
+  metaOAuthStatus?: MetaOAuthCallbackStatus | null;
+  readErrorMessage?: string;
+  tenantId?: string | null;
+};
+
 const CONSUMPTION_LINKED_IDS = new Set(["site", "meta", "criacao-criativos", "narracao-ia"]);
+const META_CHANNEL_OAUTH_CATALOG_IDS: Record<string, MetaOAuthEntryCatalogId> = {
+  facebook: "facebook",
+  instagram: "instagram",
+  "meta-ads": "meta-ads",
+};
 
 // Override de superfície (sem tocar no catálogo): o summary da Meta no
 // catálogo insinua que uma única autorização libera automaticamente os
@@ -179,6 +213,61 @@ function displayDate(value: string | null | undefined): string {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function accessNoticeForState(
+  state: ConnectionsAccessState,
+  readErrorMessage?: string,
+): { title: string; message: string } | null {
+  switch (state) {
+    case "ready":
+      return null;
+    case "no_session":
+      return {
+        title: "Sessão obrigatória",
+        message: "Entre novamente para carregar o estado real das conexões.",
+      };
+    case "no_membership":
+      return {
+        title: "Permissão insuficiente",
+        message: "A sessão atual não pode ler as conexões deste tenant.",
+      };
+    case "tenant-error":
+      return {
+        title: "Tenant indisponível",
+        message: "Não foi possível resolver o tenant para carregar conexões.",
+      };
+    case "read-error":
+      return {
+        title: "Conexões indisponíveis",
+        message: readErrorMessage ?? "Não foi possível carregar o estado real das conexões.",
+      };
+  }
+}
+
+function metaOAuthNoticeForStatus(
+  status: MetaOAuthCallbackStatus | null | undefined,
+): { role: "success" | "warning"; message: string } | null {
+  switch (status) {
+    case "success":
+      return {
+        role: "success",
+        message: "Autorização Meta concluída. O estado abaixo foi recarregado a partir do backend.",
+      };
+    case "cancelled":
+      return { role: "warning", message: "Autorização Meta cancelada no provedor." };
+    case "expired":
+      return { role: "warning", message: "Autorização Meta expirada. Inicie o fluxo novamente." };
+    case "invalid_state":
+      return { role: "warning", message: "Autorização Meta inválida ou já consumida." };
+    case "provider_error":
+      return { role: "warning", message: "A Meta não concluiu a autorização." };
+    case "internal_error":
+      return { role: "warning", message: "Não foi possível concluir a autorização Meta agora." };
+    case null:
+    case undefined:
+      return null;
+  }
 }
 
 function actionForState(state: ConnectionEntry["state"]): string | null {
@@ -324,14 +413,54 @@ function ChannelBlock({ channel, compact }: { channel: ConnectionChannel; compac
 
 /* ------------------------------------------------------------------ */
 /* MetaManagedPanel — bloco operacional de provisionamento gerenciado. */
-/* Sem manipulação de autorização no frontend.                         */
+/* A autorização sai por server action e RPC tenant-scoped existente.   */
 /* ------------------------------------------------------------------ */
 
-function MetaManagedPanel() {
-  const [statusNote, setStatusNote] = useState<string | null>(null);
+function metaChannelActionLabel(channel: ConnectionChannel): string {
+  if (channel.state === "conectado") return `Revisar ${channel.label}`;
+  if (channel.state === "requer-atencao") return `Reconectar ${channel.label}`;
+  return `Conectar ${channel.label}`;
+}
 
-  function showManagedAction(action: string) {
-    setStatusNote(`${action}: solicitação registrada para acompanhamento operacional.`);
+function MetaManagedPanel({
+  accessState,
+  entry,
+  tenantId,
+}: {
+  accessState: ConnectionsAccessState;
+  entry: ConnectionEntry;
+  tenantId?: string | null;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [statusNote, setStatusNote] = useState<string | null>(null);
+  const canStartAuthorization = accessState === "ready" && Boolean(tenantId);
+
+  function refreshState() {
+    setStatusNote("Atualizando estado a partir do backend.");
+    router.refresh();
+  }
+
+  function startMetaAuthorization(catalogId: MetaOAuthEntryCatalogId) {
+    if (!tenantId) {
+      setStatusNote("Sessão sem tenant válido para iniciar a autorização Meta.");
+      return;
+    }
+
+    setStatusNote(null);
+    startTransition(async () => {
+      const result: StartMetaOAuthResult = await startMetaOAuthAuthorizationAction({
+        tenantId,
+        catalogId,
+      });
+
+      if (result.status === "ok") {
+        window.location.assign(result.authorizationUrl);
+        return;
+      }
+
+      setStatusNote(result.message);
+    });
   }
 
   return (
@@ -349,25 +478,53 @@ function MetaManagedPanel() {
       <div className="flex flex-wrap items-center gap-2.5">
         <button
           type="button"
-          onClick={() => showManagedAction("Atualizar estado")}
+          onClick={refreshState}
           className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.36)] bg-[rgba(var(--imob-cold),0.16)] px-3 py-1.5 text-[0.72rem] font-medium text-[rgb(var(--imob-ice))] transition-colors hover:bg-[rgba(var(--imob-cold),0.24)]"
         >
           Atualizar estado
         </button>
-        <button
-          type="button"
-          onClick={() => showManagedAction("Ver detalhes")}
-          className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
-        >
-          Ver detalhes
-        </button>
-        <button
-          type="button"
-          onClick={() => showManagedAction("Solicitar suporte")}
-          className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
-        >
-          Solicitar suporte
-        </button>
+        {entry.channels?.map((channel) => {
+          const catalogId = META_CHANNEL_OAUTH_CATALOG_IDS[channel.id];
+          if (!catalogId) {
+            const unsupportedLabel =
+              channel.relatedAssets?.length || channel.displayName || channel.state !== "nao-configurado"
+                ? `${channel.label}: sem ação direta`
+                : `${channel.label}: ainda sem dados`;
+            return (
+              <button
+                key={channel.id}
+                type="button"
+                disabled
+                title="Sem operação segura implementada no backend"
+                className="cursor-not-allowed rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-faint)] opacity-60"
+              >
+                {unsupportedLabel}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={channel.id}
+              type="button"
+              disabled={!canStartAuthorization || isPending}
+              onClick={() => startMetaAuthorization(catalogId)}
+              title={
+                canStartAuthorization
+                  ? "Iniciar autorização Meta real"
+                  : "Permissão ou tenant indisponível"
+              }
+              className={cx(
+                "rounded-[var(--yzi-radius-sm)] border px-3 py-1.5 text-[0.72rem] transition-colors",
+                canStartAuthorization && !isPending
+                  ? "border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)] hover:text-[var(--yzi-text-primary)]"
+                  : "cursor-not-allowed border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-faint)] opacity-60",
+              )}
+            >
+              {isPending ? "Abrindo Meta..." : metaChannelActionLabel(channel)}
+            </button>
+          );
+        })}
       </div>
 
       {statusNote ? (
@@ -386,7 +543,15 @@ function MetaManagedPanel() {
   );
 }
 
-function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
+function ConnectionDetail({
+  accessState,
+  entry,
+  tenantId,
+}: {
+  accessState: ConnectionsAccessState;
+  entry: ConnectionEntry;
+  tenantId?: string | null;
+}) {
   const groupLabel = CONNECTION_GROUPS.find((group) => group.id === entry.groupId)?.label ?? "";
   const isMeta = entry.id === "meta";
   const action = isMeta ? null : entry.nextAction || actionForState(entry.state);
@@ -416,7 +581,7 @@ function ConnectionDetail({ entry }: { entry: ConnectionEntry }) {
         ) : null}
       </div>
 
-      {isMeta ? <MetaManagedPanel /> : null}
+      {isMeta ? <MetaManagedPanel accessState={accessState} entry={entry} tenantId={tenantId} /> : null}
 
       {isMeta ? (
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
@@ -580,14 +745,18 @@ function topOperationalImpactItems(catalog: ConnectionEntry[], limit: number): O
 }
 
 export function YziImobConnectionsWorkspace({
+  accessState = "ready",
   connections = CONNECTIONS_CATALOG,
-}: {
-  connections?: ConnectionEntry[];
-}) {
+  metaOAuthStatus = null,
+  readErrorMessage,
+  tenantId = null,
+}: ConnectionsWorkspaceProps) {
   const [activeGroup, setActiveGroup] = useState<ConnectionGroupId>("meta");
   const [selectedId, setSelectedId] = useState<string>("meta");
   const [assistantNote, setAssistantNote] = useState<string | null>(null);
 
+  const accessNotice = accessNoticeForState(accessState, readErrorMessage);
+  const metaOAuthNotice = metaOAuthNoticeForStatus(metaOAuthStatus);
   const groupEntries = useMemo(() => entriesByGroup(connections, activeGroup), [connections, activeGroup]);
   const selectedEntry =
     connections.find((entry) => entry.id === selectedId) ?? groupEntries[0];
@@ -663,15 +832,27 @@ export function YziImobConnectionsWorkspace({
     }
     if (normalized.includes("publicar")) {
       selectGroup("meta");
+      const meta = connections.find((entry) => entry.id === "meta");
+      const publishChannels =
+        meta?.channels?.filter((channel) => channel.id === "instagram" || channel.id === "facebook") ??
+        [];
+      const readyChannels = publishChannels.filter((channel) => channel.state === "conectado");
       setAssistantNote(
-        "Abri a Meta — Instagram e Página do Facebook fazem parte dessa conexão, que ainda não foi configurada para publicar.",
+        readyChannels.length > 0
+          ? `Abri a Meta — ${readyChannels.map((channel) => channel.label).join(" e ")} aparece como conectado no backend.`
+          : "Abri a Meta — Instagram e Página do Facebook só ficam disponíveis quando houver autorização real no backend.",
       );
       return;
     }
     if (normalized.includes("atender")) {
       selectGroup("meta");
+      const whatsapp = connections
+        .find((entry) => entry.id === "meta")
+        ?.channels?.find((channel) => channel.id === "whatsapp");
       setAssistantNote(
-        "Abri a Meta — o WhatsApp faz parte dessa conexão. O produto suporta registrar conversas, mas a conexão desta imobiliária ainda não foi configurada.",
+        whatsapp?.state === "conectado"
+          ? "Abri a Meta — o WhatsApp aparece como conectado no backend."
+          : "Abri a Meta — o WhatsApp faz parte desta conexão, mas só aparece pronto quando houver dado real no backend.",
       );
       return;
     }
@@ -695,7 +876,9 @@ export function YziImobConnectionsWorkspace({
           title="Conexões"
           subtitle="Acompanhe os canais e serviços que permitem à YZI publicar, atender, anunciar e medir sua operação."
           statusLabel={
-            activeCount === 0
+            accessState !== "ready"
+              ? "Estado real indisponível"
+              : activeCount === 0
               ? "Conexões em configuração"
               : attentionCount > 0
                 ? "Conexões precisam de atenção"
@@ -710,10 +893,30 @@ export function YziImobConnectionsWorkspace({
           ]}
           assistantMessage={
             assistantNote ??
-            "Eu uso estas conexões para executar a operação. Elas ainda estão sendo configuradas — quando uma autorização falta ou expira, algumas ações deixam de funcionar."
+            (accessState !== "ready"
+              ? "Não consegui carregar o estado real das conexões desta sessão."
+              : "Eu uso estas conexões para executar a operação. Quando uma autorização falta ou expira, algumas ações deixam de funcionar.")
           }
           onAsk={answer}
         />
+        {accessNotice ? (
+          <div className="mt-5 rounded-[var(--yzi-radius-md)] border border-[rgba(var(--imob-amber),0.34)] bg-[rgba(var(--imob-amber),0.08)] px-4 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+            <span className="font-medium text-[var(--yzi-text-primary)]">{accessNotice.title}</span>
+            <span className="ml-2">{accessNotice.message}</span>
+          </div>
+        ) : null}
+        {metaOAuthNotice ? (
+          <div
+            className={cx(
+              "mt-5 rounded-[var(--yzi-radius-md)] border px-4 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]",
+              metaOAuthNotice.role === "success"
+                ? "border-[rgba(var(--imob-green),0.34)] bg-[rgba(var(--imob-green),0.08)]"
+                : "border-[rgba(var(--imob-amber),0.34)] bg-[rgba(var(--imob-amber),0.08)]",
+            )}
+          >
+            {metaOAuthNotice.message}
+          </div>
+        ) : null}
       </section>
 
       {/* Faixa full-bleed do canvas — sem mx-auto, sem max-width, sem padding
@@ -759,17 +962,29 @@ export function YziImobConnectionsWorkspace({
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
             <div className="flex h-fit flex-col divide-y divide-[color:var(--yzi-border-subtle)] overflow-hidden rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
-              {groupEntries.map((entry) => (
-                <ConnectionRow
-                  key={entry.id}
-                  entry={entry}
-                  active={entry.id === selectedEntry?.id}
-                  onSelect={() => setSelectedId(entry.id)}
-                />
-              ))}
+              {groupEntries.length > 0 ? (
+                groupEntries.map((entry) => (
+                  <ConnectionRow
+                    key={entry.id}
+                    entry={entry}
+                    active={entry.id === selectedEntry?.id}
+                    onSelect={() => setSelectedId(entry.id)}
+                  />
+                ))
+              ) : (
+                <p className="px-4 py-3.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                  Nenhuma conexão real disponível neste grupo.
+                </p>
+              )}
             </div>
 
-            {selectedEntry ? <ConnectionDetail entry={selectedEntry} /> : null}
+            {selectedEntry ? (
+              <ConnectionDetail accessState={accessState} entry={selectedEntry} tenantId={tenantId} />
+            ) : (
+              <p className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-3.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                Nenhuma conexão real disponível para esta sessão.
+              </p>
+            )}
           </div>
         </WorkspaceSection>
 
