@@ -4,21 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const code = request.nextUrl.searchParams.get("code");
-  const nextParam = request.nextUrl.searchParams.get("next");
-  const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/cockpit";
-
-  if (!code) {
-    return NextResponse.redirect(
-      new URL("/login?error=oauth", request.nextUrl.origin),
-    );
-  }
-
   const { url, publishableKey } = getSupabasePublicEnv();
-  let response = NextResponse.redirect(new URL(next, request.nextUrl.origin));
+  let response = NextResponse.redirect(new URL("/login", request.nextUrl.origin));
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -30,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           request.cookies.set(name, value);
         });
 
-        response = NextResponse.redirect(new URL(next, request.nextUrl.origin));
+        response = NextResponse.redirect(new URL("/login", request.nextUrl.origin));
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
         });
@@ -38,13 +25,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     },
   });
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-  if (error) {
-    return NextResponse.redirect(
-      new URL("/login?error=oauth", request.nextUrl.origin),
-    );
-  }
+  await supabase.auth.signOut();
 
   return response;
 }
