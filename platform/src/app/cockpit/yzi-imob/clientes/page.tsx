@@ -10,7 +10,6 @@ import {
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 import { listLeads } from "@/lib/yzi-imob/leads/repository";
-import type { YziImobLeadListItem } from "@/lib/yzi-imob/leads/types";
 
 const LEAD_STATUS_LABEL: Record<string, string> = {
   lead: "Lead",
@@ -48,10 +47,6 @@ function formatLastInteraction(iso: string | null): string {
   } catch {
     return iso;
   }
-}
-
-function contactLabel(lead: YziImobLeadListItem): string {
-  return lead.phone || lead.email || "Ainda sem dados";
 }
 
 // Catalogo de clientes/leads reais. Mantem o layout de lista e troca somente
@@ -137,7 +132,8 @@ async function LeadsList({ tenantId }: { tenantId: string }) {
                 {lead.fullName}
               </span>
               <span className="text-[0.72rem] text-[var(--yzi-text-faint)]">
-                {contactLabel(lead)} - Origem: {labelOrEmpty(lead.source)}
+                Telefone: {labelOrEmpty(lead.phone)} - Email: {labelOrEmpty(lead.email)} -
+                Origem: {labelOrEmpty(lead.source)}
               </span>
               <span className="text-[0.68rem] text-[var(--yzi-text-faint)]">
                 Interesses: {lead.interestCount} - Maior score:{" "}
