@@ -2,15 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   APPOINTMENT_STATUS_VALUES,
+  APPOINTMENT_CONFIRMATION_STATUS_VALUES,
   type CreateAppointmentInput,
   type YziImobAppointment,
+  type YziImobAppointmentConfirmationStatus,
   type YziImobAppointmentStatus,
 } from "./types";
 
 const APPOINTMENT_COLUMNS =
-  "id, tenant_id, lead_id, property_id, title, starts_at, ends_at, status, confirmation_status, notes, created_at, updated_at";
+  "id, tenant_id, lead_id, property_id, broker_user_id, title, starts_at, ends_at, status, confirmation_status, source, notes, created_at, updated_at";
 const LEAD_COLUMNS = "id, full_name";
 const PROPERTY_COLUMNS = "id, title";
+const BROKER_PROFILE_COLUMNS = "user_id, display_name";
 const DEFAULT_APPOINTMENT_LIMIT = 300;
 
 type AppointmentRow = {
@@ -18,11 +21,13 @@ type AppointmentRow = {
   tenant_id: string;
   lead_id: string | null;
   property_id: string | null;
+  broker_user_id: string | null;
   title: string | null;
   starts_at: string;
   ends_at: string | null;
   status: string | null;
   confirmation_status: string | null;
+  source: string | null;
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -38,13 +43,20 @@ type PropertyRow = {
   title: string | null;
 };
 
+type BrokerProfileRow = {
+  user_id: string;
+  display_name: string | null;
+};
+
 export type AgendaRepositoryError =
   | "not_found"
   | "list_failed"
   | "read_failed"
   | "insert_failed"
   | "update_failed"
-  | "invalid_status";
+  | "invalid_status"
+  | "invalid_confirmation_status"
+  | "invalid_schedule";
 
 export type AgendaRepositoryResult<T> =
   | { status: "ok"; value: T }
@@ -54,6 +66,7 @@ function mapAppointment(
   row: AppointmentRow,
   leadNameById: ReadonlyMap<string, string>,
   propertyTitleById: ReadonlyMap<string, string>,
+  brokerNameByUserId: ReadonlyMap<string, string>,
 ): YziImobAppointment {
   return {
     id: row.id,
@@ -62,11 +75,14 @@ function mapAppointment(
     leadName: row.lead_id ? leadNameById.get(row.lead_id) ?? null : null,
     propertyId: row.property_id,
     propertyTitle: row.property_id ? propertyTitleById.get(row.property_id) ?? null : null,
+    brokerUserId: row.broker_user_id,
+    brokerName: row.broker_user_id ? brokerNameByUserId.get(row.broker_user_id) ?? null : null,
     title: row.title?.trim() || "Ainda sem dados",
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     status: row.status?.trim() || "scheduled",
     confirmationStatus: row.confirmation_status?.trim() || "pending",
+    source: row.source?.trim() || null,
     notes: row.notes?.trim() || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -125,6 +141,32 @@ async function listPropertyTitlesById(
   };
 }
 
+async function listBrokerNamesByUserId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  brokerUserIds: readonly string[],
+): Promise<AgendaRepositoryResult<Map<string, string>>> {
+  if (brokerUserIds.length === 0) return { status: "ok", value: new Map() };
+
+  const { data, error } = await supabase
+    .from("tenant_member_profiles")
+    .select(BROKER_PROFILE_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("user_id", brokerUserIds as string[]);
+
+  if (error) return { status: "error", code: "read_failed", detail: error.message };
+
+  return {
+    status: "ok",
+    value: new Map(
+      ((data as BrokerProfileRow[] | null) ?? []).map((row) => [
+        row.user_id,
+        row.display_name?.trim() || "Ainda sem dados",
+      ]),
+    ),
+  };
+}
+
 async function hydrateAppointments(
   supabase: SupabaseClient,
   tenantId: string,
@@ -136,18 +178,25 @@ async function hydrateAppointments(
   const propertyIds = Array.from(
     new Set(rows.map((row) => row.property_id).filter((id): id is string => Boolean(id))),
   );
+  const brokerUserIds = Array.from(
+    new Set(rows.map((row) => row.broker_user_id).filter((id): id is string => Boolean(id))),
+  );
 
-  const [leadsResult, propertiesResult] = await Promise.all([
+  const [leadsResult, propertiesResult, brokersResult] = await Promise.all([
     listLeadNamesById(supabase, tenantId, leadIds),
     listPropertyTitlesById(supabase, tenantId, propertyIds),
+    listBrokerNamesByUserId(supabase, tenantId, brokerUserIds),
   ]);
 
   if (leadsResult.status === "error") return leadsResult;
   if (propertiesResult.status === "error") return propertiesResult;
+  if (brokersResult.status === "error") return brokersResult;
 
   return {
     status: "ok",
-    value: rows.map((row) => mapAppointment(row, leadsResult.value, propertiesResult.value)),
+    value: rows.map((row) =>
+      mapAppointment(row, leadsResult.value, propertiesResult.value, brokersResult.value),
+    ),
   };
 }
 
@@ -210,11 +259,13 @@ export async function createAppointment(
       tenant_id: tenantId,
       lead_id: input.leadId ?? null,
       property_id: input.propertyId ?? null,
+      broker_user_id: input.brokerUserId ?? null,
       title: input.title,
       starts_at: input.startsAt,
       ends_at: input.endsAt ?? null,
       status: input.status,
       confirmation_status: input.confirmationStatus,
+      source: input.source,
       notes: input.notes ?? null,
     })
     .select(APPOINTMENT_COLUMNS)
@@ -242,6 +293,65 @@ export async function updateAppointmentStatus(
   const { data, error } = await supabase
     .from("yzi_imob_appointments")
     .update({ status, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", appointmentId)
+    .select(APPOINTMENT_COLUMNS)
+    .maybeSingle();
+
+  if (error) return { status: "error", code: "update_failed", detail: error.message };
+  if (!data) return { status: "error", code: "not_found" };
+
+  const hydrated = await hydrateAppointments(supabase, tenantId, [data as AppointmentRow]);
+  if (hydrated.status === "error") return hydrated;
+  const appointment = hydrated.value[0];
+  if (!appointment) return { status: "error", code: "not_found" };
+  return { status: "ok", value: appointment };
+}
+
+export async function updateAppointmentConfirmation(
+  supabase: SupabaseClient,
+  tenantId: string,
+  appointmentId: string,
+  confirmationStatus: YziImobAppointmentConfirmationStatus,
+): Promise<AgendaRepositoryResult<YziImobAppointment>> {
+  if (!APPOINTMENT_CONFIRMATION_STATUS_VALUES.includes(confirmationStatus)) {
+    return { status: "error", code: "invalid_confirmation_status" };
+  }
+
+  const { data, error } = await supabase
+    .from("yzi_imob_appointments")
+    .update({ confirmation_status: confirmationStatus, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", appointmentId)
+    .select(APPOINTMENT_COLUMNS)
+    .maybeSingle();
+
+  if (error) return { status: "error", code: "update_failed", detail: error.message };
+  if (!data) return { status: "error", code: "not_found" };
+
+  const hydrated = await hydrateAppointments(supabase, tenantId, [data as AppointmentRow]);
+  if (hydrated.status === "error") return hydrated;
+  const appointment = hydrated.value[0];
+  if (!appointment) return { status: "error", code: "not_found" };
+  return { status: "ok", value: appointment };
+}
+
+export async function rescheduleAppointment(
+  supabase: SupabaseClient,
+  tenantId: string,
+  appointmentId: string,
+  startsAt: string,
+  endsAt: string | null,
+): Promise<AgendaRepositoryResult<YziImobAppointment>> {
+  const startTime = Date.parse(startsAt);
+  const endTime = endsAt ? Date.parse(endsAt) : null;
+  if (!Number.isFinite(startTime) || (endTime !== null && (!Number.isFinite(endTime) || endTime < startTime))) {
+    return { status: "error", code: "invalid_schedule" };
+  }
+
+  const { data, error } = await supabase
+    .from("yzi_imob_appointments")
+    .update({ starts_at: startsAt, ends_at: endsAt, updated_at: new Date().toISOString() })
     .eq("tenant_id", tenantId)
     .eq("id", appointmentId)
     .select(APPOINTMENT_COLUMNS)

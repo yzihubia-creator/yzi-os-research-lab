@@ -23,11 +23,14 @@ export type YziImobAppointment = {
   leadName: string | null;
   propertyId: string | null;
   propertyTitle: string | null;
+  brokerUserId: string | null;
+  brokerName: string | null;
   title: string;
   startsAt: string;
   endsAt: string | null;
   status: YziImobAppointmentStatus | string;
   confirmationStatus: YziImobAppointmentConfirmationStatus | string;
+  source: string | null;
   notes: string | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -36,10 +39,12 @@ export type YziImobAppointment = {
 export type CreateAppointmentInput = {
   leadId?: string | null;
   propertyId?: string | null;
+  brokerUserId?: string | null;
   title: string;
   startsAt: string;
   endsAt?: string | null;
   status: YziImobAppointmentStatus;
   confirmationStatus: YziImobAppointmentConfirmationStatus;
+  source: string;
   notes?: string | null;
 };

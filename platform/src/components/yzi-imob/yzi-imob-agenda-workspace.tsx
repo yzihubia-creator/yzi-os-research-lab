@@ -17,6 +17,13 @@ import {
 
 type ViewMode = "mes" | "semana";
 type AccessState = "ready" | "no_membership" | "tenant_error" | "read_error";
+type AgendaAction = (formData: FormData) => void | Promise<void>;
+
+type AgendaActions = {
+  confirm: AgendaAction;
+  cancel: AgendaAction;
+  reschedule: AgendaAction;
+};
 
 type CalendarDay = {
   date: Date;
@@ -181,6 +188,14 @@ function emptyLabel(value: string | null | undefined): string {
   return value?.trim() || "Ainda sem dados";
 }
 
+function toDatetimeLocalValue(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function mapCalendarAppointment(appointment: YziImobAppointment): CalendarAppointment {
   const start = new Date(appointment.startsAt);
   const todayStart = startOfLocalDay(new Date());
@@ -198,8 +213,10 @@ function mapCalendarAppointment(appointment: YziImobAppointment): CalendarAppoin
       appointment.title,
       appointment.leadName ?? "",
       appointment.propertyTitle ?? "",
+      appointment.brokerName ?? "",
       appointment.status,
       appointment.confirmationStatus,
+      appointment.source ?? "",
       appointment.notes ?? "",
     ]
       .join(" ")
@@ -369,13 +386,17 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function EventInspector({
   appointment,
+  actions,
   onClose,
 }: {
   appointment: CalendarAppointment;
+  actions: AgendaActions;
   onClose: () => void;
 }) {
   const appointmentRole = statusRole(appointment.status);
   const confirmation = confirmationRole(appointment.confirmationStatus);
+  const canConfirm = appointment.confirmationStatus !== "confirmed" && appointment.status !== "cancelled";
+  const canCancel = appointment.status !== "cancelled" && appointment.status !== "completed";
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4 shadow-[var(--yzi-edge-highlight)]">
@@ -425,6 +446,8 @@ function EventInspector({
       <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3">
         <DetailRow label="Lead" value={emptyLabel(appointment.leadName)} />
         <DetailRow label="Imovel" value={emptyLabel(appointment.propertyTitle)} />
+        <DetailRow label="Corretor" value={emptyLabel(appointment.brokerName)} />
+        <DetailRow label="Origem" value={emptyLabel(appointment.source)} />
       </div>
 
       <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3">
@@ -456,6 +479,68 @@ function EventInspector({
           ) : null}
         </div>
       ) : null}
+
+      <div className="flex flex-col gap-3 border-t border-[color:var(--yzi-border-subtle)] pt-3">
+        <div className="flex flex-wrap gap-2">
+          {canConfirm ? (
+            <form action={actions.confirm}>
+              <input type="hidden" name="appointmentId" value={appointment.id} />
+              <button
+                type="submit"
+                className="h-8 rounded-[var(--yzi-radius-sm)] border px-3 text-[0.72rem] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                style={{
+                  borderColor: imobRgba("coldGreen", 0.32),
+                  color: imobRgba("coldGreen", 0.95),
+                }}
+              >
+                Confirmar
+              </button>
+            </form>
+          ) : null}
+          {canCancel ? (
+            <form action={actions.cancel}>
+              <input type="hidden" name="appointmentId" value={appointment.id} />
+              <button
+                type="submit"
+                className="h-8 rounded-[var(--yzi-radius-sm)] border px-3 text-[0.72rem] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                style={{
+                  borderColor: imobRgba("wine", 0.32),
+                  color: imobRgba("wine", 0.95),
+                }}
+              >
+                Cancelar
+              </button>
+            </form>
+          ) : null}
+        </div>
+        <form action={actions.reschedule} className="grid gap-2">
+          <input type="hidden" name="appointmentId" value={appointment.id} />
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Inicio
+            <input
+              type="datetime-local"
+              name="startsAt"
+              defaultValue={toDatetimeLocalValue(appointment.startsAt)}
+              className="h-8 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.72rem] text-[var(--yzi-text-primary)] outline-none"
+            />
+          </label>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Fim
+            <input
+              type="datetime-local"
+              name="endsAt"
+              defaultValue={toDatetimeLocalValue(appointment.endsAt)}
+              className="h-8 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.72rem] text-[var(--yzi-text-primary)] outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            className="h-8 w-fit rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
+          >
+            Reagendar
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -521,9 +606,11 @@ function AgendaSummary({
 export function YziImobAgendaWorkspace({
   appointments,
   accessState,
+  actions,
 }: {
   appointments: readonly YziImobAppointment[];
   accessState: AccessState;
+  actions: AgendaActions;
 }) {
   const [view, setView] = useState<ViewMode>("mes");
   const [cursor, setCursor] = useState(0);
@@ -718,7 +805,7 @@ export function YziImobAgendaWorkspace({
 
         <aside className="hidden w-[300px] shrink-0 flex-col gap-4 lg:flex">
           {selected ? (
-            <EventInspector appointment={selected} onClose={() => setSelectedId(null)} />
+            <EventInspector appointment={selected} actions={actions} onClose={() => setSelectedId(null)} />
           ) : (
             <AgendaSummary
               appointments={filtered}
@@ -732,7 +819,7 @@ export function YziImobAgendaWorkspace({
 
       {selected ? (
         <div className="lg:hidden">
-          <EventInspector appointment={selected} onClose={() => setSelectedId(null)} />
+          <EventInspector appointment={selected} actions={actions} onClose={() => setSelectedId(null)} />
         </div>
       ) : (
         <div className="lg:hidden">
