@@ -1,6 +1,6 @@
 import "server-only";
 
-import { sendGovernedMetaWhatsappText } from "../connections/meta-whatsapp-server";
+import { sendGovernedMetaWhatsappText } from "../connections/meta-whatsapp-server.ts";
 
 import {
   claimNextInboundOperation,
@@ -8,7 +8,7 @@ import {
   failInboundOperation,
   getInboundOperationMessage,
 } from "./database.ts";
-import { buildDeterministicWorkflowMessage } from "./deterministic-workflows";
+import { buildDeterministicWorkflowMessage } from "./deterministic-workflows.ts";
 import { classifyIntent } from "./intent-classifier.ts";
 import { FAILURE_CODES, type FailureCode, type ProcessOutcome } from "./types.ts";
 import { selectWorkflow } from "./workflow-selector.ts";

@@ -1,8 +1,8 @@
 import "server-only";
 
-import { recordInboundRunnerExecution } from "./database";
-import { processNextInboundOperation } from "./processor";
-import type { FailureCode, IntentKey, WorkflowKey } from "./types";
+import { recordInboundRunnerExecution } from "./database.ts";
+import { processNextInboundOperation } from "./processor.ts";
+import type { FailureCode, IntentKey, WorkflowKey } from "./types.ts";
 
 const CONTROLLED_STATUSES = new Set(["idle", "ready", "failed", "configuration_missing", "error"]);
 

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "inbound-operations:worker": "node --conditions=react-server scripts/run-inbound-operations-worker.mjs",
+    "follow-up:worker": "node --conditions=react-server scripts/run-yzi-imob-follow-up-worker.mjs",
+    "follow-up:recover": "node --conditions=react-server scripts/run-yzi-imob-operational-recovery.mjs",
     "remotion:studio": "remotion studio"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-import type { WorkflowKey } from "./types";
+import type { WorkflowKey } from "./types.ts";
 
 const WORKFLOW_MESSAGES: Record<WorkflowKey, string> = {
   whatsapp_greeting_response:
