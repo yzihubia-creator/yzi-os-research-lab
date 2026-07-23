@@ -186,6 +186,7 @@ export function normalizeStatusCallback(
   context: { wabaId: string | null; phoneNumberId: string | null },
 ): MetaWhatsappWebhookEvent | null {
   const record = asRecord(value);
+  const firstError = Array.isArray(record?.errors) ? asRecord(record.errors[0]) : null;
   const id = readString(record?.id);
   const status = readString(record?.status);
   const timestamp = readString(record?.timestamp);
@@ -203,6 +204,8 @@ export function normalizeStatusCallback(
       status,
       timestamp,
       recipient_id: readString(record?.recipient_id),
+      provider_error_code: readNumber(firstError?.code),
+      provider_error_subcode: readNumber(firstError?.error_subcode),
     }),
   };
 }
@@ -517,6 +520,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function stripNulls(input: Record<string, unknown>): Record<string, unknown> {

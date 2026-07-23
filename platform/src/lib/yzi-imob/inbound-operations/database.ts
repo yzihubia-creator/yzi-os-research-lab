@@ -207,6 +207,7 @@ export async function completeInboundOperation(
 }
 
 type FailRow = { status: string; request_id: string };
+type RunnerExecutionRow = { execution_id: string; created_at: string };
 
 /**
  * intentKey is required for workflow_selection_failed/completion_failed
@@ -241,6 +242,26 @@ export async function failInboundOperation(
     throw new Error("Invalid fail_inbound_operation result.");
   }
   return { status: "failed", requestId: row.request_id };
+}
+
+export async function recordInboundRunnerExecution(input: {
+  requestId?: string | null;
+  outcomeStatus: "idle" | "ready" | "failed" | "configuration_missing" | "error";
+  failureCode?: FailureCode | null;
+  intentKey?: IntentKey | null;
+  workflowKey?: WorkflowKey | null;
+}): Promise<void> {
+  const sql = await getVerifiedInboundOperationsSql();
+  await sql<RunnerExecutionRow[]>`
+    select execution_id, created_at
+    from yzi_imob_inbound_operations_private.record_inbound_runner_execution(
+      ${input.requestId ?? null}::uuid,
+      ${input.outcomeStatus}::text,
+      ${input.failureCode ?? null}::text,
+      ${input.intentKey ?? null}::text,
+      ${input.workflowKey ?? null}::text
+    )
+  `;
 }
 
 export async function closeInboundOperationsClient(): Promise<void> {
