@@ -27,6 +27,7 @@ export type FailureCode =
   | "invalid_message_contract"
   | "intent_classification_failed"
   | "workflow_selection_failed"
+  | "outbound_dispatch_failed"
   | "completion_failed";
 
 export const FAILURE_CODES: readonly FailureCode[] = [
@@ -36,6 +37,7 @@ export const FAILURE_CODES: readonly FailureCode[] = [
   "invalid_message_contract",
   "intent_classification_failed",
   "workflow_selection_failed",
+  "outbound_dispatch_failed",
   "completion_failed",
 ];
 

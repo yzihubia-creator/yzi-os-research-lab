@@ -1,11 +1,14 @@
 import "server-only";
 
+import { sendGovernedMetaWhatsappText } from "../connections/meta-whatsapp-server";
+
 import {
   claimNextInboundOperation,
   completeInboundOperation,
   failInboundOperation,
   getInboundOperationMessage,
 } from "./database.ts";
+import { buildDeterministicWorkflowMessage } from "./deterministic-workflows";
 import { classifyIntent } from "./intent-classifier.ts";
 import { FAILURE_CODES, type FailureCode, type ProcessOutcome } from "./types.ts";
 import { selectWorkflow } from "./workflow-selector.ts";
@@ -19,9 +22,10 @@ function toFailureCode(error: unknown, fallback: FailureCode): FailureCode {
 
 /**
  * Processes exactly one inbound operation request per call:
- * claim -> load message -> classify -> select workflow -> complete.
+ * claim -> load message -> classify -> select workflow -> build deterministic
+ * reply -> dispatch governed outbound -> complete.
  *
- * No LLM, no tool, no outbound send, no lead creation, no wide context.
+ * No LLM, no tool, no lead creation, no wide context.
  * Never logs or persists the message body. `fail_inbound_operation` is only
  * ever called once a request has already been claimed (its request_id is
  * always known at every failure point below).
@@ -55,6 +59,31 @@ export async function processNextInboundOperation(): Promise<ProcessOutcome> {
     // never happened.
     await failInboundOperation(requestId, "workflow_selection_failed", classification.intentKey);
     return { status: "failed", requestId, failureCode: "workflow_selection_failed" };
+  }
+
+  let outboundBody: string;
+  try {
+    outboundBody = buildDeterministicWorkflowMessage(workflowKey);
+  } catch {
+    await failInboundOperation(requestId, "workflow_selection_failed", classification.intentKey);
+    return { status: "failed", requestId, failureCode: "workflow_selection_failed" };
+  }
+
+  const outboundResult = await sendGovernedMetaWhatsappText({
+    tenantId: claimed.tenantId,
+    conversationId: claimed.conversationId,
+    body: outboundBody,
+    idempotencyKey: `inbound-operation:${requestId}`,
+  });
+
+  if (outboundResult.status !== "accepted") {
+    await failInboundOperation(
+      requestId,
+      "outbound_dispatch_failed",
+      classification.intentKey,
+      workflowKey,
+    );
+    return { status: "failed", requestId, failureCode: "outbound_dispatch_failed" };
   }
 
   try {
