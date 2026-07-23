@@ -1,6 +1,7 @@
 import "server-only";
 
 import postgres from "postgres";
+import { readMetaWhatsappDatabaseUrl } from "./meta-whatsapp-database.ts";
 
 const META_WHATSAPP_DATABASE_ROLE = "yzi_meta_whatsapp_runtime";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,31 +31,11 @@ type WhatsappInboundHandoffRow = {
 };
 
 function readWhatsappInboundHandoffDatabaseUrl(): string {
-  const connectionString = process.env.META_WHATSAPP_DATABASE_URL?.trim();
-  if (!connectionString) {
-    throw new Error("Meta WhatsApp inbound handoff configuration is unavailable.");
-  }
-
-  let url: URL;
-  try {
-    url = new URL(connectionString);
-  } catch {
-    throw new Error("Meta WhatsApp inbound handoff configuration is unavailable.");
-  }
-
-  const loginRole = decodeURIComponent(url.username).split(".", 1)[0];
-  const sslMode = url.searchParams.get("sslmode");
-  if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
-    loginRole !== META_WHATSAPP_DATABASE_ROLE ||
-    !url.password ||
-    !url.hostname ||
-    (process.env.NODE_ENV === "production" && sslMode !== "require")
-  ) {
-    throw new Error("Meta WhatsApp inbound handoff configuration is unavailable.");
-  }
-
-  return connectionString;
+  // META_WHATSAPP_DATABASE_URL is still the only secret input for this path.
+  return readMetaWhatsappDatabaseUrl({
+    expectedRole: META_WHATSAPP_DATABASE_ROLE,
+    unavailableMessage: "Meta WhatsApp inbound handoff configuration is unavailable.",
+  });
 }
 
 function getHandoffSql(): ReturnType<typeof postgres> {

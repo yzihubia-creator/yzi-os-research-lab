@@ -1,9 +1,10 @@
 import "server-only";
 
 import postgres from "postgres";
+import { readMetaWhatsappDatabaseUrl } from "./meta-whatsapp-database.ts";
 
 const META_WHATSAPP_DATABASE_ROLE = "yzi_meta_whatsapp_runtime";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let inboundSql: ReturnType<typeof postgres> | null = null;
 
@@ -26,31 +27,13 @@ type WhatsappInboundProcessingRow = {
 };
 
 function readWhatsappInboundDatabaseUrl(): string {
-  const connectionString = process.env.META_WHATSAPP_DATABASE_URL?.trim();
-  if (!connectionString) {
-    throw new Error("Meta WhatsApp inbound configuration is unavailable.");
-  }
-
-  let url: URL;
-  try {
-    url = new URL(connectionString);
-  } catch {
-    throw new Error("Meta WhatsApp inbound configuration is unavailable.");
-  }
-
-  const loginRole = decodeURIComponent(url.username).split(".", 1)[0];
-  const sslMode = url.searchParams.get("sslmode");
-  if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
-    loginRole !== META_WHATSAPP_DATABASE_ROLE ||
-    !url.password ||
-    !url.hostname ||
-    (process.env.NODE_ENV === "production" && sslMode !== "require")
-  ) {
-    throw new Error("Meta WhatsApp inbound configuration is unavailable.");
-  }
-
-  return connectionString;
+  // META_WHATSAPP_DATABASE_URL stays authoritative; the helper only normalizes
+  // the Supabase shared-pooler project_ref when the local outbound credential
+  // was provisioned against a stale ref.
+  return readMetaWhatsappDatabaseUrl({
+    expectedRole: META_WHATSAPP_DATABASE_ROLE,
+    unavailableMessage: "Meta WhatsApp inbound configuration is unavailable.",
+  });
 }
 
 function getInboundSql(): ReturnType<typeof postgres> {

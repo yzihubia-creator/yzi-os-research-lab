@@ -26,6 +26,17 @@ test("migration is incremental and introduces governed outbound message columns"
   assert.match(MIGRATION_SQL, /yzi_imob_messages_tenant_provider_channel_provider_message_unique/i);
 });
 
+test("outbound reservation uses the partial idempotency index predicate explicitly", () => {
+  const FIX_SQL = readFileSync(
+    new URL("../../supabase/migrations/20260723181500_yzi_imob_meta_whatsapp_outbound_idempotency_fix_v1.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    FIX_SQL,
+    /on conflict \(tenant_id, provider, channel, idempotency_key\)\s+where idempotency_key is not null\s+do nothing/i,
+  );
+});
+
 test("outbound private functions are runtime-only and never granted to frontend roles", () => {
   for (const fn of [
     "get_meta_whatsapp_outbound_context\\(uuid, uuid\\)",

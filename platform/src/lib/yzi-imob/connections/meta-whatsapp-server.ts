@@ -8,15 +8,20 @@ import {
   type MetaWhatsappPhoneNumberAsset,
   type MetaWhatsappWabaAsset,
   type MetaWhatsappWebhookEvent,
-} from "./meta-whatsapp";
+} from "./meta-whatsapp.ts";
 import {
   sendMetaWhatsappTextMessage,
-} from "./meta-whatsapp-outbound";
+} from "./meta-whatsapp-outbound.ts";
+import {
+  readMetaWhatsappDatabaseUrl,
+  verifyExpectedRuntimeIdentity,
+} from "./meta-whatsapp-database.ts";
 
 const META_WHATSAPP_DATABASE_ROLE = "yzi_meta_whatsapp_runtime";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
 let whatsappSql: ReturnType<typeof postgres> | null = null;
+let identityVerified = false;
 
 type DiscoveryContextRow = {
   connection_id: string;
@@ -94,34 +99,17 @@ export type GovernedMetaWhatsappOutboundResult =
     };
 
 function readWhatsappDatabaseUrl(): string {
-  const connectionString = process.env.META_WHATSAPP_DATABASE_URL?.trim();
-  if (!connectionString) {
-    throw new Error("Meta WhatsApp server configuration is unavailable.");
-  }
-
-  let url: URL;
-  try {
-    url = new URL(connectionString);
-  } catch {
-    throw new Error("Meta WhatsApp server configuration is unavailable.");
-  }
-
-  const loginRole = decodeURIComponent(url.username).split(".", 1)[0];
-  const sslMode = url.searchParams.get("sslmode");
-  if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
-    loginRole !== META_WHATSAPP_DATABASE_ROLE ||
-    !url.password ||
-    !url.hostname ||
-    (process.env.NODE_ENV === "production" && sslMode !== "require")
-  ) {
-    throw new Error("Meta WhatsApp server configuration is unavailable.");
-  }
-
-  return connectionString;
+  // META_WHATSAPP_DATABASE_URL remains the canonical secret input. For the
+  // Supabase shared pooler, the helper only canonicalizes the project_ref
+  // suffix against the already-proven inbound project when both runtimes share
+  // the same database cluster.
+  return readMetaWhatsappDatabaseUrl({
+    expectedRole: META_WHATSAPP_DATABASE_ROLE,
+    unavailableMessage: "Meta WhatsApp server configuration is unavailable.",
+  });
 }
 
-function getWhatsappSql(): ReturnType<typeof postgres> {
+async function getWhatsappSql(): Promise<ReturnType<typeof postgres>> {
   if (!whatsappSql) {
     whatsappSql = postgres(readWhatsappDatabaseUrl(), {
       max: 1,
@@ -131,6 +119,24 @@ function getWhatsappSql(): ReturnType<typeof postgres> {
       max_lifetime: 60 * 10,
     });
   }
+
+  if (!identityVerified) {
+    try {
+      await verifyExpectedRuntimeIdentity(
+        whatsappSql,
+        META_WHATSAPP_DATABASE_ROLE,
+        "Meta WhatsApp server configuration is unavailable.",
+      );
+      identityVerified = true;
+    } catch {
+      const sql = whatsappSql;
+      whatsappSql = null;
+      identityVerified = false;
+      await sql.end({ timeout: 5 }).catch(() => {});
+      throw new Error("Meta WhatsApp server configuration is unavailable.");
+    }
+  }
+
   return whatsappSql;
 }
 
@@ -143,7 +149,7 @@ export async function runMetaWhatsappDiscovery(
   }
 
   try {
-    const sql = getWhatsappSql();
+    const sql = await getWhatsappSql();
     const rows = await sql<DiscoveryContextRow[]>`
       select connection_id, tenant_id, graph_api_version, meta_access_token
       from yzi_meta_whatsapp_private.get_meta_whatsapp_discovery_context(
@@ -190,7 +196,7 @@ async function persistMetaWhatsappAssets(input: {
   wabas: MetaWhatsappWabaAsset[];
   phoneNumbers: MetaWhatsappPhoneNumberAsset[];
 }): Promise<void> {
-  const sql = getWhatsappSql();
+  const sql = await getWhatsappSql();
   await sql`
     select waba_count, phone_number_count, persisted_at
     from yzi_meta_whatsapp_private.upsert_meta_whatsapp_assets(
@@ -209,7 +215,7 @@ export async function persistMetaWhatsappWebhookEvents(
   }
 
   try {
-    const sql = getWhatsappSql();
+    const sql = await getWhatsappSql();
     let inserted = false;
     let eventId = "";
     let createdAt = "";
@@ -273,7 +279,7 @@ export async function sendGovernedMetaWhatsappText(input: {
   fetchImpl?: typeof fetch;
 }): Promise<GovernedMetaWhatsappOutboundResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
-  const sql = getWhatsappSql();
+  const sql = await getWhatsappSql();
 
   let reservation: ReserveOutboundRow;
   try {
@@ -437,6 +443,7 @@ function mapOutboundSqlError(error: unknown): GovernedMetaWhatsappOutboundResult
 export async function closeMetaWhatsappServerClient(): Promise<void> {
   const sql = whatsappSql;
   whatsappSql = null;
+  identityVerified = false;
   if (sql) {
     await sql.end({ timeout: 5 });
   }
