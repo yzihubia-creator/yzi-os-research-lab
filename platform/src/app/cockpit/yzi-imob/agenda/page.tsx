@@ -7,12 +7,18 @@ import {
   cancelAppointmentAction,
   confirmAppointmentAction,
   rescheduleAppointmentAction,
+  recordVisitFeedbackAction,
 } from "./actions";
+import {
+  listAppointmentsMissingFeedback,
+  listVisitFeedbackForTenant,
+} from "@/lib/yzi-imob/operations/repository";
 
 const agendaActions = {
   confirm: confirmAppointmentAction,
   cancel: cancelAppointmentAction,
   reschedule: rescheduleAppointmentAction,
+  feedback: recordVisitFeedbackAction,
 };
 
 export default async function YziImobAgendaPage() {
@@ -31,11 +37,27 @@ export default async function YziImobAgendaPage() {
   }
 
   const supabase = await createServerSupabaseClient();
-  const result = await listAppointmentsForTenant(supabase, tenantContext.tenant.id);
+  const [result, feedbackResult, missingFeedbackResult] = await Promise.all([
+    listAppointmentsForTenant(supabase, tenantContext.tenant.id),
+    listVisitFeedbackForTenant(supabase, tenantContext.tenant.id),
+    listAppointmentsMissingFeedback(supabase, tenantContext.tenant.id),
+  ]);
 
-  if (result.status === "error") {
+  if (
+    result.status === "error" ||
+    feedbackResult.status === "error" ||
+    missingFeedbackResult.status === "error"
+  ) {
     return <YziImobAgendaWorkspace appointments={[]} accessState="read_error" actions={agendaActions} />;
   }
 
-  return <YziImobAgendaWorkspace appointments={result.value.items} accessState="ready" actions={agendaActions} />;
+  return (
+    <YziImobAgendaWorkspace
+      appointments={result.value.items}
+      feedback={feedbackResult.value}
+      missingFeedbackAppointmentIds={missingFeedbackResult.value.map((item) => item.id)}
+      accessState="ready"
+      actions={agendaActions}
+    />
+  );
 }

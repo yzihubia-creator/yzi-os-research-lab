@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import { ArrowRightIcon, SearchIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
 import {
@@ -14,15 +14,25 @@ import {
   type YziImobAppointmentConfirmationStatus,
   type YziImobAppointmentStatus,
 } from "@/lib/yzi-imob/agenda/types";
+import {
+  INITIAL_OPERATIONAL_ACTION_STATE,
+  type OperationalActionState,
+} from "@/lib/yzi-imob/operations/action-state";
+import type { VisitFeedback } from "@/lib/yzi-imob/operations/types";
 
 type ViewMode = "mes" | "semana";
 type AccessState = "ready" | "no_membership" | "tenant_error" | "read_error";
 type AgendaAction = (formData: FormData) => void | Promise<void>;
+type FeedbackAction = (
+  state: OperationalActionState,
+  formData: FormData,
+) => Promise<OperationalActionState>;
 
 type AgendaActions = {
   confirm: AgendaAction;
   cancel: AgendaAction;
   reschedule: AgendaAction;
+  feedback: FeedbackAction;
 };
 
 type CalendarDay = {
@@ -386,10 +396,14 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function EventInspector({
   appointment,
+  feedback,
+  missingFeedback,
   actions,
   onClose,
 }: {
   appointment: CalendarAppointment;
+  feedback: VisitFeedback | null;
+  missingFeedback: boolean;
   actions: AgendaActions;
   onClose: () => void;
 }) {
@@ -397,6 +411,10 @@ function EventInspector({
   const confirmation = confirmationRole(appointment.confirmationStatus);
   const canConfirm = appointment.confirmationStatus !== "confirmed" && appointment.status !== "cancelled";
   const canCancel = appointment.status !== "cancelled" && appointment.status !== "completed";
+  const [feedbackState, feedbackAction, feedbackPending] = useActionState(
+    actions.feedback,
+    INITIAL_OPERATIONAL_ACTION_STATE,
+  );
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4 shadow-[var(--yzi-edge-highlight)]">
@@ -431,6 +449,11 @@ function EventInspector({
         >
           {statusLabel(appointment.status)}
         </span>
+        {missingFeedback ? (
+          <span className="w-fit rounded-full border border-amber-400/30 px-2.5 py-1 text-[0.66rem] text-amber-300">
+            Feedback pendente
+          </span>
+        ) : null}
         <span
           className="w-fit rounded-full border px-2.5 py-1 text-[0.66rem]"
           style={{
@@ -475,6 +498,14 @@ function EventInspector({
               className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
             >
               Ver lead <ArrowRightIcon className="h-3 w-3" />
+            </Link>
+          ) : null}
+          {appointment.brokerUserId ? (
+            <Link
+              href={`/cockpit/yzi-imob/corretores/${appointment.brokerUserId}`}
+              className="inline-flex items-center gap-1 text-[0.7rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
+            >
+              Ver corretor <ArrowRightIcon className="h-3 w-3" />
             </Link>
           ) : null}
         </div>
@@ -541,6 +572,102 @@ function EventInspector({
           </button>
         </form>
       </div>
+
+      {feedback ? (
+        <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-3">
+          <p className="text-[0.68rem] font-medium text-[var(--yzi-text-primary)]">
+            Feedback da visita
+          </p>
+          <p className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
+            {feedback.clientAttendance} · {feedback.outcome}
+          </p>
+          <p className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
+            {feedback.observation ?? "Sem observacao"}
+          </p>
+          {feedback.nextAction ? (
+            <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
+              Proxima acao: {feedback.nextAction} · {emptyLabel(feedback.nextActionAt)}
+            </p>
+          ) : null}
+        </div>
+      ) : appointment.status === "completed" ? (
+        <form
+          action={feedbackAction}
+          className="grid gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-3"
+        >
+          <input type="hidden" name="appointmentId" value={appointment.id} />
+          <p className="text-[0.68rem] font-medium text-[var(--yzi-text-primary)]">
+            Registrar feedback
+          </p>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Comparecimento
+            <select name="clientAttendance" required className={selectClass} defaultValue="attended">
+              <option value="attended">Compareceu</option>
+              <option value="no_show">Nao compareceu</option>
+              <option value="unknown">Nao informado</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Resultado
+            <select name="outcome" required className={selectClass} defaultValue="undisclosed">
+              <option value="interested">Interesse</option>
+              <option value="not_interested">Sem interesse</option>
+              <option value="proposal_requested">Deseja proposta</option>
+              <option value="follow_up_required">Precisa follow-up</option>
+              <option value="undisclosed">Nao informado</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Observacao
+            <textarea
+              name="observation"
+              rows={3}
+              className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 py-2 text-[0.72rem] text-[var(--yzi-text-primary)] outline-none"
+            />
+          </label>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Proxima acao
+            <input
+              name="nextAction"
+              className="h-8 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.72rem] text-[var(--yzi-text-primary)] outline-none"
+            />
+          </label>
+          <label className="grid gap-1 text-[0.68rem] text-[var(--yzi-text-faint)]">
+            Quando
+            <input
+              type="datetime-local"
+              name="nextActionAt"
+              className="h-8 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.72rem] text-[var(--yzi-text-primary)] outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={feedbackPending}
+            className="h-8 w-fit rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 text-[0.72rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+          >
+            Salvar feedback
+          </button>
+          {feedbackState.status !== "idle" ? (
+            <p
+              role="status"
+              className={
+                feedbackState.status === "saved"
+                  ? "text-[0.7rem] text-emerald-300"
+                  : "text-[0.7rem] text-rose-300"
+              }
+            >
+              {feedbackState.message}
+            </p>
+          ) : null}
+        </form>
+      ) : appointment.status === "cancelled" ? (
+        <p
+          title="Visitas canceladas nao recebem feedback"
+          className="border-t border-[color:var(--yzi-border-subtle)] pt-3 text-[0.7rem] text-[var(--yzi-text-faint)]"
+        >
+          Feedback indisponivel para visita cancelada.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -605,10 +732,14 @@ function AgendaSummary({
 
 export function YziImobAgendaWorkspace({
   appointments,
+  feedback = [],
+  missingFeedbackAppointmentIds = [],
   accessState,
   actions,
 }: {
   appointments: readonly YziImobAppointment[];
+  feedback?: readonly VisitFeedback[];
+  missingFeedbackAppointmentIds?: readonly string[];
   accessState: AccessState;
   actions: AgendaActions;
 }) {
@@ -657,6 +788,13 @@ export function YziImobAgendaWorkspace({
   const selected = selectedId
     ? calendarAppointments.find((appointment) => appointment.id === selectedId) ?? null
     : null;
+  const selectedFeedback = selected
+    ? feedback.find((item) => item.appointmentId === selected.id) ?? null
+    : null;
+  const missingFeedbackSet = useMemo(
+    () => new Set(missingFeedbackAppointmentIds),
+    [missingFeedbackAppointmentIds],
+  );
 
   function switchView(next: ViewMode) {
     if (next !== view) {
@@ -805,7 +943,13 @@ export function YziImobAgendaWorkspace({
 
         <aside className="hidden w-[300px] shrink-0 flex-col gap-4 lg:flex">
           {selected ? (
-            <EventInspector appointment={selected} actions={actions} onClose={() => setSelectedId(null)} />
+            <EventInspector
+              appointment={selected}
+              feedback={selectedFeedback}
+              missingFeedback={missingFeedbackSet.has(selected.id)}
+              actions={actions}
+              onClose={() => setSelectedId(null)}
+            />
           ) : (
             <AgendaSummary
               appointments={filtered}
@@ -819,7 +963,13 @@ export function YziImobAgendaWorkspace({
 
       {selected ? (
         <div className="lg:hidden">
-          <EventInspector appointment={selected} actions={actions} onClose={() => setSelectedId(null)} />
+          <EventInspector
+            appointment={selected}
+            feedback={selectedFeedback}
+            missingFeedback={missingFeedbackSet.has(selected.id)}
+            actions={actions}
+            onClose={() => setSelectedId(null)}
+          />
         </div>
       ) : (
         <div className="lg:hidden">
