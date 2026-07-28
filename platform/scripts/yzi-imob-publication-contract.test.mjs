@@ -27,8 +27,12 @@ const REPOSITORY = source("../src/lib/yzi-imob/publication/repository.ts");
 const PAYLOAD_SOURCE = source("../src/lib/yzi-imob/publication/payload.ts");
 const SITE_PAGE = source("../src/app/cockpit/yzi-imob/site/page.tsx");
 const PROPERTY_PAGE = source("../src/app/cockpit/yzi-imob/imoveis/[id]/page.tsx");
+const PROPERTY_LAYOUT = source("../src/app/cockpit/yzi-imob/imoveis/[id]/layout.tsx");
 const PROPERTY_WORKSPACE = source(
   "../src/components/yzi-imob/yzi-imob-property-workspace.tsx",
+);
+const PROPERTY_PUBLICATION_ADAPTER = source(
+  "../src/components/yzi-imob/yzi-imob-property-publication-workspace-adapter.tsx",
 );
 
 function property(overrides = {}) {
@@ -310,9 +314,11 @@ test("repository queries always carry tenant/property boundaries", () => {
 test("site and property workspace consume governance without a CMS or raw payload", () => {
   assert.match(SITE_PAGE, /getSitePublicationGovernanceSummary/);
   assert.doesNotMatch(SITE_PAGE, /YziImobSiteSilosV0/);
-  assert.match(PROPERTY_PAGE, /getPropertyPublicationWorkspace/);
-  assert.match(PROPERTY_PAGE, /evaluatePropertyPublicationReadiness/);
-  assert.match(PROPERTY_WORKSPACE, /YziImobPropertyPublicationPanel/);
+  assert.match(PROPERTY_LAYOUT, /getPropertyPublicationWorkspace/);
+  assert.match(PROPERTY_LAYOUT, /evaluatePropertyPublicationReadiness/);
+  assert.match(PROPERTY_PAGE, /getPropertyWorkspaceData/);
+  assert.match(PROPERTY_WORKSPACE, /YziImobPropertyPublicationWorkspaceSlot/);
+  assert.match(PROPERTY_PUBLICATION_ADAPTER, /YziImobPropertyPublicationPanel/);
   assert.doesNotMatch(PROPERTY_WORKSPACE, /Publicacao - em breve/);
   assert.doesNotMatch(PROPERTY_WORKSPACE, /content_snapshot|raw payload/i);
   assert.doesNotMatch(PAYLOAD_SOURCE, /privateLocation|accessInstructions|meetingPoint/);

@@ -30,17 +30,29 @@ const SIGNAL_META: Record<RadarSignalKind, { label: string; role: YziImobRole; i
   appointment_pending: { label: "Agenda pendente", role: "cyan", icon: TargetIcon },
   inbound_failure: { label: "Falha inbound", role: "wine", icon: TrendDownIcon },
   high_score_interest: { label: "Score alto", role: "coldGreen", icon: TrendUpIcon },
+  social_publish_failed: { label: "Publicação falhou", role: "wine", icon: TrendDownIcon },
+  social_publish_stalled: { label: "Publicação parada", role: "amber", icon: TrendDownIcon },
+  metricool_connection_attention: { label: "Metricool com atenção", role: "wine", icon: StackIcon },
+  approved_content_unscheduled: { label: "Aprovado sem agenda", role: "amber", icon: TargetIcon },
+  social_metrics_missing: { label: "Métricas ausentes", role: "graphite", icon: SearchIcon },
+  social_sync_delayed: { label: "Sincronização atrasada", role: "amber", icon: TrendDownIcon },
 };
 
 const SIGNAL_ORDER: Record<RadarSignalKind, number> = {
-  inbound_failure: 0,
-  appointment_pending: 1,
-  conversation_stalled: 2,
-  hot_lead_without_progress: 3,
-  lead_without_recent_interaction: 4,
-  high_score_interest: 5,
-  property_incomplete: 6,
-  property_without_interest: 7,
+  social_publish_failed: 0,
+  metricool_connection_attention: 1,
+  social_publish_stalled: 2,
+  social_sync_delayed: 3,
+  social_metrics_missing: 4,
+  approved_content_unscheduled: 5,
+  inbound_failure: 6,
+  appointment_pending: 7,
+  conversation_stalled: 8,
+  hot_lead_without_progress: 9,
+  lead_without_recent_interaction: 10,
+  high_score_interest: 11,
+  property_incomplete: 12,
+  property_without_interest: 13,
 };
 
 function formatLastSeen(iso: string | null): string {
