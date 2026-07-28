@@ -161,14 +161,13 @@ export function YziImobGrowthResultadosV0({
   data: ResultsWorkspaceData | null;
 }) {
   const { select } = useYziImobWorkspace();
-  const headline = data?.summary.operation ?? [];
   const counters = useMemo(
-    () => headline.slice(0, 5).map((metric) => ({
+    () => (data?.summary.operation ?? []).slice(0, 5).map((metric) => ({
       label: metric.label,
       value: formatNumber(metric.value),
       detail: metric.availability === "available" ? metric.detail : availabilityLabel(metric.availability),
     })),
-    [headline],
+    [data],
   );
 
   useEffect(() => {
