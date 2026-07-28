@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { listAppointmentsForTenant } from "@/lib/yzi-imob/agenda/repository";
 import type { YziImobAppointment } from "@/lib/yzi-imob/agenda/types";
 
 import {
@@ -11,9 +12,11 @@ import {
   type CreateLeadAssignmentInput,
   type FollowUpTask,
   type FollowUpTaskKind,
+  type EligibleBroker,
   type LeadAssignment,
   type LeadAssignmentStatus,
   type LeadOperationalPacket,
+  type LeadOperationsWorkspace,
   type RecordVisitFeedbackInput,
   type VisitFeedback,
 } from "./types";
@@ -71,7 +74,11 @@ const FOLLOW_UP_TASK_COLUMNS = [
   "due_at",
   "notes",
   "source",
+  "scheduled_at",
+  "attempt_count",
+  "max_attempts",
   "last_attempt_at",
+  "last_error_code",
   "completed_at",
   "created_at",
   "updated_at",
@@ -171,7 +178,11 @@ type FollowUpTaskRow = {
   due_at: string;
   notes: string | null;
   source: string;
+  scheduled_at: string | null;
+  attempt_count: number;
+  max_attempts: number;
   last_attempt_at: string | null;
+  last_error_code: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -258,7 +269,11 @@ function mapFollowUpTask(row: FollowUpTaskRow): FollowUpTask {
     dueAt: row.due_at,
     notes: trimOrNull(row.notes),
     source: row.source,
+    scheduledAt: row.scheduled_at,
+    attemptCount: row.attempt_count,
+    maxAttempts: row.max_attempts,
     lastAttemptAt: row.last_attempt_at,
+    lastErrorCode: trimOrNull(row.last_error_code),
     completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -358,23 +373,82 @@ export async function listLeadAssignmentsForTenant(
 export async function listEligibleBrokersForTenant(
   supabase: SupabaseClient,
   tenantId: string,
-): Promise<OperationsRepositoryResult<readonly { userId: string; displayName: string | null }[]>> {
-  const { data, error } = await supabase
-    .from("tenant_member_profiles")
-    .select("user_id, display_name, membership_id")
-    .eq("tenant_id", tenantId)
-    .order("display_name", { ascending: true });
+  actorUserId?: string,
+): Promise<OperationsRepositoryResult<readonly EligibleBroker[]>> {
+  const [membersResult, profilesResult] = await Promise.all([
+    supabase.rpc("list_yzi_imob_team_members"),
+    supabase
+      .from("tenant_member_profiles")
+      .select("user_id, display_name, membership_id")
+      .eq("tenant_id", tenantId)
+      .order("display_name", { ascending: true }),
+  ]);
 
-  if (error) return { status: "error", code: "read_failed", detail: error.message };
+  if (membersResult.error || profilesResult.error || !membersResult.data) {
+    return {
+      status: "error",
+      code: "read_failed",
+      detail: membersResult.error?.message ?? profilesResult.error?.message,
+    };
+  }
+
+  const eligibleMembershipIds = new Set(
+    (
+      membersResult.data as Array<{
+        member_id: string;
+        is_self: boolean;
+        operational_availability: string;
+        role: string;
+        status: string;
+      }>
+    )
+      .filter(
+        (member) =>
+          member.status === "active" &&
+          member.role !== "viewer" &&
+          member.operational_availability === "available",
+      )
+      .map((member) => member.member_id),
+  );
+  const selfMember = (
+    membersResult.data as Array<{
+      member_id: string;
+      is_self: boolean;
+      operational_availability: string;
+      role: string;
+      status: string;
+    }>
+  ).find(
+    (member) =>
+      member.is_self &&
+      member.status === "active" &&
+      member.role !== "viewer" &&
+      member.operational_availability === "available",
+  );
 
   return {
     status: "ok",
-    value: ((data as { user_id: string; display_name: string | null; membership_id: string }[] | null) ?? []).map(
-      (row) => ({
+    value: [
+      ...(
+      (profilesResult.data as {
+        user_id: string;
+        display_name: string | null;
+        membership_id: string;
+      }[] | null) ?? []
+    )
+      .filter((row) => eligibleMembershipIds.has(row.membership_id))
+      .map((row) => ({
         userId: row.user_id,
         displayName: trimOrNull(row.display_name),
-      }),
-    ),
+      })),
+      ...(actorUserId &&
+      selfMember &&
+      !(
+        (profilesResult.data as { membership_id: string }[] | null) ?? []
+      ).some((profile) => profile.membership_id === selfMember.member_id)
+        ? [{ userId: actorUserId, displayName: null }]
+        : []),
+    ],
   };
 }
 
@@ -475,7 +549,21 @@ export async function assignLeadToBroker(
     .select(ASSIGNMENT_COLUMNS)
     .single();
 
-  if (error || !data) return { status: "error", code: "insert_failed", detail: error?.message };
+  if (error || !data) {
+    if (currentActive) {
+      const previous = currentActive as unknown as AssignmentRow;
+      await supabase
+        .from("yzi_imob_lead_assignments")
+        .update({
+          status: previous.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("tenant_id", tenantId)
+        .eq("id", previous.id)
+        .eq("status", "reassigned");
+    }
+    return { status: "error", code: "insert_failed", detail: error?.message };
+  }
 
   const upsertTask = await upsertFollowUpTaskForAssignment(
     supabase,
@@ -551,6 +639,7 @@ async function upsertFollowUpTaskForAssignment(
 export async function respondToLeadAssignment(
   supabase: SupabaseClient,
   tenantId: string,
+  actorUserId: string,
   assignmentId: string,
   decision: "accepted" | "declined",
 ): Promise<OperationsRepositoryResult<LeadAssignment>> {
@@ -570,6 +659,8 @@ export async function respondToLeadAssignment(
     .update(patch)
     .eq("tenant_id", tenantId)
     .eq("id", assignmentId)
+    .eq("broker_user_id", actorUserId)
+    .eq("status", "assigned")
     .select(ASSIGNMENT_COLUMNS)
     .maybeSingle();
 
@@ -577,21 +668,19 @@ export async function respondToLeadAssignment(
   if (!data) return { status: "error", code: "not_found" };
 
   const assignment = data as unknown as AssignmentRow;
-  if (decision !== "accepted") {
-    const { error: taskError } = await supabase
-      .from("yzi_imob_follow_up_tasks")
-      .update({
-        status: "cancelled",
-        completed_at: now,
-        updated_at: now,
-      })
-      .eq("tenant_id", tenantId)
-      .eq("assignment_id", assignment.id)
-      .eq("kind", "assignment_response_due")
-      .in("status", ["pending", "processing"]);
+  const { error: taskError } = await supabase
+    .from("yzi_imob_follow_up_tasks")
+    .update({
+      status: decision === "accepted" ? "completed" : "cancelled",
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("tenant_id", tenantId)
+    .eq("assignment_id", assignment.id)
+    .eq("kind", "assignment_response_due")
+    .in("status", ["pending", "processing"]);
 
-    if (taskError) return { status: "error", code: "update_failed", detail: taskError.message };
-  }
+  if (taskError) return { status: "error", code: "update_failed", detail: taskError.message };
 
   const [leadNames, brokerNames] = await Promise.all([
     listLeadNamesById(supabase, tenantId, [assignment.lead_id]),
@@ -997,5 +1086,63 @@ export async function listAppointmentsMissingFeedback(
   return {
     status: "ok",
     value: appointments.filter((appointment) => !covered.has(appointment.id)),
+  };
+}
+
+export async function getLeadOperationsWorkspace(
+  supabase: SupabaseClient,
+  tenantId: string,
+  leadId: string,
+  actorUserId?: string,
+): Promise<OperationsRepositoryResult<LeadOperationsWorkspace>> {
+  const [
+    packetResult,
+    assignmentsResult,
+    eligibleBrokersResult,
+    appointmentsResult,
+    feedbackResult,
+    followUpsResult,
+  ] = await Promise.all([
+    getLeadOperationalPacket(supabase, tenantId, leadId),
+    listLeadAssignmentsForTenant(supabase, tenantId),
+    listEligibleBrokersForTenant(supabase, tenantId, actorUserId),
+    listAppointmentsForTenant(supabase, tenantId),
+    listVisitFeedbackForTenant(supabase, tenantId),
+    listFollowUpTasksForTenant(supabase, tenantId),
+  ]);
+
+  if (packetResult.status === "error") return packetResult;
+  if (assignmentsResult.status === "error") return assignmentsResult;
+  if (eligibleBrokersResult.status === "error") return eligibleBrokersResult;
+  if (appointmentsResult.status === "error") {
+    return { status: "error", code: "read_failed", detail: appointmentsResult.detail };
+  }
+  if (feedbackResult.status === "error") return feedbackResult;
+  if (followUpsResult.status === "error") return followUpsResult;
+
+  const assignments = assignmentsResult.value.filter(
+    (assignment) => assignment.leadId === leadId,
+  );
+  const assignmentIds = new Set(assignments.map((assignment) => assignment.id));
+  const appointments = appointmentsResult.value.items.filter(
+    (appointment) => appointment.leadId === leadId,
+  );
+  const appointmentIds = new Set(appointments.map((appointment) => appointment.id));
+
+  return {
+    status: "ok",
+    value: {
+      packet: packetResult.value,
+      assignments,
+      eligibleBrokers: eligibleBrokersResult.value,
+      appointments,
+      feedback: feedbackResult.value.filter((item) => item.leadId === leadId),
+      followUps: followUpsResult.value.filter(
+        (task) =>
+          task.leadId === leadId ||
+          (task.assignmentId !== null && assignmentIds.has(task.assignmentId)) ||
+          (task.appointmentId !== null && appointmentIds.has(task.appointmentId)),
+      ),
+    },
   };
 }

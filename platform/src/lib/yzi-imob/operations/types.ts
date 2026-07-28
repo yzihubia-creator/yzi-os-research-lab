@@ -116,7 +116,11 @@ export type FollowUpTask = {
   dueAt: string;
   notes: string | null;
   source: string;
+  scheduledAt: string | null;
+  attemptCount: number;
+  maxAttempts: number;
   lastAttemptAt: string | null;
+  lastErrorCode: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -142,3 +146,18 @@ export type RecordVisitFeedbackInput = {
   nextActionAt?: string | null;
   feedbackAt?: string | null;
 };
+
+export type EligibleBroker = {
+  userId: string;
+  displayName: string | null;
+};
+
+export type LeadOperationsWorkspace = {
+  packet: LeadOperationalPacket;
+  assignments: readonly LeadAssignment[];
+  eligibleBrokers: readonly EligibleBroker[];
+  appointments: readonly YziImobAppointment[];
+  feedback: readonly VisitFeedback[];
+  followUps: readonly FollowUpTask[];
+};
+import type { YziImobAppointment } from "@/lib/yzi-imob/agenda/types";
