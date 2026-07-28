@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -2228,6 +2228,75 @@ export type Database = {
           },
         ]
       }
+      yzi_imob_property_media: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          is_cover: boolean
+          is_publication_allowed: boolean
+          media_type: string
+          processing_status: string
+          property_id: string
+          public_url: string | null
+          sort_order: number
+          storage_bucket: string | null
+          storage_path: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          is_cover?: boolean
+          is_publication_allowed?: boolean
+          media_type: string
+          processing_status?: string
+          property_id: string
+          public_url?: string | null
+          sort_order?: number
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          is_cover?: boolean
+          is_publication_allowed?: boolean
+          media_type?: string
+          processing_status?: string
+          property_id?: string
+          public_url?: string | null
+          sort_order?: number
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_property_media_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_media_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       yzi_imob_property_private_locations: {
         Row: {
           access_instructions: string | null
@@ -2356,6 +2425,348 @@ export type Database = {
           },
           {
             foreignKeyName: "yzi_imob_property_proximities_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_property_publication_events: {
+        Row: {
+          actor_user_id: string | null
+          correlation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          job_id: string | null
+          metadata: Json
+          property_id: string
+          publication_channel: string
+          revision_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          property_id: string
+          publication_channel?: string
+          revision_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          property_id?: string
+          publication_channel?: string
+          revision_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_property_publication_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_events_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_events_revision_fkey"
+            columns: ["revision_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_revisions"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_property_publication_jobs: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          correlation_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          idempotency_key: string
+          last_error_code: string | null
+          last_retry_idempotency_key: string | null
+          max_attempts: number
+          operation: string
+          property_id: string
+          publication_channel: string
+          publication_id: string
+          publication_version: number
+          revision_id: string
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          idempotency_key: string
+          last_error_code?: string | null
+          last_retry_idempotency_key?: string | null
+          max_attempts?: number
+          operation: string
+          property_id: string
+          publication_channel?: string
+          publication_id: string
+          publication_version: number
+          revision_id: string
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          correlation_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error_code?: string | null
+          last_retry_idempotency_key?: string | null
+          max_attempts?: number
+          operation?: string
+          property_id?: string
+          publication_channel?: string
+          publication_id?: string
+          publication_version?: number
+          revision_id?: string
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_property_publication_jobs_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_jobs_publication_fkey"
+            columns: ["publication_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publications"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_jobs_revision_fkey"
+            columns: ["revision_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_revisions"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_property_publication_revisions: {
+        Row: {
+          content_hash: string
+          content_snapshot: Json
+          created_at: string
+          created_by_user_id: string
+          decided_at: string | null
+          decided_by_user_id: string | null
+          id: string
+          property_id: string
+          public_slug: string
+          review_observation: string | null
+          review_requested_at: string
+          revision_number: number
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          content_snapshot: Json
+          created_at?: string
+          created_by_user_id: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          id?: string
+          property_id: string
+          public_slug: string
+          review_observation?: string | null
+          review_requested_at?: string
+          revision_number: number
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          content_snapshot?: Json
+          created_at?: string
+          created_by_user_id?: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          id?: string
+          property_id?: string
+          public_slug?: string
+          review_observation?: string | null
+          review_requested_at?: string
+          revision_number?: number
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_property_publication_revisions_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publication_revisions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_property_publications: {
+        Row: {
+          approved_by_user_id: string | null
+          approved_revision_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          current_revision_id: string | null
+          id: string
+          idempotency_key: string | null
+          last_synced_at: string | null
+          paused_at: string | null
+          property_id: string
+          public_slug: string | null
+          public_url: string | null
+          publication_channel: string
+          publication_version: number
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
+          sync_error_code: string | null
+          tenant_id: string
+          unpublished_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_by_user_id?: string | null
+          approved_revision_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          current_revision_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_synced_at?: string | null
+          paused_at?: string | null
+          property_id: string
+          public_slug?: string | null
+          public_url?: string | null
+          publication_channel?: string
+          publication_version?: number
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          sync_error_code?: string | null
+          tenant_id: string
+          unpublished_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_by_user_id?: string | null
+          approved_revision_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          current_revision_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_synced_at?: string | null
+          paused_at?: string | null
+          property_id?: string
+          public_slug?: string | null
+          public_url?: string | null
+          publication_channel?: string
+          publication_version?: number
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          sync_error_code?: string | null
+          tenant_id?: string
+          unpublished_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_property_publications_approved_revision_fkey"
+            columns: ["approved_revision_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_revisions"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publications_current_revision_fkey"
+            columns: ["current_revision_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_revisions"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publications_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_property_publications_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2797,6 +3208,34 @@ export type Database = {
           tenant_slug: string
         }[]
       }
+      decide_yzi_imob_property_publication_revision: {
+        Args: {
+          p_decision: string
+          p_observation?: string
+          p_revision_id: string
+        }
+        Returns: {
+          publication_id: string
+          publication_status: string
+          revision_id: string
+          revision_status: string
+        }[]
+      }
+      enqueue_yzi_imob_property_publication: {
+        Args: {
+          p_idempotency_key: string
+          p_operation: string
+          p_property_id: string
+          p_scheduled_at?: string
+        }
+        Returns: {
+          job_id: string
+          job_status: string
+          publication_id: string
+          publication_version: number
+          reused: boolean
+        }[]
+      }
       get_yzi_imob_property_private_location: {
         Args: { p_property_id: string }
         Returns: {
@@ -2857,6 +3296,30 @@ export type Database = {
           updated_at: string
         }[]
       }
+      mark_yzi_imob_property_publication_failed: {
+        Args: { p_error_code: string; p_job_id: string }
+        Returns: {
+          job_id: string
+          publication_id: string
+          publication_status: string
+        }[]
+      }
+      mark_yzi_imob_property_publication_started: {
+        Args: { p_job_id: string }
+        Returns: {
+          job_id: string
+          job_status: string
+        }[]
+      }
+      mark_yzi_imob_property_publication_synced: {
+        Args: { p_job_id: string; p_public_url: string }
+        Returns: {
+          job_id: string
+          publication_id: string
+          publication_status: string
+          publication_version: number
+        }[]
+      }
       record_yzi_imob_meta_authorization_failure: {
         Args: {
           p_authorization_id: string
@@ -2874,6 +3337,20 @@ export type Database = {
           success: boolean
         }[]
       }
+      request_yzi_imob_property_publication_review: {
+        Args: {
+          p_content_hash: string
+          p_content_snapshot: Json
+          p_property_id: string
+          p_public_slug: string
+        }
+        Returns: {
+          publication_id: string
+          publication_status: string
+          revision_id: string
+          revision_number: number
+        }[]
+      }
       resend_yzi_imob_team_invitation: {
         Args: { p_invitation_id: string }
         Returns: {
@@ -2882,6 +3359,15 @@ export type Database = {
           message: string
           status: string
           updated_at: string
+        }[]
+      }
+      retry_yzi_imob_property_publication: {
+        Args: { p_job_id: string; p_retry_idempotency_key: string }
+        Returns: {
+          job_id: string
+          job_status: string
+          publication_version: number
+          reused: boolean
         }[]
       }
       revoke_yzi_imob_team_invitation: {
@@ -2897,6 +3383,13 @@ export type Database = {
         Returns: {
           onboarding_completed: boolean
           success: boolean
+        }[]
+      }
+      set_yzi_imob_property_publication_availability: {
+        Args: { p_action: string; p_property_id: string }
+        Returns: {
+          publication_id: string
+          publication_status: string
         }[]
       }
       start_yzi_imob_meta_authorization: {
