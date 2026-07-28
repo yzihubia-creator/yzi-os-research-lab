@@ -35,6 +35,7 @@ import {
   WorkspaceSection,
   WorkspaceTabs,
 } from "@/components/yzi-imob/yzi-imob-workspace-kit";
+import { YziImobPropertyPublicationWorkspaceSlot } from "@/components/yzi-imob/yzi-imob-property-publication-workspace-adapter";
 import {
   GROWTH_ASSET_STATUS_ACCENT,
   GROWTH_CAMPAIGN_STATUS_ACCENT,
@@ -76,16 +77,6 @@ const PROPERTY_TYPE_OPTIONS = [
   { value: "casa", label: "Casa" },
   { value: "terreno", label: "Terreno" },
   { value: "comercial", label: "Comercial" },
-];
-
-// Canais de publicação — estado apenas, nada executa (mock honesto).
-const PUBLICATION_CHANNELS = [
-  {
-    label: "Site da imobiliária",
-    note: "O site só consome o que este Workspace preparou e você aprovou.",
-  },
-  { label: "Portais de anúncio", note: "Entra com o Campaign Workspace." },
-  { label: "Redes sociais", note: "Entra com o Creative Studio." },
 ];
 
 export function YziImobPropertyWorkspace() {
@@ -592,54 +583,7 @@ export function YziImobPropertyWorkspace() {
         ) : tab === "seo" ? (
           <ComingSoonPanel label="SEO — em breve" note="Entra com o Site." />
         ) : tab === "publicacao" ? (
-          <WorkspaceSection
-            first
-            title="Publicação"
-            description="Estado apenas — nada executa daqui. Nenhum imóvel existe publicamente fora deste Workspace."
-          >
-            <div className="flex flex-col gap-2.5">
-              {PUBLICATION_CHANNELS.map((channel) => {
-                const isSiteChannel = channel.label === "Site da imobiliária";
-                const isPublished = property?.status === "publicado" && isSiteChannel;
-                const isAwaitingApproval =
-                  !isPublished &&
-                  isSiteChannel &&
-                  (property?.status === "publicar" || property?.status === "aguardando");
-                const pillRole = isPublished ? "primary" : isAwaitingApproval ? "lilac" : undefined;
-                return (
-                  <div
-                    key={channel.label}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 shadow-[var(--yzi-edge-highlight)]"
-                  >
-                    <div className="flex min-w-0 flex-col">
-                      <span className="text-[0.84rem] text-[var(--yzi-text-primary)]">
-                        {channel.label}
-                      </span>
-                      <span className="text-[0.7rem] text-[var(--yzi-text-faint)]">
-                        {channel.note}
-                      </span>
-                    </div>
-                    <span
-                      className="rounded-full border px-2.5 py-1 text-[0.66rem]"
-                      style={{
-                        borderColor: pillRole
-                          ? imobRgba(pillRole, 0.35)
-                          : "var(--yzi-border-subtle)",
-                        color: pillRole ? imobRgba(pillRole, 0.95) : "var(--yzi-text-secondary)",
-                        backgroundColor: pillRole ? imobRgba(pillRole, 0.1) : undefined,
-                      }}
-                    >
-                      {isPublished
-                        ? "Publicado"
-                        : isAwaitingApproval
-                          ? "Aguardando autorização"
-                          : "Não publicado"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </WorkspaceSection>
+          <YziImobPropertyPublicationWorkspaceSlot />
         ) : (
           <ComingSoonPanel
             label="IA"
