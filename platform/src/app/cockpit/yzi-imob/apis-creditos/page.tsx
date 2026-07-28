@@ -19,15 +19,17 @@ export default async function YziImobApisCreditosPage() {
     return <YziImobApisCreditosWorkspace summary={null} accessState="tenant_error" />;
   }
 
+  let summary = null;
+  let accessState: "ready" | "read_error" = "ready";
   try {
     const supabase = await createServerSupabaseClient();
-    const summary = await getOperationalConsumptionSummary(
+    summary = await getOperationalConsumptionSummary(
       supabase,
       tenantContext.tenant.id,
     );
-    return <YziImobApisCreditosWorkspace summary={summary} accessState="ready" />;
   } catch {
     console.error("[yzi-imob/apis-creditos] operational_consumption_read_failed");
-    return <YziImobApisCreditosWorkspace summary={null} accessState="read_error" />;
+    accessState = "read_error";
   }
+  return <YziImobApisCreditosWorkspace summary={summary} accessState={accessState} />;
 }
