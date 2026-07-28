@@ -35,6 +35,26 @@ export type ResultsSourceIssue = {
   detail: string;
 };
 
+export type ResultsSocialMetric = {
+  socialPublicationId: string | null;
+  propertyId: string | null;
+  network: "instagram" | "facebook";
+  providerMetricName: string;
+  normalizedMetricName: string | null;
+  value: number;
+  periodStart: string;
+  periodEnd: string;
+  collectedAt: string;
+};
+
+export type ResultsSocialContract = {
+  publicationCount: number;
+  publishedCount: number;
+  failedCount: number;
+  metrics: readonly ResultsSocialMetric[];
+  lastCollectedAt: string | null;
+};
+
 export type ResultsWorkspaceData = {
   tenantLabel: string;
   metrics: readonly ResultsMetric[];
@@ -46,5 +66,6 @@ export type ResultsWorkspaceData = {
   formulas: readonly string[];
   omittedBlocks: readonly string[];
   sourceIssues: readonly ResultsSourceIssue[];
+  social: ResultsSocialContract;
   isEmpty: boolean;
 };

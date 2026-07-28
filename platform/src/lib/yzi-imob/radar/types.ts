@@ -6,7 +6,13 @@ export type RadarSignalKind =
   | "conversation_stalled"
   | "appointment_pending"
   | "inbound_failure"
-  | "high_score_interest";
+  | "high_score_interest"
+  | "social_publish_failed"
+  | "social_publish_stalled"
+  | "metricool_connection_attention"
+  | "approved_content_unscheduled"
+  | "social_metrics_missing"
+  | "social_sync_delayed";
 
 export type RadarSignal = {
   id: string;

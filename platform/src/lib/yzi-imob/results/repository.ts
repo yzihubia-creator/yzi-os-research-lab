@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ResultsDistributionItem,
   ResultsRate,
+  ResultsSocialContract,
+  ResultsSocialMetric,
   ResultsTrendPoint,
   ResultsWorkspaceData,
 } from "./types";
@@ -194,12 +196,14 @@ export async function getResultsWorkspaceData(
     interestsResult,
     conversationsResult,
     appointmentsResult,
+    socialResult,
   ] = await Promise.all([
     supabase.from("yzi_imob_properties").select(PROPERTY_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_leads").select(LEAD_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_property_interests").select(INTEREST_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_appointments").select(APPOINTMENT_COLUMNS).eq("tenant_id", tenantId),
+    loadResultsSocialContract(supabase, tenantId),
   ]);
 
   if (propertiesResult.error) return { status: "error", detail: propertiesResult.error.message };
@@ -322,6 +326,9 @@ export async function getResultsWorkspaceData(
         "yzi_imob_property_interests",
         "yzi_imob_conversations",
         "yzi_imob_appointments",
+        ...(socialResult.status === "ok"
+          ? ["yzi_imob_social_publications", "yzi_imob_social_metrics"]
+          : []),
       ],
       formulas: [
         "Todas as consultas usam eq('tenant_id', tenantId).",
@@ -338,9 +345,121 @@ export async function getResultsWorkspaceData(
           ? ["Taxa de comparecimento: sem eventos completed/no_show suficientes."]
           : []),
       ],
-      sourceIssues: [],
+      sourceIssues:
+        socialResult.status === "ok"
+          ? []
+          : [{
+              sourceLabel: "Metricool social",
+              detail: "Contrato social indisponivel para leitura nesta sessao.",
+            }],
+      social:
+        socialResult.status === "ok"
+          ? socialResult.value
+          : {
+              publicationCount: 0,
+              publishedCount: 0,
+              failedCount: 0,
+              metrics: [],
+              lastCollectedAt: null,
+            },
       isEmpty:
-        properties.length + leads.length + interests.length + conversations.length + appointments.length === 0,
+        properties.length +
+          leads.length +
+          interests.length +
+          conversations.length +
+          appointments.length +
+          (socialResult.status === "ok" ? socialResult.value.publicationCount : 0) ===
+        0,
     },
   };
+}
+
+type SocialResult =
+  | { status: "ok"; value: ResultsSocialContract }
+  | { status: "error" };
+
+type SocialQuery = PromiseLike<{ data: unknown; error: unknown }> & {
+  select(columns: string): SocialQuery;
+  eq(column: string, value: unknown): SocialQuery;
+  order(column: string, options: { ascending: boolean }): SocialQuery;
+  limit(value: number): PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+async function loadResultsSocialContract(
+  supabase: SupabaseClient,
+  tenantId: string,
+): Promise<SocialResult> {
+  const client = supabase as unknown as { from(table: string): SocialQuery };
+  const [publicationsResult, metricsResult] = await Promise.all([
+    client
+      .from("yzi_imob_social_publications")
+      .select("id, property_id, status")
+      .eq("tenant_id", tenantId),
+    client
+      .from("yzi_imob_social_metrics")
+      .select(
+        "social_publication_id, network, provider_metric_name, normalized_metric_name, value, period_start, period_end, collected_at",
+      )
+      .eq("tenant_id", tenantId)
+      .order("collected_at", { ascending: false })
+      .limit(1000),
+  ]);
+  if (publicationsResult.error || metricsResult.error) return { status: "error" };
+
+  const publicationRows = asSocialRows(publicationsResult.data);
+  const propertyByPublication = new Map(
+    publicationRows.flatMap((row) =>
+      typeof row.id === "string" && typeof row.property_id === "string"
+        ? [[row.id, row.property_id] as const]
+        : [],
+    ),
+  );
+  const metrics: ResultsSocialMetric[] = asSocialRows(metricsResult.data).flatMap((row) => {
+    const network = row.network === "instagram" || row.network === "facebook" ? row.network : null;
+    const value = typeof row.value === "number" ? row.value : Number(row.value);
+    if (
+      !network ||
+      !Number.isFinite(value) ||
+      typeof row.provider_metric_name !== "string" ||
+      typeof row.period_start !== "string" ||
+      typeof row.period_end !== "string" ||
+      typeof row.collected_at !== "string"
+    ) {
+      return [];
+    }
+    const publicationId =
+      typeof row.social_publication_id === "string" ? row.social_publication_id : null;
+    return [{
+      socialPublicationId: publicationId,
+      propertyId: publicationId ? propertyByPublication.get(publicationId) ?? null : null,
+      network,
+      providerMetricName: row.provider_metric_name,
+      normalizedMetricName:
+        typeof row.normalized_metric_name === "string" ? row.normalized_metric_name : null,
+      value,
+      periodStart: row.period_start,
+      periodEnd: row.period_end,
+      collectedAt: row.collected_at,
+    }];
+  });
+
+  return {
+    status: "ok",
+    value: {
+      publicationCount: publicationRows.length,
+      publishedCount: publicationRows.filter((row) => row.status === "published").length,
+      failedCount: publicationRows.filter((row) => row.status === "failed").length,
+      metrics,
+      lastCollectedAt: metrics[0]?.collectedAt ?? null,
+    },
+  };
+}
+
+function asSocialRows(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object" && !Array.isArray(item),
+      )
+    : [];
 }

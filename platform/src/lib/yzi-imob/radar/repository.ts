@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { loadMetricoolMarketingWorkspace } from "@/lib/yzi-imob/metricool/repository";
 import type { RadarSignal, RadarSourceIssue, RadarWorkspaceData } from "./types";
 
 const PROPERTY_COLUMNS =
@@ -13,6 +14,9 @@ const INBOUND_COLUMNS = "id, execution_status, workflow_status, failure_code, up
 const STALE_LEAD_DAYS = 14;
 const STALLED_CONVERSATION_HOURS = 72;
 const HIGH_INTEREST_SCORE = 80;
+const SOCIAL_STALLED_MINUTES = 30;
+const SOCIAL_METRICS_WINDOW_HOURS = 24;
+const SOCIAL_SYNC_WINDOW_HOURS = 24;
 
 type PropertyRow = {
   id: string;
@@ -150,6 +154,7 @@ export async function getRadarWorkspaceData(
     conversationsResult,
     appointmentsResult,
     inboundResult,
+    metricoolResult,
   ] = await Promise.all([
     supabase.from("yzi_imob_properties").select(PROPERTY_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_property_interests").select(INTEREST_COLUMNS).eq("tenant_id", tenantId),
@@ -157,6 +162,7 @@ export async function getRadarWorkspaceData(
     supabase.from("yzi_imob_conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_appointments").select(APPOINTMENT_COLUMNS).eq("tenant_id", tenantId),
     supabase.from("yzi_imob_inbound_operation_requests").select(INBOUND_COLUMNS).eq("tenant_id", tenantId),
+    loadMetricoolMarketingWorkspace(supabase, tenantId),
   ]);
 
   if (propertiesResult.error) return { status: "error", detail: propertiesResult.error.message };
@@ -170,6 +176,12 @@ export async function getRadarWorkspaceData(
     sourceIssues.push({
       sourceLabel: "yzi_imob_inbound_operation_requests",
       detail: "Fonte existe, mas nao esta legivel pela sessao do operador.",
+    });
+  }
+  if (metricoolResult.status === "error") {
+    sourceIssues.push({
+      sourceLabel: "Metricool social",
+      detail: "Contrato social existe, mas nao esta legivel pela sessao atual.",
     });
   }
 
@@ -374,6 +386,160 @@ export async function getRadarWorkspaceData(
       lastSeenAt: latestDate(failedInboundOperations),
     }),
   );
+
+  if (metricoolResult.status === "ok") {
+    const metricool = metricoolResult.value;
+    const failedPublications = metricool.publications.filter(
+      (publication) => publication.status === "failed",
+    );
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-publications-failed",
+        kind: "social_publish_failed",
+        sourceLabel: "yzi_imob_social_publications",
+        areaLabel: "Marketing",
+        whatLabel: `${failedPublications.length} publicacao(oes) Metricool com falha.`,
+        whyLabel: "A propria publicacao social registrou status failed e erro sanitizado.",
+        ruleLabel: "provider = metricool AND status = failed.",
+        evidenceLabel: `${failedPublications.length} falha(s) real(is) registrada(s).`,
+        href: "/cockpit/yzi-imob/marketing/publicacoes",
+        count: failedPublications.length,
+        lastSeenAt: latestDate(
+          failedPublications.map((publication) => ({ updated_at: publication.updatedAt })),
+        ),
+      }),
+    );
+
+    const stalledLimit = SOCIAL_STALLED_MINUTES * 60 * 1000;
+    const stalledPublications = metricool.publications.filter(
+      (publication) =>
+        ["dispatching", "publishing"].includes(publication.status) &&
+        isOlderThan(publication.updatedAt, stalledLimit, nowMs),
+    );
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-publications-stalled",
+        kind: "social_publish_stalled",
+        sourceLabel: "yzi_imob_social_publications",
+        areaLabel: "Marketing",
+        whatLabel: `${stalledPublications.length} publicacao(oes) parada(s) no envio.`,
+        whyLabel: `Status dispatching/publishing sem atualizacao ha mais de ${SOCIAL_STALLED_MINUTES} minutos.`,
+        ruleLabel: `status in (dispatching, publishing) AND updated_at > ${SOCIAL_STALLED_MINUTES} minutos.`,
+        evidenceLabel: `${stalledPublications.length} publicacao(oes) nessa janela.`,
+        href: "/cockpit/yzi-imob/marketing/publicacoes",
+        count: stalledPublications.length,
+        lastSeenAt: latestDate(
+          stalledPublications.map((publication) => ({ updated_at: publication.updatedAt })),
+        ),
+      }),
+    );
+
+    const attentionStatuses = new Set([
+      "attention_required",
+      "token_invalid",
+      "plan_insufficient",
+      "rate_limited",
+      "failed",
+    ]);
+    const connectionAttention = attentionStatuses.has(metricool.connection.status) ? 1 : 0;
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-connection-attention",
+        kind: "metricool_connection_attention",
+        sourceLabel: "tenant_connections",
+        areaLabel: "Conexoes",
+        whatLabel: "Conexao Metricool requer atencao.",
+        whyLabel: `Estado real da conexao: ${metricool.connection.status}.`,
+        ruleLabel: "status in (attention_required, token_invalid, plan_insufficient, rate_limited, failed).",
+        evidenceLabel: `status=${metricool.connection.status}.`,
+        href: "/cockpit/yzi-imob/conexoes",
+        count: connectionAttention,
+        lastSeenAt: metricool.connection.validatedAt,
+      }),
+    );
+
+    const scheduledRevisionIds = new Set(
+      metricool.publications.map((publication) => publication.revisionId),
+    );
+    const approvedWithoutSchedule = metricool.candidates.filter(
+      (candidate) =>
+        candidate.revisionStatus === "approved" &&
+        !scheduledRevisionIds.has(candidate.revisionId),
+    );
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-approved-unscheduled",
+        kind: "approved_content_unscheduled",
+        sourceLabel: "yzi_imob_property_publication_revisions + yzi_imob_social_publications",
+        areaLabel: "Marketing",
+        whatLabel: `${approvedWithoutSchedule.length} conteudo(s) aprovado(s) sem agenda social.`,
+        whyLabel: "A revisao aprovada ainda nao possui publicacao Metricool correlacionada.",
+        ruleLabel: "revision.status = approved AND sem social_publication.publication_revision_id.",
+        evidenceLabel: `${approvedWithoutSchedule.length} revisao(oes) sem agenda.`,
+        href: "/cockpit/yzi-imob/marketing/publicacoes",
+        count: approvedWithoutSchedule.length,
+        lastSeenAt: null,
+      }),
+    );
+
+    const metricsWindow = SOCIAL_METRICS_WINDOW_HOURS * 60 * 60 * 1000;
+    const publishedWithoutMetrics = metricool.publications.filter(
+      (publication) =>
+        publication.status === "published" &&
+        publication.metricCount === 0 &&
+        isOlderThan(publication.publishedAt, metricsWindow, nowMs),
+    );
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-published-without-metrics",
+        kind: "social_metrics_missing",
+        sourceLabel: "yzi_imob_social_publications + yzi_imob_social_metrics",
+        areaLabel: "Resultados",
+        whatLabel: `${publishedWithoutMetrics.length} post(s) sem metricas apos a janela esperada.`,
+        whyLabel: `Publicacao concluida ha mais de ${SOCIAL_METRICS_WINDOW_HOURS} horas sem metrica persistida.`,
+        ruleLabel: `status = published AND metric_count = 0 por ${SOCIAL_METRICS_WINDOW_HOURS} horas.`,
+        evidenceLabel: `${publishedWithoutMetrics.length} post(s) sem coleta.`,
+        href: "/cockpit/yzi-imob/marketing/publicacoes",
+        count: publishedWithoutMetrics.length,
+        lastSeenAt: latestDate(
+          publishedWithoutMetrics.map((publication) => ({ updated_at: publication.publishedAt })),
+        ),
+      }),
+    );
+
+    const syncDelayed =
+      ["active", "connected"].includes(metricool.connection.status) &&
+      isOlderThan(
+        metricool.connection.lastSyncAt,
+        SOCIAL_SYNC_WINDOW_HOURS * 60 * 60 * 1000,
+        nowMs,
+      )
+        ? 1
+        : 0;
+    pushSignal(
+      signals,
+      signal({
+        id: "metricool-sync-delayed",
+        kind: "social_sync_delayed",
+        sourceLabel: "tenant_connections",
+        areaLabel: "Resultados",
+        whatLabel: "Sincronizacao Metricool atrasada.",
+        whyLabel: `A ultima sincronizacao passou de ${SOCIAL_SYNC_WINDOW_HOURS} horas.`,
+        ruleLabel: `connection active AND last_sync_at > ${SOCIAL_SYNC_WINDOW_HOURS} horas.`,
+        evidenceLabel: metricool.connection.lastSyncAt
+          ? `last_sync_at=${metricool.connection.lastSyncAt}.`
+          : "last_sync_at ausente.",
+        href: "/cockpit/yzi-imob/conexoes",
+        count: syncDelayed,
+        lastSeenAt: metricool.connection.lastSyncAt,
+      }),
+    );
+  }
 
   return {
     status: "ok",
