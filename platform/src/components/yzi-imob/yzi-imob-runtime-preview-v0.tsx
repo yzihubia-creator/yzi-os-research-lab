@@ -170,7 +170,7 @@ export function YziImobRuntimePreviewV0() {
     <section className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-6 px-6 py-10">
       <div className="flex flex-col gap-4">
         <Link
-          href="/cockpit/yzi-imob/studio"
+          href="/cockpit/yzi-imob/marketing/publicacoes"
           className="inline-flex w-fit items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-1.5 text-xs text-[var(--yzi-text-secondary)] transition-colors hover:bg-[var(--yzi-surface-elevated)] hover:text-[var(--yzi-text-primary)]"
         >
           <CommandCenterIcon className="h-3.5 w-3.5" />

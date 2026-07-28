@@ -7,18 +7,18 @@ import type { ComponentType, SVGProps } from "react";
 import { YziMarkIcon, SidebarToggleIcon } from "@/components/yzi-os/yzi-icons";
 import { YziPresence } from "@/components/yzi-os/yzi-primitives";
 import {
+  AgendaIcon,
   BrokerIcon,
   CampaignIcon,
   ClientIcon,
   CreativeIcon,
   InboxIcon,
-  InsightIcon,
   OperationIcon,
   PropertyIcon,
   RadarIcon,
   ResultsIcon,
   SettingsIcon,
-  SiteIcon,
+  StackIcon,
   TeamIcon,
 } from "@/components/yzi-imob/yzi-imob-icons-v2";
 
@@ -33,44 +33,57 @@ const GROUPS: Group[] = [
   {
     eyebrow: "Operação",
     items: [
-      { label: "Corretores", icon: BrokerIcon, href: "/cockpit/yzi-imob/corretores" },
+      // A Home é o próprio YZI: o logo no topo da sidebar é o único caminho
+      // para /cockpit/yzi-imob — sem item "Dashboard" duplicando a rota.
       { label: "Imóveis", icon: PropertyIcon, href: "/cockpit/yzi-imob/imoveis" },
-      { label: "Clientes", icon: ClientIcon, href: "/cockpit/yzi-imob/clientes" },
+      { label: "Corretores", icon: BrokerIcon, href: "/cockpit/yzi-imob/corretores" },
+      { label: "Equipe", icon: TeamIcon, href: "/cockpit/yzi-imob/equipe" },
+      // "Leads": rótulo novo sobre a rota existente de Clientes — a tela não
+      // muda de conteúdo, só o nome no menu.
+      { label: "Leads", icon: ClientIcon, href: "/cockpit/yzi-imob/clientes" },
       { label: "Atendimento", icon: InboxIcon, href: "/cockpit/yzi-imob/atendimento" },
     ],
   },
   {
     eyebrow: "Marketing",
     items: [
-      {
-        label: "Creative Engine",
-        icon: CreativeIcon,
-        href: "/cockpit/yzi-imob/studio",
-      },
-      { label: "Growth OS", icon: CampaignIcon, href: "/cockpit/yzi-imob/growth/briefing" },
-      { label: "Site", icon: SiteIcon, href: "/cockpit/yzi-imob/site" },
+      // "Marketing": ciclo semanal da marca (home + revisar semana). A rota
+      // Rotas antigas de Comunicação e Studio ficam fora da navegação e
+      // redirecionam para o fluxo governado de publicações.
+      { label: "Marketing", icon: CreativeIcon, href: "/cockpit/yzi-imob/marketing" },
+      { label: "Growth OS", icon: CampaignIcon, href: "/cockpit/yzi-imob/marketing/publicacoes" },
+      { label: "Agenda", icon: AgendaIcon, href: "/cockpit/yzi-imob/agenda" },
     ],
   },
   {
     eyebrow: "Inteligência",
     items: [
-      { label: "Radar", icon: RadarIcon },
-      { label: "Insights", icon: InsightIcon },
       { label: "Resultados", icon: ResultsIcon, href: "/cockpit/yzi-imob/growth/resultados" },
+      // Radar absorve a função de insights: inteligência acionável
+      // (o que mudou → por que → o que fazer), não relatório passivo isolado.
+      { label: "Radar", icon: RadarIcon, href: "/cockpit/yzi-imob/radar" },
     ],
   },
   {
     eyebrow: "Sistema",
     items: [
-      { label: "Operação", icon: OperationIcon },
-      { label: "Equipe", icon: TeamIcon },
-      { label: "Configurações", icon: SettingsIcon },
+      // Conexões: canais, autorizações e saúde operacional — separado de
+      // APIs & Créditos (consumo, limites e governança financeira).
+      { label: "Conexões", icon: StackIcon, href: "/cockpit/yzi-imob/conexoes" },
+      { label: "APIs & Créditos", icon: OperationIcon, href: "/cockpit/yzi-imob/apis-creditos" },
+      { label: "Configurações", icon: SettingsIcon, href: "/cockpit/yzi-imob/configuracoes" },
     ],
   },
 ];
 
 function isActive(pathname: string, href?: string) {
   if (!href) return false;
+  if (
+    href === "/cockpit/yzi-imob/marketing" &&
+    pathname.startsWith("/cockpit/yzi-imob/marketing/publicacoes")
+  ) {
+    return false;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -169,7 +182,8 @@ export function YziImobSidebarV2({
             collapsed ? "justify-center" : "gap-2.5",
             homeActive ? "text-[rgb(var(--imob-ice))]" : "text-[var(--yzi-text-primary)]",
           )}
-          title="YZI"
+          title="YZI IMOB — Início"
+          aria-current={homeActive ? "page" : undefined}
         >
           <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] text-[rgb(var(--imob-ice))]">
             <YziMarkIcon className="h-[19px] w-[19px]" />
@@ -180,10 +194,12 @@ export function YziImobSidebarV2({
             />
           </span>
           {!collapsed ? (
-            <span className="flex min-w-0 flex-col leading-tight">
-              <span className="text-[0.88rem] font-semibold tracking-[0.03em] text-[var(--yzi-text-primary)]">YZI</span>
-              <span className="truncate text-[0.62rem] text-[var(--yzi-text-faint)]">
-                operação imobiliária
+            <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
+              <span className="text-[0.9rem] font-semibold tracking-[0.04em] text-[var(--yzi-text-primary)]">
+                YZI IMOB
+              </span>
+              <span className="truncate text-[0.66rem] text-[var(--yzi-text-faint)]">
+                Operação imobiliária
               </span>
             </span>
           ) : null}
@@ -204,15 +220,15 @@ export function YziImobSidebarV2({
         </button>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-3">
+      <nav className="yzi-rail-scroll flex flex-1 flex-col gap-7 px-3 pb-5 pt-4">
         {GROUPS.map((group) => (
           <div key={group.eyebrow} className="flex flex-col gap-1">
             {!collapsed ? (
-              <span className="px-2 pb-1 text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-[var(--yzi-text-faint)]">
+              <span className="px-2 pb-1.5 text-[0.6rem] font-medium uppercase tracking-[0.18em] text-[var(--yzi-text-faint)]">
                 {group.eyebrow}
               </span>
             ) : (
-              <span aria-hidden className="mx-auto mb-1 h-px w-6 bg-[var(--yzi-border-subtle)]" />
+              <span aria-hidden className="mx-auto mb-1.5 h-px w-6 bg-[var(--yzi-border-subtle)]" />
             )}
             {group.items.map((item) => (
               <NavItem

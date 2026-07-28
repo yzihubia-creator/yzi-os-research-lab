@@ -35,7 +35,7 @@ type HomeMetrics = {
 // aponta para a rota que promete.
 const HERO_ACTIONS: Array<{ label: string; href: string }> = [
   { label: "Cadastrar imóvel", href: "/cockpit/yzi-imob/imoveis" },
-  { label: "Criar criativo", href: "/cockpit/yzi-imob/studio" },
+  { label: "Publicar imóvel", href: "/cockpit/yzi-imob/marketing/publicacoes" },
   { label: "Ver leads", href: "/cockpit/yzi-imob/clientes" },
   { label: "Agendar visita", href: "/cockpit/yzi-imob/agenda" },
 ];
@@ -163,7 +163,7 @@ export function YziImobHomeV2({
 
   function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    router.push("/cockpit/yzi-imob/briefing");
+    router.push("/cockpit/yzi-imob/radar");
   }
 
   return (

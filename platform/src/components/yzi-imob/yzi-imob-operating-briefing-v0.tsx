@@ -240,7 +240,7 @@ export function YziImobOperatingBriefingV0() {
       {/* Cabeçalho + presença da YZI como briefing operacional (não chatbot). */}
       <div className="flex flex-col gap-4">
         <Link
-          href="/cockpit/yzi-imob/studio"
+          href="/cockpit/yzi-imob/marketing/publicacoes"
           className="inline-flex w-fit items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-1.5 text-xs text-[var(--yzi-text-secondary)] transition-colors hover:bg-[var(--yzi-surface-elevated)] hover:text-[var(--yzi-text-primary)]"
         >
           <CommandCenterIcon className="h-3.5 w-3.5" />

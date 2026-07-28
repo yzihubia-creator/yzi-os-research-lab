@@ -358,7 +358,7 @@ export function YziImobBrokerWorkspace({
           }
           composerPlaceholder="Pergunte a YZI sobre a operacao deste corretor..."
           quickActions={[{ label: "Abrir proximo lead" }, { label: "Ver pendencias" }]}
-          onAsk={() => router.push("/cockpit/yzi-imob/briefing")}
+          onAsk={() => router.push("/cockpit/yzi-imob/radar")}
         />
       </section>
 

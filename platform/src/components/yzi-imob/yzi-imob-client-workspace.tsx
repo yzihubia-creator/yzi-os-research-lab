@@ -669,7 +669,7 @@ export function YziImobClientWorkspace({
             { label: "Quais imoveis relacionados?" },
             { label: "Ver ultima interacao" },
           ]}
-          onAsk={() => router.push("/cockpit/yzi-imob/briefing")}
+          onAsk={() => router.push("/cockpit/yzi-imob/radar")}
         />
         <div className="flex flex-wrap gap-2">
           <div

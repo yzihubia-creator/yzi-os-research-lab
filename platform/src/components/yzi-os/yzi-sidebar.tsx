@@ -46,8 +46,8 @@ const NAV_GROUPS: NavGroup[] = [
     eyebrow: "Módulos",
     items: [
       {
-        href: "/cockpit/yzi-imob/studio",
-        label: "Conteúdo IA",
+        href: "/cockpit/yzi-imob/marketing/publicacoes",
+        label: "Marketing",
         icon: DashboardIcon,
       },
       {
@@ -61,7 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: CommandCenterIcon,
       },
       {
-        href: "/cockpit/yzi-imob/catalogo",
+        href: "/cockpit/yzi-imob/imoveis/catalogo",
         label: "Catálogo",
         icon: AuditIcon,
       },
