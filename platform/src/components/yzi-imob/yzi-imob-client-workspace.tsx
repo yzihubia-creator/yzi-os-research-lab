@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -26,13 +26,32 @@ import type {
   YziImobLeadInterest,
   YziImobLeadWorkspaceData,
 } from "@/lib/yzi-imob/leads/types";
+import {
+  INITIAL_OPERATIONAL_ACTION_STATE,
+  type OperationalActionState,
+} from "@/lib/yzi-imob/operations/action-state";
+import type {
+  LeadOperationsWorkspace,
+} from "@/lib/yzi-imob/operations/types";
 
 const TABS = [
+  { id: "operacao", label: "Operacao" },
   { id: "perfil", label: "Perfil" },
   { id: "interesses", label: "Interesses" },
   { id: "imoveis", label: "Imoveis" },
   { id: "conversas", label: "Conversas" },
 ];
+
+type OperationalServerAction = (
+  state: OperationalActionState,
+  formData: FormData,
+) => Promise<OperationalActionState>;
+
+type LeadWorkspaceActions = {
+  assign: OperationalServerAction;
+  createVisit: OperationalServerAction;
+  updateFollowUp: OperationalServerAction;
+};
 
 const LEAD_STATUS_LABEL: Record<string, string> = {
   lead: "Lead",
@@ -304,16 +323,307 @@ function ConversationList({
   );
 }
 
+function ActionMessage({ state }: { state: OperationalActionState }) {
+  if (state.status === "idle") return null;
+  return (
+    <p
+      role="status"
+      className={
+        state.status === "saved"
+          ? "text-[0.74rem] text-emerald-300"
+          : "text-[0.74rem] text-rose-300"
+      }
+    >
+      {state.message}
+    </p>
+  );
+}
+
+function LeadOperationalTab({
+  data,
+  operations,
+  canOperate,
+  actions,
+}: {
+  data: YziImobLeadWorkspaceData;
+  operations: LeadOperationsWorkspace;
+  canOperate: boolean;
+  actions: LeadWorkspaceActions;
+}) {
+  const [assignmentState, assignmentAction, assignmentPending] = useActionState(
+    actions.assign,
+    INITIAL_OPERATIONAL_ACTION_STATE,
+  );
+  const [visitState, visitAction, visitPending] = useActionState(
+    actions.createVisit,
+    INITIAL_OPERATIONAL_ACTION_STATE,
+  );
+  const [followUpState, followUpAction, followUpPending] = useActionState(
+    actions.updateFollowUp,
+    INITIAL_OPERATIONAL_ACTION_STATE,
+  );
+  const activeAssignment = operations.packet.assignment;
+
+  return (
+    <div className="flex flex-col gap-7">
+      <WorkspaceSection
+        first
+        title="Atribuicao"
+        description="O corretor precisa estar ativo e disponivel para novos leads."
+      >
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+          <div className="border-y border-[color:var(--yzi-border-subtle)] py-4">
+            <p className="text-[0.72rem] text-[var(--yzi-text-faint)]">Responsavel atual</p>
+            <p className="mt-1 text-[0.84rem] text-[var(--yzi-text-primary)]">
+              {activeAssignment?.brokerName ?? "Ainda sem corretor"}
+            </p>
+            <p className="mt-1 text-[0.7rem] text-[var(--yzi-text-secondary)]">
+              Estado: {activeAssignment?.status ?? "sem assignment ativo"}
+            </p>
+          </div>
+          <form action={assignmentAction} className="flex flex-col gap-2">
+            <input type="hidden" name="leadId" value={data.lead.id} />
+            <label className="grid gap-1 text-[0.7rem] text-[var(--yzi-text-faint)]">
+              Corretor elegivel
+              <select
+                name="brokerUserId"
+                required
+                disabled={!canOperate || assignmentPending || operations.eligibleBrokers.length === 0}
+                defaultValue=""
+                className="h-9 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.76rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+              >
+                <option value="" disabled>Selecionar</option>
+                {operations.eligibleBrokers.map((broker) => (
+                  <option key={broker.userId} value={broker.userId}>
+                    {broker.displayName ?? "Ainda sem dados"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={!canOperate || assignmentPending || operations.eligibleBrokers.length === 0}
+              title={
+                canOperate
+                  ? operations.eligibleBrokers.length
+                    ? undefined
+                    : "Nenhum corretor esta disponivel"
+                  : "Seu papel nao permite atribuir leads"
+              }
+              className="h-9 w-fit rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 text-[0.74rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+            >
+              {activeAssignment ? "Reatribuir lead" : "Atribuir lead"}
+            </button>
+            <ActionMessage state={assignmentState} />
+          </form>
+        </div>
+
+        {operations.assignments.length > 0 ? (
+          <div className="mt-4 flex flex-col">
+            {operations.assignments.map((assignment) => (
+              <div key={assignment.id} className="flex flex-wrap justify-between gap-2 border-b border-[color:var(--yzi-border-subtle)] py-2 text-[0.72rem] last:border-b-0">
+                <span className="text-[var(--yzi-text-secondary)]">
+                  {assignment.brokerName ?? "Ainda sem dados"} · {assignment.status}
+                </span>
+                <span className="text-[var(--yzi-text-faint)]">
+                  {formatDateTime(assignment.assignedAt)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        title="Pacote operacional"
+        description="Resumo real do contexto necessario para a proxima decisao."
+      >
+        <WorkspaceGrid>
+          <WorkspaceField label="Corretor" value={emptyLabel(activeAssignment?.brokerName)} readOnly />
+          <WorkspaceField label="Aceite" value={emptyLabel(activeAssignment?.status)} readOnly />
+          <WorkspaceField label="Imovel" value={emptyLabel(operations.packet.propertyTitle)} readOnly />
+          <WorkspaceField
+            label="Proxima visita"
+            value={formatDateTime(operations.packet.nextAppointmentStartsAt)}
+            readOnly
+          />
+          <WorkspaceField
+            label="Ultima conversa"
+            value={formatDateTime(operations.packet.latestConversationAt)}
+            readOnly
+          />
+        </WorkspaceGrid>
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        title="Criar visita"
+        description="A visita entra na Agenda vinculada ao lead, imovel e corretor."
+      >
+        <form action={visitAction} className="grid gap-3 sm:grid-cols-2">
+          <input type="hidden" name="leadId" value={data.lead.id} />
+          <label className="grid gap-1 text-[0.7rem] text-[var(--yzi-text-faint)]">
+            Corretor
+            <select
+              name="brokerUserId"
+              required
+              defaultValue={activeAssignment?.brokerUserId ?? ""}
+              disabled={!canOperate || visitPending || operations.eligibleBrokers.length === 0}
+              className="h-9 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.76rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+            >
+              <option value="" disabled>Selecionar</option>
+              {operations.eligibleBrokers.map((broker) => (
+                <option key={broker.userId} value={broker.userId}>
+                  {broker.displayName ?? "Ainda sem dados"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-[0.7rem] text-[var(--yzi-text-faint)]">
+            Imovel
+            <select
+              name="propertyId"
+              defaultValue={operations.packet.propertyId ?? ""}
+              disabled={!canOperate || visitPending}
+              className="h-9 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.76rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+            >
+              <option value="">Sem imovel vinculado</option>
+              {data.interests.map((interest) => (
+                <option key={interest.propertyId} value={interest.propertyId}>
+                  {interest.propertyTitle ?? interest.propertyId}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-[0.7rem] text-[var(--yzi-text-faint)]">
+            Inicio
+            <input
+              type="datetime-local"
+              name="startsAt"
+              required
+              disabled={!canOperate || visitPending}
+              className="h-9 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-bg-deep)] px-2 text-[0.76rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+            />
+          </label>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              disabled={!canOperate || visitPending || operations.eligibleBrokers.length === 0}
+              title={canOperate ? undefined : "Seu papel nao permite criar visitas"}
+              className="h-9 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 text-[0.74rem] text-[var(--yzi-text-primary)] disabled:opacity-50"
+            >
+              Criar na Agenda
+            </button>
+          </div>
+          <div className="sm:col-span-2"><ActionMessage state={visitState} /></div>
+        </form>
+
+        {operations.appointments.length > 0 ? (
+          <div className="mt-4 flex flex-col">
+            {operations.appointments.map((appointment) => (
+              <Link
+                key={appointment.id}
+                href={`/cockpit/yzi-imob/agenda?appointment=${appointment.id}`}
+                className="flex flex-wrap justify-between gap-2 border-b border-[color:var(--yzi-border-subtle)] py-2 text-[0.72rem] last:border-b-0 hover:underline"
+              >
+                <span className="text-[var(--yzi-text-secondary)]">
+                  {appointment.title} · {appointment.propertyTitle ?? "Sem imovel"}
+                </span>
+                <span className="text-[var(--yzi-text-faint)]">
+                  {formatDateTime(appointment.startsAt)} · {appointment.status}
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </WorkspaceSection>
+
+      <WorkspaceSection title="Feedbacks">
+        {operations.feedback.length === 0 ? (
+          <EmptyState>Ainda sem feedback de visita.</EmptyState>
+        ) : (
+          <div className="flex flex-col">
+            {operations.feedback.map((feedback) => (
+              <div key={feedback.id} className="border-b border-[color:var(--yzi-border-subtle)] py-3 text-[0.74rem] last:border-b-0">
+                <p className="text-[var(--yzi-text-primary)]">
+                  {feedback.clientAttendance} · {feedback.outcome}
+                </p>
+                <p className="mt-1 text-[var(--yzi-text-secondary)]">
+                  {feedback.observation ?? "Sem observacao"}
+                </p>
+                {feedback.nextAction ? (
+                  <p className="mt-1 text-[var(--yzi-text-faint)]">
+                    Proxima acao: {feedback.nextAction} · {formatDateTime(feedback.nextActionAt)}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        title="Follow-up"
+        description="Tarefas relacionadas, sem payload bruto ou dados sensiveis."
+      >
+        <ActionMessage state={followUpState} />
+        {operations.followUps.length === 0 ? (
+          <EmptyState>Nenhum follow-up relacionado.</EmptyState>
+        ) : (
+          <div className="flex flex-col">
+            {operations.followUps.map((task) => (
+              <div key={task.id} className="flex flex-wrap items-center gap-3 border-b border-[color:var(--yzi-border-subtle)] py-3 last:border-b-0">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.76rem] text-[var(--yzi-text-primary)]">{task.kind}</p>
+                  <p className="mt-1 text-[0.7rem] text-[var(--yzi-text-secondary)]">
+                    {task.status} · vence {formatDateTime(task.dueAt)} · tentativas {task.attemptCount}/{task.maxAttempts}
+                  </p>
+                  {task.lastErrorCode ? (
+                    <p className="mt-1 text-[0.68rem] text-rose-300">Ultimo erro: {task.lastErrorCode}</p>
+                  ) : null}
+                </div>
+                {["pending", "processing", "failed"].includes(task.status) ? (
+                  canOperate ? (
+                    <form action={followUpAction} className="flex gap-2">
+                      <input type="hidden" name="leadId" value={data.lead.id} />
+                      <input type="hidden" name="taskId" value={task.id} />
+                      <button type="submit" name="status" value="completed" disabled={followUpPending} className="h-8 rounded-[var(--yzi-radius-sm)] border border-emerald-400/30 px-3 text-[0.7rem] text-emerald-300 disabled:opacity-50">
+                        Resolver
+                      </button>
+                      <button type="submit" name="status" value="cancelled" disabled={followUpPending} className="h-8 rounded-[var(--yzi-radius-sm)] border border-rose-400/30 px-3 text-[0.7rem] text-rose-300 disabled:opacity-50">
+                        Cancelar
+                      </button>
+                    </form>
+                  ) : (
+                    <span title="Seu papel nao permite alterar follow-ups" className="text-[0.68rem] text-[var(--yzi-text-faint)]">
+                      Acao indisponivel
+                    </span>
+                  )
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </WorkspaceSection>
+    </div>
+  );
+}
+
 export function YziImobClientWorkspace({
   data,
+  operations,
+  canOperate = false,
+  actions,
   notFoundMessage = "Este lead nao existe neste tenant ou nao pode ser lido.",
 }: {
   data: YziImobLeadWorkspaceData | null;
+  operations?: LeadOperationsWorkspace;
+  canOperate?: boolean;
+  actions?: LeadWorkspaceActions;
   notFoundMessage?: string;
 }) {
   const router = useRouter();
   const { select } = useYziImobWorkspace();
-  const [tab, setTab] = useState<string>("perfil");
+  const [tab, setTab] = useState<string>("operacao");
 
   useEffect(() => {
     if (data) select(toLeadInspection(data));
@@ -392,7 +702,20 @@ export function YziImobClientWorkspace({
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-8 pb-10">
         <WorkspaceTabs tabs={TABS} active={tab} onChange={setTab} />
 
-        {tab === "perfil" ? (
+        {tab === "operacao" ? (
+          operations && actions ? (
+            <LeadOperationalTab
+              data={data}
+              operations={operations}
+              canOperate={canOperate}
+              actions={actions}
+            />
+          ) : (
+            <WorkspaceSection first title="Operacao indisponivel">
+              <EmptyState>Os contratos operacionais nao puderam ser carregados.</EmptyState>
+            </WorkspaceSection>
+          )
+        ) : tab === "perfil" ? (
           <div className="flex flex-col gap-7">
             <WorkspaceSection
               first

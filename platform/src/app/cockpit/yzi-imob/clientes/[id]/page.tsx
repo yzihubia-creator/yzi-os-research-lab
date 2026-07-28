@@ -5,6 +5,12 @@ import { YziAlert, YziPanel } from "@/components/yzi-os/yzi-primitives";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 import { getLeadWorkspaceData } from "@/lib/yzi-imob/leads/repository";
+import { getLeadOperationsWorkspace } from "@/lib/yzi-imob/operations/repository";
+import {
+  assignLeadAction,
+  createLeadVisitAction,
+  updateFollowUpAction,
+} from "./actions";
 
 // Client Workspace real: resolve o lead pelo id da rota e pelo tenant da
 // sessao. Lead inexistente e lead de outro tenant chegam ao mesmo estado
@@ -49,14 +55,22 @@ export default async function YziImobClienteWorkspacePage({
   }
 
   const supabase = await createServerSupabaseClient();
-  const result = await getLeadWorkspaceData(supabase, tenantContext.tenant.id, id);
+  const [result, operationsResult] = await Promise.all([
+    getLeadWorkspaceData(supabase, tenantContext.tenant.id, id),
+    getLeadOperationsWorkspace(
+      supabase,
+      tenantContext.tenant.id,
+      id,
+      tenantContext.userId,
+    ),
+  ]);
 
-  if (result.status === "error") {
+  if (result.status === "error" || operationsResult.status === "error") {
     return (
       <YziImobClientWorkspace
         data={null}
         notFoundMessage={
-          result.code === "not_found"
+          result.status === "error" && result.code === "not_found"
             ? "Este lead nao existe neste tenant."
             : "Este lead nao pode ser lido agora."
         }
@@ -64,5 +78,16 @@ export default async function YziImobClienteWorkspacePage({
     );
   }
 
-  return <YziImobClientWorkspace data={result.value} />;
+  return (
+    <YziImobClientWorkspace
+      data={result.value}
+      operations={operationsResult.value}
+      canOperate={["owner", "admin", "operator"].includes(tenantContext.role)}
+      actions={{
+        assign: assignLeadAction,
+        createVisit: createLeadVisitAction,
+        updateFollowUp: updateFollowUpAction,
+      }}
+    />
+  );
 }
