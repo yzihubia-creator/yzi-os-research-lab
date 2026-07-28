@@ -1,5 +1,5 @@
-import { YziImobGrowthCampanhasV0 } from "@/components/yzi-imob/yzi-imob-growth-campanhas-v0";
+import { redirect } from "next/navigation";
 
 export default function YziImobGrowthCampanhasPage() {
-  return <YziImobGrowthCampanhasV0 />;
+  redirect("/cockpit/yzi-imob/marketing/publicacoes");
 }

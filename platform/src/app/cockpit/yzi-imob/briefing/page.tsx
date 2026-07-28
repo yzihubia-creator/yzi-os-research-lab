@@ -1,5 +1,5 @@
-import { YziImobOperatingBriefingV0 } from "@/components/yzi-imob/yzi-imob-operating-briefing-v0";
+import { redirect } from "next/navigation";
 
 export default function YziImobBriefingPage() {
-  return <YziImobOperatingBriefingV0 />;
+  redirect("/cockpit/yzi-imob/radar");
 }

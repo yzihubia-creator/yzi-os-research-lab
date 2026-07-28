@@ -1,5 +1,5 @@
-import { YziImobGrowthLibraryV0 } from "@/components/yzi-imob/yzi-imob-growth-library-v0";
+import { redirect } from "next/navigation";
 
 export default function YziImobGrowthLibraryPage() {
-  return <YziImobGrowthLibraryV0 />;
+  redirect("/cockpit/yzi-imob/marketing/publicacoes");
 }

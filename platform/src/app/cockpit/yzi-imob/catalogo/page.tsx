@@ -1,5 +1,5 @@
-import { YziImobPropertyCatalogV0 } from "@/components/yzi-imob/yzi-imob-property-catalog-v0";
+import { redirect } from "next/navigation";
 
 export default function YziImobCatalogoPage() {
-  return <YziImobPropertyCatalogV0 />;
+  redirect("/cockpit/yzi-imob/imoveis/catalogo");
 }

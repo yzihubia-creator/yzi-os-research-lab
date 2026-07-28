@@ -7,18 +7,15 @@ import { cx, type WorkspaceTab } from "@/components/yzi-imob/yzi-imob-workspace-
 import type { GrowthSurface } from "./types";
 
 export const GROWTH_SURFACES: Array<WorkspaceTab & { id: GrowthSurface }> = [
-  { id: "briefing", label: "Briefing" },
-  { id: "conteudo", label: "Conteúdo" },
-  { id: "biblioteca", label: "Biblioteca" },
-  { id: "campanhas", label: "Campanhas" },
+  { id: "briefing", label: "Marketing e publicações" },
   { id: "resultados", label: "Resultados" },
 ];
 
 export const GROWTH_ROUTE: Record<GrowthSurface, string> = {
-  briefing: "/cockpit/yzi-imob/growth/briefing",
-  conteudo: "/cockpit/yzi-imob/growth/conteudo",
-  biblioteca: "/cockpit/yzi-imob/growth/biblioteca",
-  campanhas: "/cockpit/yzi-imob/growth/campanhas",
+  briefing: "/cockpit/yzi-imob/marketing/publicacoes",
+  conteudo: "/cockpit/yzi-imob/marketing/publicacoes",
+  biblioteca: "/cockpit/yzi-imob/marketing/publicacoes",
+  campanhas: "/cockpit/yzi-imob/marketing/publicacoes",
   resultados: "/cockpit/yzi-imob/growth/resultados",
 };
 

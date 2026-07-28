@@ -29,19 +29,6 @@ function readingFor(pathname: string): Reading {
       nextAction: "Nenhum imóvel selecionado.",
     };
   }
-  if (pathname.startsWith("/cockpit/yzi-imob/studio")) {
-    return {
-      situation: "Creative Studio.",
-      reading: "Aprove um imóvel para eu preparar o criativo.",
-    };
-  }
-  if (pathname.startsWith("/cockpit/yzi-imob/growth/conteudo")) {
-    return {
-      situation: "Growth OS / Conteúdo.",
-      reading: "Selecione um criativo para eu explicar prontidão, pendências e próxima ação.",
-      nextAction: "Aprovação humana antes de qualquer uso externo.",
-    };
-  }
   if (pathname.startsWith("/cockpit/yzi-imob/site")) {
     return {
       situation: "Site.",

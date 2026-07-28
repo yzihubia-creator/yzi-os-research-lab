@@ -1,5 +1,5 @@
-import { YziImobGrowthBriefingV0 } from "@/components/yzi-imob/yzi-imob-growth-briefing-v0";
+import { redirect } from "next/navigation";
 
 export default function YziImobGrowthBriefingPage() {
-  return <YziImobGrowthBriefingV0 />;
+  redirect("/cockpit/yzi-imob/marketing/publicacoes");
 }
