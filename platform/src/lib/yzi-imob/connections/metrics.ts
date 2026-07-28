@@ -2,6 +2,7 @@ import type { ConnectionEntry } from "./types";
 
 const PRIMARY_CONNECTION_IDS = new Set([
   "meta",
+  "metricool",
   "site",
   "google-search-console",
   "google-analytics",

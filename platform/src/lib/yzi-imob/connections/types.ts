@@ -96,6 +96,10 @@ export type ConnectionEntry = {
   displayName?: string | null;
   healthReason?: string | null;
   businessVerificationStatus?: string | null;
+  availableNetworks?: string[];
+  lastSyncAt?: string | null;
+  pendingPublications?: number;
+  recentFailures?: number;
   priority: ConnectionPriority;
   capabilities: ConnectionCapabilityLink[];
   // Presente apenas em conexões-ecossistema (Meta): os canais internos.

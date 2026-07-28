@@ -1,7 +1,12 @@
 import {
   CONNECTIONS_CATALOG,
 } from "./catalog.ts";
-import type { ConnectionChannel, ConnectionEntry, ConnectionState } from "./types.ts";
+import type {
+  ConnectionCapabilityId,
+  ConnectionChannel,
+  ConnectionEntry,
+  ConnectionState,
+} from "./types.ts";
 
 type SafeConnectionState = Pick<
   ConnectionEntry,
@@ -20,6 +25,11 @@ export type SafePersistedConnectionAsset = {
 
 export type SafePersistedConnection = SafeConnectionState & {
   assets: SafePersistedConnectionAsset[];
+  availableNetworks: string[];
+  capabilityIds: ConnectionCapabilityId[];
+  lastSyncAt: string | null;
+  pendingPublications: number;
+  recentFailures: number;
 };
 
 type MetaAssetKind =
@@ -67,20 +77,28 @@ const STATE_RANK: Record<ConnectionState, number> = {
 export function mapPersistedStatus(status: string | null): ConnectionState {
   switch (status) {
     case "connected":
+    case "active":
       return "conectado";
     case "partially_connected":
       return "parcialmente-conectado";
     case "configuring":
+    case "validating":
       return "em-configuracao";
     case "awaiting_account_selection":
     case "awaiting_customer":
     case "pending_authorization":
     case "provisioning":
+    case "configuration_required":
       return "aguardando-autorizacao";
     case "attention_required":
     case "validation_failed":
+    case "token_invalid":
+    case "plan_insufficient":
+    case "rate_limited":
+    case "failed":
       return "requer-atencao";
     case "disabled":
+    case "disconnected":
     case "not_configured":
     default:
       return "nao-configurado";
@@ -103,10 +121,15 @@ export function parseTenantConnectionsRpcPayload(payload: unknown): SafePersiste
     parsed.push({
       id: visualId,
       state: mapPersistedConnectionStatus(rawStatus, visualId),
-      lastCheckedAt: readDateString(record.last_checked_at),
+      lastCheckedAt: readDateString(record.validated_at) ?? readDateString(record.last_checked_at),
       nextAction: readSafeText(record.next_action),
       ...readSafeMetadata(record),
       assets: readAssets(record.assets),
+      availableNetworks: readMetricoolNetworks(record.assets),
+      capabilityIds: readMetricoolCapabilities(record.capabilities),
+      lastSyncAt: readDateString(record.last_sync_at),
+      pendingPublications: readNonNegativeInteger(record.pending_publications),
+      recentFailures: readNonNegativeInteger(record.recent_failures),
     });
   }
 
@@ -118,15 +141,13 @@ export function mergeConnectionsCatalogWithPersistedState(
   catalog: ConnectionEntry[] = CONNECTIONS_CATALOG,
 ): ConnectionEntry[] {
   const persistedById = new Map(persisted.map((connection) => [connection.id, connection]));
-  const metaAssets = persistedById.get("meta")?.assets ?? [];
 
   return catalog.map((entry) => {
     const persistedConnection = persistedById.get(entry.id);
     if (!persistedConnection) {
-      const copiedEntry: ConnectionEntry =
-        entry.state === "em-breve" ? copyEntry(entry) : { ...copyEntry(entry), state: "nao-configurado" };
-      applyMetaDerivedOperationalSemantics(copiedEntry, metaAssets);
-      return copiedEntry;
+      return entry.state === "em-breve"
+        ? copyEntry(entry)
+        : { ...copyEntry(entry), state: "nao-configurado" };
     }
 
     const mergedEntry: ConnectionEntry = {
@@ -137,14 +158,26 @@ export function mergeConnectionsCatalogWithPersistedState(
       displayName: persistedConnection.displayName,
       healthReason: persistedConnection.healthReason,
       businessVerificationStatus: persistedConnection.businessVerificationStatus,
+      availableNetworks: persistedConnection.availableNetworks,
+      lastSyncAt: persistedConnection.lastSyncAt,
+      pendingPublications: persistedConnection.pendingPublications,
+      recentFailures: persistedConnection.recentFailures,
     };
+
+    if (entry.id === "metricool") {
+      const unlockedIds = new Set(persistedConnection.capabilityIds);
+      mergedEntry.capabilities = mergedEntry.capabilities.map((capability) => ({
+        ...capability,
+        unlocked: unlockedIds.has(capability.id),
+      }));
+      applyMetricoolSemantics(mergedEntry);
+    }
 
     if (entry.id === "meta" && entry.channels) {
       mergedEntry.channels = mergeMetaChannels(entry.channels, persistedConnection.assets);
       applyMetaChannelSemantics(mergedEntry);
     }
 
-    applyMetaDerivedOperationalSemantics(mergedEntry, metaAssets);
     return mergedEntry;
   });
 }
@@ -159,10 +192,63 @@ function readVisualConnectionId(record: Record<string, unknown>): string | null 
 
   const provider = readString(record.provider);
   if (provider === "meta") return "meta";
+  if (provider === "metricool") return "metricool";
 
   return catalogId && CONNECTIONS_CATALOG.some((entry) => entry.id === catalogId)
     ? catalogId
     : null;
+}
+
+function readMetricoolNetworks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.flatMap((item) => {
+    const record = asRecord(item);
+    const network = readString(record?.network);
+    return network === "instagram" || network === "facebook" ? [network] : [];
+  })));
+}
+
+function readMetricoolCapabilities(value: unknown): ConnectionCapabilityId[] {
+  if (!Array.isArray(value)) return [];
+  const mapped = value.flatMap((item) => {
+    const record = asRecord(item);
+    if (!record || record.unlocked !== true) return [];
+    switch (readString(record.capability_id)) {
+      case "social_publish":
+        return ["publicar-conteudo" as const];
+      case "social_schedule":
+        return ["programar-publicacao" as const];
+      case "post_metrics":
+      case "profile_metrics":
+        return ["ler-metricas" as const];
+      default:
+        return [];
+    }
+  });
+  return Array.from(new Set(mapped));
+}
+
+function applyMetricoolSemantics(entry: ConnectionEntry): void {
+  const networks = entry.availableNetworks ?? [];
+  if (entry.state === "conectado") {
+    entry.primaryPendency = null;
+    entry.nextAction = "Validar conexão";
+    entry.healthReason = "API oficial validada";
+    entry.impact = [];
+    entry.summary = networks.length
+      ? `Workspace Metricool validado para ${networks.join(" e ")}.`
+      : "Workspace Metricool validado; descoberta de perfis ainda sem destinos disponíveis.";
+    return;
+  }
+  if (entry.state === "aguardando-autorizacao") {
+    entry.nextAction = "Aguardar configuração gerenciada";
+    entry.healthReason = "Credenciais não são solicitadas ao cliente";
+    entry.primaryPendency = "Provisionar API Metricool pela YZIHUB.";
+  }
+}
+
+function readNonNegativeInteger(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
 function readAssets(value: unknown): SafePersistedConnectionAsset[] {
@@ -237,8 +323,7 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
 
   if (connectedChannels.length === channels.length) {
     entry.state = "conectado";
-    entry.summary =
-      "A Meta está conectada ao WhatsApp, Instagram, Facebook e Meta Ads.";
+    entry.summary = "O WhatsApp Cloud API está conectado para atendimento e mensagens.";
     entry.primaryPendency = null;
     entry.impact = [];
     entry.nextAction = null;
@@ -250,7 +335,7 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
   if (whatsapp?.state === "parcialmente-conectado") {
     entry.state = "parcialmente-conectado";
     entry.summary =
-      "Instagram, Facebook e Meta Ads estão conectados. O WhatsApp está parcialmente operacional: o número de teste está conectado e o número oficial segue em configuração.";
+      "O WhatsApp está parcialmente operacional: há um número conectado e outro em configuração.";
     entry.primaryPendency = "Concluir ativação técnica do número oficial";
     entry.impact = ["WhatsApp disponível para validação técnica; atendimento oficial ainda depende da ativação final."];
     entry.nextAction = "Concluir ativação técnica do número oficial";
@@ -265,12 +350,9 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
 
   if (connectedChannels.length > 0 && missingChannels.length > 0) {
     entry.state = "parcialmente-conectado";
-    entry.summary =
-      "A Meta já está conectada ao Instagram, Facebook e Meta Ads. O WhatsApp ainda está em configuração.";
+    entry.summary = "O WhatsApp Cloud API ainda está em configuração técnica.";
     entry.primaryPendency = "Concluir ativação técnica do número oficial";
-    entry.impact = [
-      "Instagram, Facebook e Meta Ads já estão conectados. O WhatsApp ainda precisa ser concluído para ativar o atendimento.",
-    ];
+    entry.impact = ["O WhatsApp ainda precisa ser concluído para ativar o atendimento."];
     entry.nextAction = "Concluir ativação técnica do número oficial";
     entry.businessVerificationStatus ??= "Pendente";
 
@@ -280,54 +362,6 @@ function applyMetaChannelSemantics(entry: ConnectionEntry): void {
       whatsapp.nextAction = "Ativar número oficial";
     }
   }
-}
-
-function applyMetaDerivedOperationalSemantics(
-  entry: ConnectionEntry,
-  assets: SafePersistedConnectionAsset[],
-): void {
-  const instagram = assets.find((asset) => asset.kind === "instagram_business" && asset.status === "conectado");
-  const facebook = assets.find((asset) => asset.kind === "facebook_page" && asset.status === "conectado");
-  const metaAds = assets.find((asset) => asset.kind === "meta_ad_account" && asset.status === "conectado");
-
-  if (entry.id === "instagram-organico" && instagram) {
-    markIdentifiedOnly(entry, instagram, "Conta identificada; publicação e métricas ainda não validadas.");
-  }
-
-  if (entry.id === "facebook-organico" && facebook) {
-    markIdentifiedOnly(entry, facebook, "Página identificada; publicação e métricas ainda não validadas.");
-  }
-
-  if (entry.id === "meta-ads" && metaAds) {
-    entry.state = "parcialmente-conectado";
-    entry.displayName = metaAds.displayName;
-    entry.lastCheckedAt = metaAds.lastCheckedAt;
-    entry.summary = "Conta de anúncios identificada; leitura disponível, escrita e gestão financeira não validadas.";
-    entry.primaryPendency = "Validar criação/edição, método de pagamento e limites de orçamento.";
-    entry.impact = ["Meta Ads pode ser lido, mas criação, edição, pagamento e orçamento ainda não foram validados."];
-    unlockCapabilities(entry, new Set(["identified", "read"]));
-  }
-}
-
-function markIdentifiedOnly(
-  entry: ConnectionEntry,
-  asset: SafePersistedConnectionAsset,
-  pendency: string,
-): void {
-  entry.state = "parcialmente-conectado";
-  entry.displayName = asset.displayName;
-  entry.lastCheckedAt = asset.lastCheckedAt;
-  entry.summary = "Ativo identificado; operação de publicação e métricas ainda não validadas.";
-  entry.primaryPendency = pendency;
-  entry.impact = ["Canal identificado, mas operação completa ainda depende de validação de publicação e métricas."];
-  unlockCapabilities(entry, new Set(["identified"]));
-}
-
-function unlockCapabilities(entry: ConnectionEntry, unlockedIds: Set<string>): void {
-  entry.capabilities = entry.capabilities.map((capability) => ({
-    ...capability,
-    unlocked: unlockedIds.has(capability.id),
-  }));
 }
 
 function readAssetKind(record: Record<string, unknown>): MetaAssetKind | null {

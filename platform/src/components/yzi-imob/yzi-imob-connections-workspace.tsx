@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import { startMetaOAuthAuthorizationAction } from "@/app/cockpit/yzi-imob/conexoes/actions";
+import {
+  disconnectMetricoolConnectionAction,
+  requestMetricoolConfigurationAction,
+  requestMetricoolValidationAction,
+  startMetaOAuthAuthorizationAction,
+} from "@/app/cockpit/yzi-imob/conexoes/actions";
 import {
   CONNECTIONS_CATALOG,
   CONNECTION_CAPABILITY_LABEL,
@@ -543,6 +548,127 @@ function MetaManagedPanel({
   );
 }
 
+function MetricoolManagedPanel({
+  accessState,
+  entry,
+}: {
+  accessState: ConnectionsAccessState;
+  entry: ConnectionEntry;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [statusNote, setStatusNote] = useState<string | null>(null);
+  const configured = ["conectado", "requer-atencao", "em-configuracao"].includes(entry.state);
+  const canMutate = accessState === "ready" && !isPending;
+
+  function runAction(
+    action: () => Promise<{ status: "ok"; connectionStatus: string } | { status: "error"; code: string }>,
+    successMessage: string,
+  ) {
+    if (!canMutate) return;
+    setStatusNote(null);
+    startTransition(async () => {
+      const result = await action();
+      if (result.status === "ok") {
+        setStatusNote(successMessage);
+        router.refresh();
+        return;
+      }
+      setStatusNote(
+        result.code === "configuration_required"
+          ? "A configuração gerenciada ainda precisa ser provisionada pela YZIHUB."
+          : "Não foi possível concluir a ação. Nenhum segredo ou conteúdo foi alterado.",
+      );
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)]/45 px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
+            Configuração gerenciada
+          </span>
+          <p className="max-w-xl text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
+            A YZIHUB provisiona a API oficial. O cliente nunca informa token em um campo comum, e o MCP
+            não é necessário para esta tela funcionar.
+          </p>
+        </div>
+        <Link
+          href="/cockpit/yzi-imob/marketing/publicacoes"
+          className="text-[0.7rem] text-[var(--yzi-text-secondary)] underline decoration-[color:var(--yzi-border-subtle)] underline-offset-4 hover:text-[var(--yzi-text-primary)]"
+        >
+          Abrir publicações →
+        </Link>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <DetailRow label="Workspace" value={displayDetail(entry.displayName)} />
+        <DetailRow
+          label="Redes disponíveis"
+          value={entry.availableNetworks?.length ? entry.availableNetworks.join(", ") : "Nenhuma validada"}
+        />
+        <DetailRow label="Última validação" value={displayDate(entry.lastCheckedAt)} />
+        <DetailRow label="Última sincronização" value={displayDate(entry.lastSyncAt)} />
+        <DetailRow label="Publicações pendentes" value={String(entry.pendingPublications ?? 0)} />
+        <DetailRow label="Falhas recentes" value={String(entry.recentFailures ?? 0)} />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {!configured || entry.state === "aguardando-autorizacao" ? (
+          <button
+            type="button"
+            disabled={!canMutate}
+            onClick={() =>
+              runAction(
+                requestMetricoolConfigurationAction,
+                "Solicitação registrada. A configuração permanece gerenciada pela YZIHUB.",
+              )
+            }
+            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "Registrando..." : entry.state === "aguardando-autorizacao" ? "Reabrir solicitação" : "Configurar"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!canMutate}
+            onClick={() =>
+              runAction(
+                requestMetricoolValidationAction,
+                "Validação enfileirada com transporte oficial e execução limitada.",
+              )
+            }
+            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "Validando..." : entry.state === "requer-atencao" ? "Reconectar" : "Validar"}
+          </button>
+        )}
+        {configured ? (
+          <button
+            type="button"
+            disabled={!canMutate}
+            onClick={() =>
+              runAction(
+                disconnectMetricoolConnectionAction,
+                "Conexão revogada localmente. Publicações externas não foram alteradas.",
+              )
+            }
+            className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-wine),0.3)] px-3 py-1.5 text-[0.72rem] text-[rgb(var(--imob-wine))] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Desconectar
+          </button>
+        ) : null}
+      </div>
+      {statusNote ? (
+        <p role="status" className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+          {statusNote}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ConnectionDetail({
   accessState,
   entry,
@@ -554,7 +680,8 @@ function ConnectionDetail({
 }) {
   const groupLabel = CONNECTION_GROUPS.find((group) => group.id === entry.groupId)?.label ?? "";
   const isMeta = entry.id === "meta";
-  const action = isMeta ? null : entry.nextAction || actionForState(entry.state);
+  const isMetricool = entry.id === "metricool";
+  const action = isMeta || isMetricool ? null : entry.nextAction || actionForState(entry.state);
   const showConsumptionLink = CONSUMPTION_LINKED_IDS.has(entry.id);
 
   return (
@@ -582,6 +709,7 @@ function ConnectionDetail({
       </div>
 
       {isMeta ? <MetaManagedPanel accessState={accessState} entry={entry} tenantId={tenantId} /> : null}
+      {isMetricool ? <MetricoolManagedPanel accessState={accessState} entry={entry} /> : null}
 
       {isMeta ? (
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
@@ -626,7 +754,7 @@ function ConnectionDetail({
         </div>
       ) : null}
 
-      {isMeta ? null : (
+      {isMeta || isMetricool ? null : (
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
           <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">Saúde</span>
           <div className="flex flex-col gap-1.5 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3.5 py-3">
@@ -637,7 +765,7 @@ function ConnectionDetail({
         </div>
       )}
 
-      {isMeta ? null : entry.impact.length > 0 ? (
+      {isMeta || isMetricool ? null : entry.impact.length > 0 ? (
         <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
           <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">Impacto</span>
           <ul className="flex flex-col gap-1.5">
@@ -678,7 +806,7 @@ function ConnectionDetail({
         ) : null}
       </div>
 
-      {isMeta ? null : (
+      {isMeta || isMetricool ? null : (
         <p className="text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
           Evidência: {entry.evidenceNote}
         </p>

@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { CONNECTIONS_CATALOG } from "../src/lib/yzi-imob/connections/catalog.ts";
 import {
   formatConnectionQuantity,
-  isPrimaryConnectionSummaryEntry,
   summarizeConnectionMetrics,
 } from "../src/lib/yzi-imob/connections/metrics.ts";
 import { buildConnectionsCatalogFromRpcPayload } from "../src/lib/yzi-imob/connections/persisted-state.ts";
@@ -19,55 +18,50 @@ function byId(entries, id) {
   return entry;
 }
 
-test("Meta with four channels counts once as a connected connection", () => {
+test("Meta counts only the WhatsApp Cloud API connection in the MVP", () => {
   const catalog = buildConnectionsCatalogFromRpcPayload([
     {
       provider: "meta",
       status: "awaiting_account_selection",
       assets: [
-        { kind: "page", account_label: "Pagina Real" },
-        { kind: "instagram", account_label: "perfil.real" },
-        { kind: "ad_account", account_label: "Conta Real" },
+        { kind: "page", account_label: "Legacy Page" },
+        { kind: "instagram", account_label: "legacy.profile" },
+        { kind: "ad_account", account_label: "Legacy Ads" },
         { kind: "waba", account_label: "WhatsApp Real", status: "connected" },
       ],
     },
   ]);
 
-  assert.equal(byId(catalog, "meta").state, "conectado");
+  const meta = byId(catalog, "meta");
+  assert.equal(meta.state, "conectado");
+  assert.deepEqual(meta.channels?.map((channel) => channel.id), ["whatsapp"]);
+  assert.equal(catalog.some((entry) => ["instagram-organico", "facebook-organico", "meta-ads"].includes(entry.id)), false);
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
     connected: 1,
     deploying: 0,
-    upcoming: 5,
+    upcoming: 6,
     attention: 0,
   });
 });
 
-test("partially connected Meta enters deployment without counting derived entries", () => {
+test("display-only Meta social assets never promote WhatsApp", () => {
   const catalog = buildConnectionsCatalogFromRpcPayload([
     {
       provider: "meta",
       status: "awaiting_account_selection",
       assets: [
-        { kind: "page", account_label: "OCM Negocios Imobiliarios" },
-        { kind: "instagram", account_label: "ocm.imobiliaria" },
-        { kind: "ad_account", account_label: "OCM Anuncios" },
+        { kind: "page", account_label: "Legacy Page" },
+        { kind: "instagram", account_label: "legacy.profile" },
+        { kind: "ad_account", account_label: "Legacy Ads" },
       ],
     },
   ]);
 
-  assert.equal(byId(catalog, "meta").state, "parcialmente-conectado");
-  assert.equal(byId(catalog, "instagram-organico").state, "parcialmente-conectado");
-  assert.equal(byId(catalog, "facebook-organico").state, "parcialmente-conectado");
-  assert.equal(byId(catalog, "meta-ads").state, "parcialmente-conectado");
-  assert.deepEqual(summarizeConnectionMetrics(catalog), {
-    connected: 1,
-    deploying: 1,
-    upcoming: 5,
-    attention: 0,
-  });
+  assert.equal(byId(catalog, "meta").state, "aguardando-autorizacao");
+  assert.equal(summarizeConnectionMetrics(catalog).connected, 0);
 });
 
-test("WhatsApp assets keep Meta counted once while partially connected", () => {
+test("partially configured WhatsApp keeps Meta in deployment", () => {
   const catalog = buildConnectionsCatalogFromRpcPayload([
     {
       provider: "meta",
@@ -75,8 +69,6 @@ test("WhatsApp assets keep Meta counted once while partially connected", () => {
       assets: [
         { kind: "whatsapp_phone_number", account_label: "+1 555-194-9020", status: "connected" },
         { kind: "whatsapp_phone_number", account_label: "+55 83 9872-5431", status: "configuring" },
-        { kind: "whatsapp_business_account", account_label: "OCM Negocios Imobiliarios", status: "configuring" },
-        { kind: "waba", account_label: "Test WhatsApp Business Account", status: "configuring" },
       ],
     },
   ]);
@@ -85,35 +77,39 @@ test("WhatsApp assets keep Meta counted once while partially connected", () => {
   assert.deepEqual(summarizeConnectionMetrics(catalog), {
     connected: 1,
     deploying: 1,
-    upcoming: 5,
-    attention: 0,
-  });
-});
-
-test("coming soon items enter upcoming integrations", () => {
-  const catalog = cloneCatalog();
-
-  assert.equal(byId(catalog, "google-ads").state, "em-breve");
-  assert.deepEqual(summarizeConnectionMetrics(catalog), {
-    connected: 0,
-    deploying: 0,
     upcoming: 6,
     attention: 0,
   });
 });
 
-test("subcapabilities do not change summary counts", () => {
+test("Metricool is a primary managed connection", () => {
+  const catalog = buildConnectionsCatalogFromRpcPayload([
+    {
+      provider: "metricool",
+      status: "configuration_required",
+      capabilities: [],
+      assets: [],
+    },
+  ]);
+
+  assert.equal(byId(catalog, "metricool").state, "aguardando-autorizacao");
+  assert.deepEqual(summarizeConnectionMetrics(catalog), {
+    connected: 0,
+    deploying: 1,
+    upcoming: 6,
+    attention: 0,
+  });
+});
+
+test("coming soon items and capability flags do not distort summary counts", () => {
   const catalog = cloneCatalog();
   const before = summarizeConnectionMetrics(catalog);
+  assert.equal(byId(catalog, "google-ads").state, "em-breve");
 
   for (const entry of catalog) {
-    for (const capability of entry.capabilities) {
-      capability.unlocked = true;
-    }
+    for (const capability of entry.capabilities) capability.unlocked = true;
     for (const channel of entry.channels ?? []) {
-      for (const capability of channel.capabilities) {
-        capability.unlocked = true;
-      }
+      for (const capability of channel.capabilities) capability.unlocked = true;
     }
   }
 
@@ -122,33 +118,9 @@ test("subcapabilities do not change summary counts", () => {
 
 test("explicit error enters attention", () => {
   const catalog = cloneCatalog();
-  byId(catalog, "site").state = "requer-atencao";
+  byId(catalog, "metricool").state = "requer-atencao";
 
-  assert.deepEqual(summarizeConnectionMetrics(catalog), {
-    connected: 0,
-    deploying: 0,
-    upcoming: 5,
-    attention: 1,
-  });
-});
-
-test("no connection is promoted by display-only Meta assets", () => {
-  const catalog = buildConnectionsCatalogFromRpcPayload([
-    {
-      provider: "meta",
-      status: "awaiting_account_selection",
-      assets: [
-        { kind: "page", account_label: "OCM Negocios Imobiliarios" },
-        { kind: "instagram", account_label: "ocm.imobiliaria" },
-        { kind: "ad_account", account_label: "OCM Anuncios" },
-      ],
-    },
-  ]);
-
-  assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "instagram-organico")), false);
-  assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "facebook-organico")), false);
-  assert.equal(isPrimaryConnectionSummaryEntry(byId(catalog, "meta-ads")), false);
-  assert.equal(summarizeConnectionMetrics(catalog).connected, 1);
+  assert.equal(summarizeConnectionMetrics(catalog).attention, 1);
 });
 
 test("connection quantity pluralization handles zero, one, and many", () => {
