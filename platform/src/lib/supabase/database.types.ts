@@ -436,14 +436,20 @@ export type Database = {
       }
       tenant_connections: {
         Row: {
+          account_display_name: string | null
+          capabilities: string[]
           catalog_id: string
           connected_at: string | null
           connected_by: string | null
           created_at: string
+          disconnected_at: string | null
           expires_at: string | null
+          external_blog_id: string | null
+          external_user_id: string | null
           granted_scopes: string[]
           id: string
           last_checked_at: string | null
+          last_error_code: string | null
           last_failure_at: string | null
           last_failure_reason: string | null
           last_sync_at: string | null
@@ -454,18 +460,26 @@ export type Database = {
           revoked_at: string | null
           status: string
           tenant_id: string
+          token_expires_at: string | null
           updated_at: string
+          validated_at: string | null
           vault_secret_id: string | null
         }
         Insert: {
+          account_display_name?: string | null
+          capabilities?: string[]
           catalog_id: string
           connected_at?: string | null
           connected_by?: string | null
           created_at?: string
+          disconnected_at?: string | null
           expires_at?: string | null
+          external_blog_id?: string | null
+          external_user_id?: string | null
           granted_scopes?: string[]
           id?: string
           last_checked_at?: string | null
+          last_error_code?: string | null
           last_failure_at?: string | null
           last_failure_reason?: string | null
           last_sync_at?: string | null
@@ -476,18 +490,26 @@ export type Database = {
           revoked_at?: string | null
           status?: string
           tenant_id: string
+          token_expires_at?: string | null
           updated_at?: string
+          validated_at?: string | null
           vault_secret_id?: string | null
         }
         Update: {
+          account_display_name?: string | null
+          capabilities?: string[]
           catalog_id?: string
           connected_at?: string | null
           connected_by?: string | null
           created_at?: string
+          disconnected_at?: string | null
           expires_at?: string | null
+          external_blog_id?: string | null
+          external_user_id?: string | null
           granted_scopes?: string[]
           id?: string
           last_checked_at?: string | null
+          last_error_code?: string | null
           last_failure_at?: string | null
           last_failure_reason?: string | null
           last_sync_at?: string | null
@@ -498,7 +520,9 @@ export type Database = {
           revoked_at?: string | null
           status?: string
           tenant_id?: string
+          token_expires_at?: string | null
           updated_at?: string
+          validated_at?: string | null
           vault_secret_id?: string | null
         }
         Relationships: [
@@ -2837,6 +2861,324 @@ export type Database = {
           },
         ]
       }
+      yzi_imob_social_metrics: {
+        Row: {
+          collected_at: string
+          created_at: string
+          id: string
+          metric_scope: string
+          network: string
+          normalized_metric_name: string | null
+          period_end: string
+          period_start: string
+          provider: string
+          provider_metric_name: string
+          social_publication_id: string | null
+          source: string
+          target_profile_id: string | null
+          tenant_id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          collected_at: string
+          created_at?: string
+          id?: string
+          metric_scope: string
+          network: string
+          normalized_metric_name?: string | null
+          period_end: string
+          period_start: string
+          provider?: string
+          provider_metric_name: string
+          social_publication_id?: string | null
+          source?: string
+          target_profile_id?: string | null
+          tenant_id: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          collected_at?: string
+          created_at?: string
+          id?: string
+          metric_scope?: string
+          network?: string
+          normalized_metric_name?: string | null
+          period_end?: string
+          period_start?: string
+          provider?: string
+          provider_metric_name?: string
+          social_publication_id?: string | null
+          source?: string
+          target_profile_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_social_metrics_publication_fkey"
+            columns: ["social_publication_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_social_publications"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_metrics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_social_publication_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          error_code: string | null
+          event_type: string
+          id: string
+          job_id: string | null
+          metadata: Json
+          social_publication_id: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          event_type: string
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          social_publication_id: string
+          tenant_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          event_type?: string
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          social_publication_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_social_publication_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_social_publication_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publication_events_publication_fkey"
+            columns: ["social_publication_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_social_publications"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publication_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_social_publication_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error_code: string | null
+          max_attempts: number
+          operation: string
+          social_publication_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_error_code?: string | null
+          max_attempts?: number
+          operation: string
+          social_publication_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_error_code?: string | null
+          max_attempts?: number
+          operation?: string
+          social_publication_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_social_publication_jobs_publication_fkey"
+            columns: ["social_publication_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_social_publications"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publication_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yzi_imob_social_publications: {
+        Row: {
+          accepted_at: string | null
+          asset_references: Json
+          cancelled_at: string | null
+          caption: string
+          connection_id: string
+          created_at: string
+          created_by_user_id: string
+          error_code: string | null
+          external_network_post_ids: Json
+          external_post_id: string | null
+          external_post_uuid: string | null
+          external_url: string | null
+          failed_at: string | null
+          format: string
+          id: string
+          idempotency_key: string
+          last_metrics_sync_at: string | null
+          last_status_sync_at: string | null
+          property_id: string
+          provider: string
+          publication_revision_id: string
+          published_at: string | null
+          scheduled_at: string
+          status: string
+          target_networks: string[]
+          target_profile_ids: string[]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          asset_references: Json
+          cancelled_at?: string | null
+          caption: string
+          connection_id: string
+          created_at?: string
+          created_by_user_id: string
+          error_code?: string | null
+          external_network_post_ids?: Json
+          external_post_id?: string | null
+          external_post_uuid?: string | null
+          external_url?: string | null
+          failed_at?: string | null
+          format: string
+          id?: string
+          idempotency_key: string
+          last_metrics_sync_at?: string | null
+          last_status_sync_at?: string | null
+          property_id: string
+          provider?: string
+          publication_revision_id: string
+          published_at?: string | null
+          scheduled_at: string
+          status?: string
+          target_networks: string[]
+          target_profile_ids: string[]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          asset_references?: Json
+          cancelled_at?: string | null
+          caption?: string
+          connection_id?: string
+          created_at?: string
+          created_by_user_id?: string
+          error_code?: string | null
+          external_network_post_ids?: Json
+          external_post_id?: string | null
+          external_post_uuid?: string | null
+          external_url?: string | null
+          failed_at?: string | null
+          format?: string
+          id?: string
+          idempotency_key?: string
+          last_metrics_sync_at?: string | null
+          last_status_sync_at?: string | null
+          property_id?: string
+          provider?: string
+          publication_revision_id?: string
+          published_at?: string | null
+          scheduled_at?: string
+          status?: string
+          target_networks?: string[]
+          target_profile_ids?: string[]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yzi_imob_social_publications_connection_fkey"
+            columns: ["connection_id", "tenant_id", "provider"]
+            isOneToOne: false
+            referencedRelation: "tenant_connections"
+            referencedColumns: ["id", "tenant_id", "provider"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publications_property_tenant_fkey"
+            columns: ["property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publications_revision_fkey"
+            columns: ["publication_revision_id", "tenant_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "yzi_imob_property_publication_revisions"
+            referencedColumns: ["id", "tenant_id", "property_id"]
+          },
+          {
+            foreignKeyName: "yzi_imob_social_publications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       yzi_imob_visit_feedback: {
         Row: {
           appointment_id: string
@@ -3150,6 +3492,14 @@ export type Database = {
           status: string
         }[]
       }
+      cancel_yzi_imob_metricool_publication: {
+        Args: { p_social_publication_id: string }
+        Returns: {
+          job_id: string
+          publication_status: string
+          social_publication_id: string
+        }[]
+      }
       complete_yzi_imob_meta_connection: {
         Args: {
           p_access_token: string
@@ -3221,6 +3571,32 @@ export type Database = {
           revision_status: string
         }[]
       }
+      disconnect_yzi_imob_metricool_connection: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          connection_id: string
+          connection_status: string
+        }[]
+      }
+      enqueue_yzi_imob_metricool_publication: {
+        Args: {
+          p_caption: string
+          p_connection_id: string
+          p_format: string
+          p_idempotency_key: string
+          p_media_ids: string[]
+          p_revision_id: string
+          p_scheduled_at: string
+          p_target_networks: string[]
+          p_target_profile_ids: string[]
+        }
+        Returns: {
+          idempotent_replay: boolean
+          job_id: string
+          publication_status: string
+          social_publication_id: string
+        }[]
+      }
       enqueue_yzi_imob_property_publication: {
         Args: {
           p_idempotency_key: string
@@ -3264,17 +3640,26 @@ export type Database = {
           connected_at: string
           connected_by: string
           created_at: string
+          disconnected_at: string
+          display_name: string
           expires_at: string
+          external_blog_id: string
+          external_user_id: string
           granted_scopes: string[]
           id: string
           last_checked_at: string
+          last_error_code: string
           last_failure_at: string
           last_failure_reason: string
           last_sync_at: string
+          pending_publications: number
           provider: string
+          recent_failures: number
           status: string
           tenant_id: string
+          token_expires_at: string
           updated_at: string
+          validated_at: string
         }[]
       }
       list_yzi_imob_team_members: {
@@ -3337,6 +3722,20 @@ export type Database = {
           success: boolean
         }[]
       }
+      request_yzi_imob_metricool_configuration: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          connection_id: string
+          connection_status: string
+        }[]
+      }
+      request_yzi_imob_metricool_validation: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          connection_id: string
+          connection_status: string
+        }[]
+      }
       request_yzi_imob_property_publication_review: {
         Args: {
           p_content_hash: string
@@ -3359,6 +3758,17 @@ export type Database = {
           message: string
           status: string
           updated_at: string
+        }[]
+      }
+      retry_yzi_imob_metricool_publication: {
+        Args: {
+          p_retry_idempotency_key: string
+          p_social_publication_id: string
+        }
+        Returns: {
+          job_id: string
+          publication_status: string
+          social_publication_id: string
         }[]
       }
       retry_yzi_imob_property_publication: {
