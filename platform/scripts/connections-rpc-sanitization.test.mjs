@@ -10,6 +10,10 @@ const ACCESS_FIX_SQL = readFileSync(
   "../supabase/migrations/20260719004500_yzi_imob_connections_rpc_access_fix_v1.sql",
   "utf8",
 );
+const METRICOOL_ACCESS_FIX_SQL = readFileSync(
+  "../supabase/migrations/20260729005426_fix_yzi_imob_connections_authenticated_read.sql",
+  "utf8",
+);
 
 test("connections RPC returns WhatsApp assets with sanitized metadata allowlists", () => {
   assert.match(MIGRATION_SQL, /create or replace function public\.get_yzi_imob_tenant_connections/);
@@ -37,4 +41,31 @@ test("connections RPC access fix keeps invoker grants narrow", () => {
   assert.match(ACCESS_FIX_SQL, /grant execute on function public\.get_yzi_imob_tenant_connections\(uuid\)\s*to authenticated;/i);
   assert.doesNotMatch(ACCESS_FIX_SQL, /to anon/i);
   assert.doesNotMatch(ACCESS_FIX_SQL, /security definer/i);
+});
+
+test("Metricool RPC expansion grants only the sanitized connection columns it reads", () => {
+  for (const column of [
+    "capabilities",
+    "external_user_id",
+    "external_blog_id",
+    "account_display_name",
+    "validated_at",
+    "disconnected_at",
+    "token_expires_at",
+    "last_error_code",
+  ]) {
+    assert.match(METRICOOL_ACCESS_FIX_SQL, new RegExp(`\\b${column}\\b`, "i"));
+  }
+  assert.match(
+    METRICOOL_ACCESS_FIX_SQL,
+    /grant select \([\s\S]*\) on public\.tenant_connections to authenticated;/i,
+  );
+  assert.match(
+    METRICOOL_ACCESS_FIX_SQL,
+    /grant execute on function public\.get_yzi_imob_tenant_connections\(uuid\)\s*to authenticated;/i,
+  );
+  assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /grant select on public\.tenant_connections/i);
+  assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /to anon/i);
+  assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /security definer/i);
+  assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /vault_secret_id/i);
 });
