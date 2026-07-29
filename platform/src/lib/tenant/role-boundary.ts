@@ -1,89 +1,83 @@
 // Fronteira de permissão do operador (Lane 8 — Role / Permission Boundary).
-// Módulo PURO, declarativo e read-only: nenhuma query, nenhum schema, nenhuma
-// policy, nenhum service role, nenhuma escrita, nenhuma env. Traduz o papel REAL
-// da membership (vindo do RLS read-only da Lane 3) em uma fronteira HONESTA do
-// que o operador pode e ainda não pode fazer no cockpit.
-//
-// Verdade de produto nesta fase: o RLS tem APENAS policies SELECT
-// (`memberships_select_own`, `tenants_select_member`) — nenhum caminho de
-// escrita existe para NENHUM papel. Logo a fronteira efetiva hoje é
-// "leitura + presença de sessão" para todos. O gradiente de privilégio
-// (owner > admin > operator > viewer) existe no modelo de dados, mas o cockpit
-// ainda não expõe ações elevadas. Não inventamos capacidades que o produto não
-// tem: nada aqui descreve um botão, uma ação administrativa ou uma escrita que
-// não exista de verdade.
+// Módulo puro e declarativo: nenhuma query, nenhum schema, nenhum service role.
+// Traduz o papel real da membership em linguagem de produto, mantendo o
+// contrato canônico do banco: owner, admin, operator, viewer.
 
 /** Papéis institucionais reais (CHECK da coluna `tenant_memberships.role`). */
 export type MembershipRole = "owner" | "admin" | "operator" | "viewer";
 
 export type PermissionBoundary = {
-  /** Rótulo humano do papel — sem expor o valor cru como console técnico. */
   label: string;
-  /** Uma linha honesta sobre o que o papel significa nesta fase do produto. */
   summary: string;
-  /** O que o operador realmente consegue fazer no cockpit hoje. */
   can: readonly string[];
-  /** O que o cockpit ainda não permite — honesto, sem ação falsa. */
   cannotYet: readonly string[];
 };
 
-// Fronteira efetiva comum a todos os papéis hoje: o produto só expõe leitura e
-// controle da própria sessão. Compartilhada para não fabricar diferenças que o
-// cockpit ainda não consegue demonstrar.
-const READ_ONLY_TODAY = {
-  can: [
-    "Ver esta operação — o tenant ao qual você está vinculado.",
-    "Ver o seu próprio vínculo: o papel e o pertencimento a este tenant.",
-    "Encerrar a sua sessão quando quiser.",
-  ],
-  cannotYet: [
-    "Criar, editar ou excluir dados — o cockpit ainda não expõe nenhuma ação de escrita.",
-    "Criar ou operar agentes — a base de operação agentic está vazia.",
-    "Administrar membros, papéis ou configurações do tenant.",
-  ],
-} as const;
+const SHARED_CAN = [
+  "Ver esta operação — o tenant ao qual você está vinculado.",
+  "Ver o próprio vínculo, papel, status e disponibilidade operacional.",
+  "Atualizar a própria disponibilidade operacional.",
+  "Encerrar a própria sessão quando quiser.",
+] as const;
 
 const BOUNDARIES: Record<MembershipRole, PermissionBoundary> = {
   viewer: {
-    label: "Viewer — observador",
-    summary:
-      "Nível de menor privilégio do modelo: um vínculo de observação da operação.",
-    ...READ_ONLY_TODAY,
+    label: "Somente acompanhamento",
+    summary: "Vínculo de acompanhamento com menor privilégio.",
+    can: SHARED_CAN,
+    cannotYet: [
+      "Administrar convites, membros, funções ou suspensão de acessos.",
+      "Alterar configurações estruturais da operação.",
+      "Executar ações reais de integração sem aprovação humana.",
+    ],
   },
   operator: {
-    label: "Operator — operador",
-    summary:
-      "Privilégio maior que viewer no modelo; o cockpit ainda não expõe ações de operação.",
-    ...READ_ONLY_TODAY,
+    label: "Operação",
+    summary: "Vínculo operacional sem administração estrutural da equipe.",
+    can: SHARED_CAN,
+    cannotYet: [
+      "Administrar convites, membros, funções ou suspensão de acessos.",
+      "Alterar configurações estruturais da operação.",
+      "Executar ações reais de integração sem aprovação humana.",
+    ],
   },
   admin: {
-    label: "Admin — administrador",
-    summary:
-      "Privilégio de gestão no modelo; o cockpit ainda não expõe ações administrativas.",
-    ...READ_ONLY_TODAY,
+    label: "Gestão",
+    summary: "Gestão da operação e da equipe dentro do tenant ativo.",
+    can: [
+      ...SHARED_CAN,
+      "Listar a equipe do tenant.",
+      "Criar e revogar convites.",
+      "Alterar funções, status e disponibilidade de membros do tenant.",
+    ],
+    cannotYet: [
+      "Enviar ou reenviar e-mail de convite sem provedor conectado.",
+      "Executar ações reais de integração sem aprovação humana.",
+    ],
   },
   owner: {
-    label: "Owner — dono",
-    summary:
-      "Maior privilégio do modelo; o cockpit ainda não expõe ações elevadas.",
-    ...READ_ONLY_TODAY,
+    label: "Responsável principal",
+    summary: "Maior privilégio operacional do tenant.",
+    can: [
+      ...SHARED_CAN,
+      "Listar a equipe do tenant.",
+      "Criar e revogar convites.",
+      "Alterar funções, status e disponibilidade de membros do tenant.",
+    ],
+    cannotYet: [
+      "Enviar ou reenviar e-mail de convite sem provedor conectado.",
+      "Executar ações reais de integração sem aprovação humana.",
+    ],
   },
 };
 
-// Papel fora do conjunto conhecido: ainda honesto, sem afirmar capacidades.
 const UNKNOWN_BOUNDARY: PermissionBoundary = {
   label: "Vínculo registrado",
   summary: "Seu papel está registrado, mas o cockpit ainda não o detalha.",
-  ...READ_ONLY_TODAY,
+  can: SHARED_CAN,
+  cannotYet: ["Administrar equipe ou configurações até o papel ser reconhecido."],
 };
 
-/**
- * Traduz o papel real da membership na fronteira de permissão honesta. Aceita
- * `string` cru (vindo do banco) e degrada com segurança para um papel não
- * reconhecido — nunca lança, nunca inventa capacidade.
- */
 export function getPermissionBoundary(role: string): PermissionBoundary {
-  return (
-    (BOUNDARIES as Record<string, PermissionBoundary>)[role] ?? UNKNOWN_BOUNDARY
-  );
+  return (BOUNDARIES as Record<string, PermissionBoundary>)[role] ?? UNKNOWN_BOUNDARY;
 }

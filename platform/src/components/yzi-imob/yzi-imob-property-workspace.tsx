@@ -1,32 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-import {
-  ACTIVATION_LEVELS,
-  ACTIVATION_META,
-  DEMO_PROPERTIES,
-  STATUS_META,
-  WORKSPACE_HERO,
-  emptyInspection,
-  resolveWorkspaceState,
-  toInspection,
-  type ActivationLevel,
-  type DemoProperty,
-} from "@/components/yzi-imob/yzi-imob-catalog-mock";
-import {
-  FINALIDADE_OPTIONS,
-  LAZER_OPTIONS,
-  PROPERTY_UPLOAD_CATEGORIES,
-  SOLAR_OPTIONS,
-  propertyCounters,
-  propertyFiles,
-  toPropertyRecord,
-  DEMO_BROKERS,
-  type PropertyRecord,
-} from "@/components/yzi-imob/yzi-imob-entity-workspace-mock";
 import {
   ComingSoonPanel,
   CounterStrip,
@@ -34,585 +11,761 @@ import {
   WorkspaceGrid,
   WorkspaceSection,
   WorkspaceTabs,
+  type CounterItem,
 } from "@/components/yzi-imob/yzi-imob-workspace-kit";
+import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
+import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { YziImobPropertyPublicationWorkspaceSlot } from "@/components/yzi-imob/yzi-imob-property-publication-workspace-adapter";
 import {
-  GROWTH_ASSET_STATUS_ACCENT,
-  GROWTH_CAMPAIGN_STATUS_ACCENT,
-  GrowthStatusBadge,
-  MOCK_GROWTH_ASSETS,
-  MOCK_GROWTH_CAMPAIGNS,
-  useGrowthCampaignState,
-} from "@/components/yzi-imob/growth";
+  formatPropertyLocation,
+  formatPropertyPrice,
+  propertyStatusAccent,
+  propertyStatusLabel,
+} from "@/components/yzi-imob/properties/property-view-helpers";
 import {
-  WorkspaceDropdown,
-  WorkspaceField,
-  WorkspaceMultiSelect,
-  WorkspaceTagInput,
-  WorkspaceTextarea,
-  WorkspaceToggle,
-} from "@/components/yzi-imob/yzi-imob-workspace-fields";
-import { WorkspaceUploader } from "@/components/yzi-imob/yzi-imob-workspace-uploader";
-import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
-import { imobRgba, PROPERTY_STATUS_ACCENT } from "@/components/yzi-imob/yzi-imob-status-colors";
-
-// Property Workspace v2 (Entity Workspace Pattern): o imóvel é a origem da
-// operação — site, anúncios, criativos e atendimento consomem daqui. A tela é
-// o schema visual do futuro banco, organizado em seções, nunca um formulário
-// tradicional. Composição canônica compartilhada com o Broker Workspace:
-// EntityHero → CounterStrip → Tabs + Inspector v2 (no Shell). Estado local,
-// mock honesto: sem backend, banco, Runtime, upload ou publicação reais.
+  acceptDescriptionRevisionAction,
+  createDescriptionRevisionAction,
+  createProximityAction,
+  INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  rejectDescriptionRevisionAction,
+  updatePropertyCoreAction,
+  upsertPrivateLocationAction,
+  type PropertyWorkspaceActionState,
+} from "@/app/cockpit/yzi-imob/imoveis/[id]/actions";
+import { computePropertyCompleteness } from "@/lib/yzi-imob/properties/completeness";
+import { computePropertyQuality } from "@/lib/yzi-imob/properties/quality";
+import {
+  PROPERTY_AVAILABILITY_STATUS_VALUES,
+  PROPERTY_EDITORIAL_STATUS_VALUES,
+  PROPERTY_FURNISHED_STATUS_VALUES,
+  PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES,
+  PROPERTY_PROXIMITY_SOURCE_VALUES,
+  PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES,
+  PROPERTY_SOLAR_ORIENTATION_VALUES,
+  PROPERTY_STAGE_VALUES,
+  PROPERTY_STATUS_VALUES,
+  type Property,
+  type PropertyDescriptionRevision,
+  type PropertyPrivateLocation,
+  type PropertyProximity,
+} from "@/lib/yzi-imob/properties/types";
 
 const TABS = [
-  { id: "informacoes", label: "Informações" },
-  { id: "arquivos", label: "Arquivos" },
-  { id: "conhecimento", label: "Conhecimento da YZI" },
-  { id: "seo", label: "SEO", soon: true },
-  { id: "publicacao", label: "Publicação" },
+  { id: "informacoes", label: "Informacoes" },
+  { id: "arquivos", label: "Arquivos", soon: true },
+  { id: "publicacao", label: "Publicacao" },
   { id: "ia", label: "IA", soon: true },
 ];
 
-const PROPERTY_TYPE_OPTIONS = [
-  { value: "apartamento", label: "Apartamento" },
-  { value: "casa", label: "Casa" },
-  { value: "terreno", label: "Terreno" },
-  { value: "comercial", label: "Comercial" },
-];
+const inputClass =
+  "w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-[0.84rem] text-[var(--yzi-text-primary)] outline-none transition-colors placeholder:text-[var(--yzi-text-faint)] focus:border-[rgba(var(--imob-ice),0.45)]";
 
-export function YziImobPropertyWorkspace() {
-  const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const { select } = useYziImobWorkspace();
+function textValue(value: string | null | undefined): string {
+  return value ?? "";
+}
 
-  const id = params.id;
-  const isNew = id === "novo";
-  const property: DemoProperty | null = isNew
-    ? null
-    : (DEMO_PROPERTIES.find((p) => p.id === id) ?? null);
-  const notFound = !isNew && !property;
+function numberValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? "" : String(value);
+}
 
-  const [tab, setTab] = useState<string>("informacoes");
-  const [record, setRecord] = useState<PropertyRecord>(() =>
-    toPropertyRecord(property),
+function formatArea(value: number | null | undefined): string {
+  return value !== null && value !== undefined ? `${value} m2` : "Nao informado";
+}
+
+function formatCount(value: number | null | undefined): string {
+  return value !== null && value !== undefined ? String(value) : "Nao informado";
+}
+
+function formatRevisionStatus(status: PropertyDescriptionRevision["status"]): string {
+  if (status === "accepted") return "Aceita";
+  if (status === "rejected") return "Rejeitada";
+  return "Proposta";
+}
+
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">{label}</span>
+      {children}
+    </label>
   );
-  const [brokerName, setBrokerName] = useState(property?.responsavel.nome ?? "");
-  const { statusFor } = useGrowthCampaignState();
+}
 
-  // Reflexo do Growth OS: os dois catálogos mock ainda não são unificados
-  // (ver growthPropertyId em yzi-imob-catalog-mock.ts). Só aparece campanha
-  // aqui quando o imóvel de demonstração tem essa ponte definida.
-  const growthPropertyId = property?.growthPropertyId;
-  const relatedCampaigns = growthPropertyId
-    ? MOCK_GROWTH_CAMPAIGNS.map((campaign) => ({
-        campaign,
-        pieces: campaign.pieceIds
-          .map((pieceId) => MOCK_GROWTH_ASSETS.find((asset) => asset.id === pieceId))
-          .filter(
-            (piece): piece is (typeof MOCK_GROWTH_ASSETS)[number] =>
-              Boolean(piece) && piece?.propertyId === growthPropertyId,
-          ),
-      })).filter((entry) => entry.pieces.length > 0)
-    : [];
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">{label}</span>
+      <span className="w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-[0.84rem] text-[var(--yzi-text-primary)]">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ActionMessage({ state }: { state: PropertyWorkspaceActionState }) {
+  if (state.status === "idle" || !state.message) return null;
+  return (
+    <div
+      className={
+        state.status === "ok"
+          ? "rounded-[var(--yzi-radius-md)] border border-[rgba(var(--imob-ice),0.25)] bg-[rgba(var(--imob-ice),0.08)] px-3 py-2 text-[0.78rem] text-[rgb(var(--imob-ice))]"
+          : "rounded-[var(--yzi-radius-md)] border border-[rgba(255,120,120,0.25)] bg-[rgba(255,120,120,0.08)] px-3 py-2 text-[0.78rem] text-[rgb(255,170,170)]"
+      }
+    >
+      <p>{state.message}</p>
+      {state.fieldErrors && state.fieldErrors.length > 0 ? (
+        <p className="mt-1 text-[0.7rem] opacity-80">{state.fieldErrors.join(", ")}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="w-fit rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.32)] bg-[rgba(var(--imob-ice),0.12)] px-3 py-2 text-[0.76rem] font-medium text-[rgb(var(--imob-ice))] transition-colors hover:bg-[rgba(var(--imob-ice),0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending ? "Salvando..." : label}
+    </button>
+  );
+}
+
+function SelectField({
+  name,
+  defaultValue,
+  values,
+}: {
+  name: string;
+  defaultValue?: string | null;
+  values: readonly string[];
+}) {
+  return (
+    <select name={name} defaultValue={defaultValue ?? ""} className={inputClass}>
+      <option value="">Nao informado</option>
+      {values.map((value) => (
+        <option key={value} value={value}>
+          {value}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+type Props = {
+  property: Property | null;
+  proximities?: readonly PropertyProximity[];
+  privateLocation?: PropertyPrivateLocation | null;
+  privateLocationError?: string | null;
+  descriptionRevisions?: readonly PropertyDescriptionRevision[];
+};
+
+export function YziImobPropertyWorkspace({
+  property,
+  proximities = [],
+  privateLocation = null,
+  privateLocationError = null,
+  descriptionRevisions = [],
+}: Props) {
+  const router = useRouter();
+  const { select, clear } = useYziImobWorkspace();
+  const [tab, setTab] = useState<string>("informacoes");
+  const [coreState, coreAction, corePending] = useActionState(
+    updatePropertyCoreAction,
+    INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  );
+  const [privateState, privateAction, privatePending] = useActionState(
+    upsertPrivateLocationAction,
+    INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  );
+  const [proximityState, proximityAction, proximityPending] = useActionState(
+    createProximityAction,
+    INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  );
+  const [revisionState, revisionAction, revisionPending] = useActionState(
+    createDescriptionRevisionAction,
+    INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  );
 
   useEffect(() => {
-    if (notFound) return;
-    select(property ? toInspection(property) : emptyInspection());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    if (!property) {
+      clear();
+      return;
+    }
+    const completeness = computePropertyCompleteness(property);
+    const quality = computePropertyQuality(property);
+    select({
+      name: property.title,
+      subtitle: [property.neighborhood, property.city].filter(Boolean).join(" - ") || "Localizacao nao informada",
+      statusLabel: propertyStatusLabel(property.status),
+      situation:
+        quality.level === "ready"
+          ? "Cadastro pronto para publicacao."
+          : quality.level === "basic"
+            ? "Cadastro basico; ainda faltam itens para publicacao."
+            : "Cadastro insuficiente para publicacao.",
+      pendencies:
+        completeness.missingFields.length > 0
+          ? completeness.missingFields.map((field) => `Campo pendente: ${field}`)
+          : ["Nenhuma pendencia de cadastro registrada."],
+      checklist: quality.checks.map((check) => ({ label: check.name, done: check.passed })),
+      score: completeness.percentage,
+      scoreLabel: "Property Readiness",
+      nextAction:
+        quality.level === "ready" ? "Cadastro completo." : "Completar os campos pendentes do cadastro.",
+      suggestions: [],
+      history: [],
+    });
+  }, [clear, property, select]);
 
-  if (notFound) {
+  if (!property) {
     return (
       <section className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center gap-3 px-8 py-10 text-center">
         <p className="text-[1.1rem] font-semibold text-[var(--yzi-text-primary)]">
-          Imóvel não encontrado.
+          Imovel nao encontrado.
         </p>
         <p className="text-[0.86rem] text-[var(--yzi-text-secondary)]">
-          Este imóvel não existe no catálogo de demonstração.
+          Este imovel nao existe ou nao pertence a sua imobiliaria.
         </p>
         <Link
           href="/cockpit/yzi-imob/imoveis"
           className="mt-2 text-[0.82rem] text-[rgb(var(--imob-ice))] hover:underline"
         >
-          Voltar ao catálogo
+          Voltar ao catalogo
         </Link>
       </section>
     );
   }
 
-  function set<K extends keyof PropertyRecord>(key: K, value: PropertyRecord[K]) {
-    setRecord((current) => ({ ...current, [key]: value }));
-  }
+  const completeness = computePropertyCompleteness(property);
+  const quality = computePropertyQuality(property);
+  const proposedRevisions = descriptionRevisions.filter((revision) => revision.status === "proposed");
 
-  const state = resolveWorkspaceState(property);
-  const missingBroker = state === "missing-broker";
-  const linkedBroker = DEMO_BROKERS.find((b) => b.nome === brokerName) ?? null;
-  const isTerreno = record.tipo === "terreno";
-  const activation: ActivationLevel = record.nivelAtivacao;
-  const activationPlan = ACTIVATION_META[activation].plano;
-  const statusLabel = property
-    ? missingBroker
-      ? "Sem responsável"
-      : STATUS_META[property.status].label
-    : "Novo";
+  const counters: CounterItem[] = [
+    { label: "Completude", value: `${completeness.percentage}%`, detail: "Campos de cadastro preenchidos." },
+    {
+      label: "Qualidade",
+      value: quality.level === "ready" ? "Pronto" : quality.level === "basic" ? "Basico" : "Insuficiente",
+      detail: "Checagem minima para site/atendimento.",
+    },
+    { label: "Status", value: propertyStatusLabel(property.status), detail: "Estado operacional atual do imovel." },
+    { label: "Preco", value: formatPropertyPrice(property.price), detail: "Valor cadastrado para este imovel." },
+  ];
 
   return (
     <div className="flex w-full flex-col">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 pt-10">
         <EntityHero
           backHref="/cockpit/yzi-imob/imoveis"
-          backLabel="Imóveis"
+          backLabel="Imoveis"
           kicker="Property Workspace"
-          title={property?.name ?? "Novo imóvel"}
-          subtitle={WORKSPACE_HERO[state]}
-          statusLabel={statusLabel}
-          composerPlaceholder="Pergunte à YZI sobre este imóvel — pendências, leads, publicação..."
-          quickActions={[
-            { label: "O que falta para publicar?" },
-            { label: "Preparar criativo" },
-            { label: "Resumir o imóvel" },
-          ]}
-          onAsk={() => router.push("/cockpit/yzi-imob/briefing")}
+          title={property.title}
+          subtitle={formatPropertyLocation(property.city, property.neighborhood)}
+          statusLabel={propertyStatusLabel(property.status)}
+          composerPlaceholder="Pergunte a YZI sobre este imovel..."
+          quickActions={[]}
+          onAsk={() => router.push("/cockpit/yzi-imob/radar")}
         />
-        {property && !missingBroker ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[0.72rem]"
-              style={{
-                borderColor: imobRgba(PROPERTY_STATUS_ACCENT[property.status], 0.32),
-                backgroundColor: imobRgba(PROPERTY_STATUS_ACCENT[property.status], 0.1),
-                color: imobRgba(PROPERTY_STATUS_ACCENT[property.status], 0.95),
-              }}
-            >
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: imobRgba(PROPERTY_STATUS_ACCENT[property.status], 0.9) }}
-              />
-              {statusLabel}
-            </div>
-            <div
-              className="flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[0.72rem]"
-              style={{
-                borderColor: imobRgba(ACTIVATION_META[activation].accent, 0.32),
-                backgroundColor: imobRgba(ACTIVATION_META[activation].accent, 0.1),
-                color: imobRgba(ACTIVATION_META[activation].accent, 0.95),
-              }}
-              title={ACTIVATION_META[activation].objetivo}
-            >
-              {ACTIVATION_META[activation].label}
-            </div>
-          </div>
-        ) : null}
-        {missingBroker ? (
+        <div className="flex flex-wrap items-center gap-2">
           <div
-            className="flex flex-wrap items-center gap-3 rounded-[var(--yzi-radius-md)] border px-4 py-3"
+            className="flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[0.72rem]"
             style={{
-              borderColor: imobRgba("amber", 0.32),
-              backgroundColor: imobRgba("amber", 0.1),
+              borderColor: imobRgba(propertyStatusAccent(property.status), 0.32),
+              backgroundColor: imobRgba(propertyStatusAccent(property.status), 0.1),
+              color: imobRgba(propertyStatusAccent(property.status), 0.95),
             }}
           >
-            <span className="text-[0.82rem]" style={{ color: imobRgba("amber", 0.95) }}>
-              Vincular corretor responsável
-            </span>
-            <span className="text-[0.74rem] text-[var(--yzi-text-secondary)]">
-              A YZI não prepara visita, campanha ou atendimento sem responsável definido.
-            </span>
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: imobRgba(propertyStatusAccent(property.status), 0.9) }}
+            />
+            {propertyStatusLabel(property.status)}
           </div>
-        ) : null}
+        </div>
       </section>
 
-      {/* Counter Strip — full-bleed, mesma banda estrutural da Home. */}
       <section className="w-full py-7">
-        <CounterStrip counters={propertyCounters(property)} />
+        <CounterStrip counters={counters} />
       </section>
 
-      {/* Workspace Body — conteúdo principal; o Inspector v2 (copiloto) é
-          renderizado pelo Shell, nunca duplicado aqui. */}
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-8 pb-10">
         <WorkspaceTabs tabs={TABS} active={tab} onChange={setTab} />
 
         {tab === "informacoes" ? (
           <div className="flex flex-col gap-7">
-            <WorkspaceSection
-              first
-              title="Identidade"
-              description="Quem é este imóvel dentro da operação. Os IDs são gerados pelo sistema."
-            >
-              <WorkspaceGrid>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
-                    ID do imóvel
-                  </span>
-                  <span
-                    className="w-full rounded-[var(--yzi-radius-md)] border bg-[var(--yzi-bg-deep)] px-3 py-2.5 font-mono text-[0.8rem] tracking-[0.04em]"
-                    style={{
-                      borderColor: imobRgba("primary", 0.28),
-                      color: imobRgba("ice", 0.9),
-                    }}
-                  >
-                    {property?.idImovel ?? "Gerado ao salvar"}
-                  </span>
+            <form action={coreAction} className="flex flex-col gap-7">
+              <input type="hidden" name="propertyId" value={property.id} />
+              <WorkspaceSection first title="Identidade">
+                <WorkspaceGrid>
+                  <FormField label="Referencia">
+                    <input name="referenceCode" defaultValue={textValue(property.referenceCode)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Titulo">
+                    <input name="title" required defaultValue={property.title} className={inputClass} />
+                  </FormField>
+                  <FormField label="Tipo">
+                    <input name="propertyType" defaultValue={textValue(property.propertyType)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Transacao">
+                    <input
+                      name="transactionType"
+                      defaultValue={textValue(property.transactionType)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Status">
+                    <SelectField name="status" defaultValue={property.status} values={PROPERTY_STATUS_VALUES} />
+                  </FormField>
+                  <FormField label="Etapa">
+                    <SelectField name="stage" defaultValue={property.stage} values={PROPERTY_STAGE_VALUES} />
+                  </FormField>
+                  <FormField label="Disponibilidade">
+                    <SelectField
+                      name="availabilityStatus"
+                      defaultValue={property.availabilityStatus}
+                      values={PROPERTY_AVAILABILITY_STATUS_VALUES}
+                    />
+                  </FormField>
+                  <FormField label="Editorial">
+                    <SelectField
+                      name="editorialStatus"
+                      defaultValue={property.editorialStatus}
+                      values={PROPERTY_EDITORIAL_STATUS_VALUES}
+                    />
+                  </FormField>
+                </WorkspaceGrid>
+              </WorkspaceSection>
+
+              <WorkspaceSection
+                title="Corretor responsavel"
+                description="O vinculo formal de captador ainda nao existe no schema real."
+              >
+                <ReadOnlyField
+                  label="Criado por"
+                  value={property.createdByUserId ? "Usuario autenticado registrado" : "Nao informado"}
+                />
+              </WorkspaceSection>
+
+              <WorkspaceSection title="Localizacao publica">
+                <WorkspaceGrid>
+                  <FormField label="Cidade">
+                    <input name="city" defaultValue={textValue(property.city)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Bairro">
+                    <input name="neighborhood" defaultValue={textValue(property.neighborhood)} className={inputClass} />
+                  </FormField>
+                </WorkspaceGrid>
+              </WorkspaceSection>
+
+              <WorkspaceSection title="Caracteristicas">
+                <WorkspaceGrid>
+                  <FormField label="Area privativa">
+                    <input
+                      name="privateArea"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={numberValue(property.privateArea)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Area total">
+                    <input
+                      name="totalArea"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={numberValue(property.totalArea)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Quartos">
+                    <input
+                      name="bedrooms"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={numberValue(property.bedrooms)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Suites">
+                    <input
+                      name="suites"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={numberValue(property.suites)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Banheiros">
+                    <input
+                      name="bathrooms"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={numberValue(property.bathrooms)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Vagas">
+                    <input
+                      name="parkingSpaces"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={numberValue(property.parkingSpaces)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Andar">
+                    <input
+                      name="floor"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={numberValue(property.floor)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Orientacao solar">
+                    <SelectField
+                      name="solarOrientation"
+                      defaultValue={property.solarOrientation}
+                      values={PROPERTY_SOLAR_ORIENTATION_VALUES}
+                    />
+                  </FormField>
+                  <FormField label="Mobilia">
+                    <SelectField
+                      name="furnishedStatus"
+                      defaultValue={property.furnishedStatus}
+                      values={PROPERTY_FURNISHED_STATUS_VALUES}
+                    />
+                  </FormField>
+                </WorkspaceGrid>
+              </WorkspaceSection>
+
+              <WorkspaceSection title="Valores">
+                <WorkspaceGrid>
+                  <FormField label="Preco">
+                    <input
+                      name="price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={numberValue(property.price)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Condominio">
+                    <input
+                      name="condominiumFee"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={numberValue(property.condominiumFee)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="IPTU">
+                    <input
+                      name="iptuValue"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={numberValue(property.iptuValue)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                </WorkspaceGrid>
+              </WorkspaceSection>
+
+              <WorkspaceSection title="Conhecimento da YZI">
+                <div className="grid grid-cols-1 gap-4">
+                  <FormField label="Descricao original">
+                    <textarea
+                      name="originalDescription"
+                      rows={5}
+                      defaultValue={textValue(property.originalDescription ?? property.description)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Resumo curto">
+                    <textarea
+                      name="shortSummary"
+                      rows={3}
+                      defaultValue={textValue(property.shortSummary)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <ReadOnlyField
+                    label="Descricao otimizada"
+                    value={property.optimizedDescription ?? "Nenhuma descricao otimizada aceita ainda."}
+                  />
                 </div>
-                <WorkspaceDropdown
-                  label="Finalidade"
-                  value={record.finalidade}
-                  onChange={(value) => set("finalidade", value)}
-                  options={FINALIDADE_OPTIONS}
-                />
-                <WorkspaceField
-                  label="Corretor responsável"
-                  value={brokerName}
-                  onChange={setBrokerName}
-                  suggestions={DEMO_BROKERS.map((b) => b.nome)}
-                  placeholder="Comece a digitar o nome"
-                  hint={
-                    missingBroker
-                      ? undefined
-                      : "Sem responsável, o imóvel não avança para publicação, visita ou campanha."
-                  }
-                />
-                <WorkspaceField
-                  label="ID do corretor"
-                  value={linkedBroker?.corretorId ?? "—"}
-                  readOnly
-                />
-              </WorkspaceGrid>
-              {missingBroker ? (
-                <p className="text-[0.72rem]" style={{ color: imobRgba("amber", 0.9) }}>
-                  Sem responsável, o imóvel não avança para publicação, visita ou campanha.
-                </p>
-              ) : null}
-            </WorkspaceSection>
+              </WorkspaceSection>
+
+              <ActionMessage state={coreState} />
+              <SubmitButton label="Salvar cadastro" pending={corePending} />
+            </form>
 
             <WorkspaceSection
-              title="Campanhas & Criativos"
-              description="O que a YZI preparou para este imóvel em Growth OS e o que ainda depende da sua aprovação."
+              title="Endereco privado"
+              description="Endereco exato separado do payload publico. Acesso ocorre somente pelas RPCs governadas."
             >
-              {relatedCampaigns.length === 0 ? (
-                <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                  Nenhuma campanha vinculada a este imóvel ainda. Prepare uma em{" "}
-                  <Link href="/cockpit/yzi-imob/growth/campanhas" className="text-[rgb(var(--imob-ice))] hover:underline">
-                    Growth OS / Campanhas
-                  </Link>
-                  .
-                </p>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {relatedCampaigns.map(({ campaign, pieces }) => (
-                    <div
-                      key={campaign.id}
-                      className="flex flex-col gap-2.5 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3.5"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">
-                          {campaign.name}
-                        </span>
-                        <GrowthStatusBadge status={campaign.status} accents={GROWTH_CAMPAIGN_STATUS_ACCENT} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        {pieces.map((piece) => (
-                          <div key={piece.id} className="flex items-center justify-between gap-2 text-[0.76rem]">
-                            <span className="min-w-0 truncate text-[var(--yzi-text-secondary)]">{piece.name}</span>
-                            <GrowthStatusBadge
-                              status={statusFor(piece.id, piece.status)}
-                              accents={GROWTH_ASSET_STATUS_ACCENT}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <Link
-                        href="/cockpit/yzi-imob/growth/campanhas"
-                        className="w-fit text-[0.72rem] text-[rgb(var(--imob-ice))] hover:underline"
-                      >
-                        Revisar na mesa de campanhas
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </WorkspaceSection>
-
-            <WorkspaceSection
-              title="Nível de Ativação"
-              description="Você define o objetivo comercial; a YZI recomenda plano, peças, canais e próximos passos. Nenhuma ferramenta para escolher."
-            >
-              <div className="flex flex-col gap-2" role="radiogroup" aria-label="Nível de Ativação">
-                {ACTIVATION_LEVELS.map((level) => {
-                  const meta = ACTIVATION_META[level];
-                  const selected = level === activation;
-                  return (
-                    <button
-                      key={level}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => set("nivelAtivacao", level)}
-                      className="flex flex-col gap-0.5 rounded-[var(--yzi-radius-md)] border px-4 py-3 text-left transition-colors duration-[var(--duration-fast)]"
-                      style={{
-                        borderColor: selected
-                          ? imobRgba(meta.accent, 0.45)
-                          : "var(--yzi-border-subtle)",
-                        backgroundColor: selected
-                          ? imobRgba(meta.accent, 0.08)
-                          : "var(--yzi-surface-base)",
-                      }}
-                    >
-                      <span
-                        className="text-[0.84rem] font-medium"
-                        style={{
-                          color: selected
-                            ? imobRgba(meta.accent, 0.95)
-                            : "var(--yzi-text-primary)",
-                        }}
-                      >
-                        {meta.label}
-                      </span>
-                      <span className="text-[0.74rem] text-[var(--yzi-text-secondary)]">
-                        {meta.objetivo}
-                      </span>
-                      <span className="text-[0.7rem] text-[var(--yzi-text-faint)]">
-                        {meta.consequencia}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-col gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3.5 shadow-[var(--yzi-edge-highlight)]">
-                <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--yzi-text-secondary)]">
-                  O que a YZI vai fazer
-                </span>
-                {activationPlan.pecas.length === 0 ? (
-                  <p className="text-[0.78rem] text-[var(--yzi-text-secondary)]">
-                    Nenhuma peça será preparada. O imóvel fica organizado no banco,
-                    pronto para ativar quando você decidir.
+              <form action={privateAction} className="flex flex-col gap-4">
+                <input type="hidden" name="propertyId" value={property.id} />
+                {privateLocationError ? (
+                  <p className="text-[0.76rem] text-[rgb(255,170,170)]">
+                    Endereco privado indisponivel para seu perfil.
                   </p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <PlanColumn label="Peças" items={activationPlan.pecas} />
-                    <PlanColumn label="Canais" items={activationPlan.canais} />
-                    <PlanColumn label="Próximos passos" items={activationPlan.proximosPassos} />
+                ) : null}
+                <WorkspaceGrid>
+                  <FormField label="CEP">
+                    <input name="postalCode" defaultValue={textValue(privateLocation?.postalCode)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Rua">
+                    <input name="street" defaultValue={textValue(privateLocation?.street)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Numero">
+                    <input name="number" defaultValue={textValue(privateLocation?.number)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Complemento">
+                    <input name="complement" defaultValue={textValue(privateLocation?.complement)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Condominio">
+                    <input
+                      name="condominiumName"
+                      defaultValue={textValue(privateLocation?.condominiumName)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Bloco">
+                    <input name="block" defaultValue={textValue(privateLocation?.block)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Unidade">
+                    <input name="unit" defaultValue={textValue(privateLocation?.unit)} className={inputClass} />
+                  </FormField>
+                  <FormField label="Latitude">
+                    <input
+                      name="latitude"
+                      type="number"
+                      step="0.000001"
+                      defaultValue={numberValue(privateLocation?.latitude)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Longitude">
+                    <input
+                      name="longitude"
+                      type="number"
+                      step="0.000001"
+                      defaultValue={numberValue(privateLocation?.longitude)}
+                      className={inputClass}
+                    />
+                  </FormField>
+                </WorkspaceGrid>
+                <FormField label="Instrucoes de acesso">
+                  <textarea
+                    name="accessInstructions"
+                    rows={3}
+                    defaultValue={textValue(privateLocation?.accessInstructions)}
+                    className={inputClass}
+                  />
+                </FormField>
+                <FormField label="Ponto de encontro">
+                  <textarea
+                    name="meetingPoint"
+                    rows={3}
+                    defaultValue={textValue(privateLocation?.meetingPoint)}
+                    className={inputClass}
+                  />
+                </FormField>
+                <ActionMessage state={privateState} />
+                <SubmitButton label="Salvar endereco privado" pending={privatePending} />
+              </form>
+            </WorkspaceSection>
+
+            <WorkspaceSection title="Proximidades">
+              <div className="flex flex-col gap-4">
+                {proximities.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {proximities.map((proximity) => (
+                      <div
+                        key={proximity.id}
+                        className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-3"
+                      >
+                        <p className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">
+                          {proximity.label}
+                        </p>
+                        <p className="mt-1 text-[0.72rem] text-[var(--yzi-text-secondary)]">
+                          {proximity.placeType}
+                          {proximity.distanceValue !== null
+                            ? ` - ${proximity.distanceValue}${proximity.distanceUnit ?? ""}`
+                            : ""}
+                          {proximity.estimatedMinutes !== null
+                            ? ` - ${proximity.estimatedMinutes} min`
+                            : ""}
+                          {proximity.isConfirmed ? " - confirmada" : " - nao confirmada"}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <p className="text-[0.78rem] text-[var(--yzi-text-secondary)]">
+                    Nenhuma proximidade cadastrada.
+                  </p>
                 )}
-                <p className="text-[0.68rem] text-[var(--yzi-text-faint)]">
-                  Recomendação de demonstração — o plano real da YZI entra com o
-                  backend. Nada é gerado nem publicado sem sua aprovação.
-                </p>
+
+                <form action={proximityAction} className="flex flex-col gap-4">
+                  <input type="hidden" name="propertyId" value={property.id} />
+                  <WorkspaceGrid>
+                    <FormField label="Tipo de local">
+                      <input name="placeType" className={inputClass} />
+                    </FormField>
+                    <FormField label="Nome">
+                      <input name="label" className={inputClass} />
+                    </FormField>
+                    <FormField label="Distancia">
+                      <input name="distanceValue" type="number" min="0" step="0.01" className={inputClass} />
+                    </FormField>
+                    <FormField label="Unidade">
+                      <SelectField name="distanceUnit" values={PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES} />
+                    </FormField>
+                    <FormField label="Modo">
+                      <SelectField name="travelMode" values={PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES} />
+                    </FormField>
+                    <FormField label="Minutos estimados">
+                      <input name="estimatedMinutes" type="number" min="0" step="1" className={inputClass} />
+                    </FormField>
+                    <FormField label="Origem">
+                      <SelectField name="source" defaultValue="manual" values={PROPERTY_PROXIMITY_SOURCE_VALUES} />
+                    </FormField>
+                    <label className="flex items-center gap-2 pt-6 text-[0.78rem] text-[var(--yzi-text-secondary)]">
+                      <input name="isConfirmed" type="checkbox" className="h-4 w-4" />
+                      Confirmada
+                    </label>
+                  </WorkspaceGrid>
+                  <ActionMessage state={proximityState} />
+                  <SubmitButton label="Adicionar proximidade" pending={proximityPending} />
+                </form>
               </div>
             </WorkspaceSection>
 
-            <WorkspaceSection title="Localização">
-              <WorkspaceGrid>
-                <WorkspaceField
-                  label="Cidade"
-                  value={record.cidade}
-                  onChange={(value) => set("cidade", value)}
-                />
-                <WorkspaceField
-                  label="Bairro"
-                  value={record.bairro}
-                  onChange={(value) => set("bairro", value)}
-                />
-                <WorkspaceField
-                  label="Endereço"
-                  value={record.endereco}
-                  onChange={(value) => set("endereco", value)}
-                  placeholder="Rua, número"
-                />
-                <WorkspaceField
-                  label="Complemento"
-                  value={record.complemento}
-                  onChange={(value) => set("complemento", value)}
-                />
-                <WorkspaceField
-                  label="CEP"
-                  value={record.cep}
-                  onChange={(value) => set("cep", value)}
-                />
-                <WorkspaceField
-                  label="Referência"
-                  value={record.referencia}
-                  onChange={(value) => set("referencia", value)}
-                  placeholder="Ponto de referência próximo"
-                />
-              </WorkspaceGrid>
-            </WorkspaceSection>
+            <WorkspaceSection title="Sugestao editorial">
+              <div className="flex flex-col gap-4">
+                <WorkspaceGrid>
+                  <ReadOnlyField label="Area privativa" value={formatArea(property.privateArea)} />
+                  <ReadOnlyField label="Area total" value={formatArea(property.totalArea)} />
+                  <ReadOnlyField label="Quartos" value={formatCount(property.bedrooms)} />
+                  <ReadOnlyField label="Banheiros" value={formatCount(property.bathrooms)} />
+                </WorkspaceGrid>
 
-            <WorkspaceSection title="Características">
-              <WorkspaceGrid>
-                <WorkspaceDropdown
-                  label="Tipo"
-                  value={record.tipo}
-                  onChange={(value) => set("tipo", value)}
-                  options={PROPERTY_TYPE_OPTIONS}
-                />
-                <WorkspaceField
-                  label="Área (m²)"
-                  value={record.area}
-                  onChange={(value) => set("area", value)}
-                />
-                {!isTerreno ? (
-                  <>
-                    <WorkspaceField
-                      label="Quartos"
-                      value={record.quartos}
-                      onChange={(value) => set("quartos", value)}
+                <form action={revisionAction} className="flex flex-col gap-4">
+                  <input type="hidden" name="propertyId" value={property.id} />
+                  <FormField label="Texto original">
+                    <textarea
+                      name="originalText"
+                      rows={4}
+                      defaultValue={textValue(property.originalDescription ?? property.description)}
+                      className={inputClass}
                     />
-                    <WorkspaceField
-                      label="Suítes"
-                      value={record.suites}
-                      onChange={(value) => set("suites", value)}
-                    />
-                    <WorkspaceField
-                      label="Banheiros"
-                      value={record.banheiros}
-                      onChange={(value) => set("banheiros", value)}
-                    />
-                    <WorkspaceField
-                      label="Garagem (vagas)"
-                      value={record.garagem}
-                      onChange={(value) => set("garagem", value)}
-                    />
-                    <WorkspaceDropdown
-                      label="Posição solar"
-                      value={record.posicaoSolar}
-                      onChange={(value) => set("posicaoSolar", value)}
-                      options={SOLAR_OPTIONS}
-                    />
-                  </>
-                ) : null}
-              </WorkspaceGrid>
-              <WorkspaceGrid>
-                {!isTerreno ? (
-                  <>
-                    <WorkspaceToggle
-                      label="Mobiliado"
-                      value={record.mobiliado}
-                      onChange={(value) => set("mobiliado", value)}
-                    />
-                    <WorkspaceToggle
-                      label="Porteira fechada"
-                      value={record.porteiraFechada}
-                      onChange={(value) => set("porteiraFechada", value)}
-                    />
-                  </>
-                ) : null}
-                <WorkspaceToggle
-                  label="Aceita financiamento"
-                  value={record.aceitaFinanciamento}
-                  onChange={(value) => set("aceitaFinanciamento", value)}
-                />
-                <WorkspaceToggle
-                  label="Aceita permuta"
-                  value={record.aceitaPermuta}
-                  onChange={(value) => set("aceitaPermuta", value)}
-                />
-              </WorkspaceGrid>
-              {!isTerreno ? (
-                <WorkspaceMultiSelect
-                  label="Lazer"
-                  options={LAZER_OPTIONS}
-                  value={record.lazer}
-                  onChange={(value) => set("lazer", value)}
-                />
-              ) : null}
-              <WorkspaceTagInput
-                label="Diferenciais"
-                value={record.diferenciais}
-                onChange={(value) => set("diferenciais", value)}
-                placeholder="Digite e pressione Enter"
-              />
-            </WorkspaceSection>
+                  </FormField>
+                  <FormField label="Texto sugerido">
+                    <textarea name="suggestedText" rows={5} className={inputClass} />
+                  </FormField>
+                  <WorkspaceGrid>
+                    <FormField label="Provider">
+                      <input name="provider" defaultValue="manual" className={inputClass} />
+                    </FormField>
+                    <FormField label="Modelo">
+                      <input name="model" className={inputClass} />
+                    </FormField>
+                  </WorkspaceGrid>
+                  <ActionMessage state={revisionState} />
+                  <SubmitButton label="Registrar proposta" pending={revisionPending} />
+                </form>
 
-            <WorkspaceSection title="Valores">
-              <WorkspaceGrid>
-                <WorkspaceField
-                  label="Venda"
-                  value={record.valorVenda}
-                  onChange={(value) => set("valorVenda", value)}
-                  placeholder="R$"
-                />
-                <WorkspaceField
-                  label="Aluguel"
-                  value={record.valorAluguel}
-                  onChange={(value) => set("valorAluguel", value)}
-                  placeholder="R$/mês"
-                />
-                <WorkspaceField
-                  label="Condomínio"
-                  value={record.condominio}
-                  onChange={(value) => set("condominio", value)}
-                  placeholder="R$/mês"
-                />
-                <WorkspaceField
-                  label="IPTU"
-                  value={record.iptu}
-                  onChange={(value) => set("iptu", value)}
-                />
-                <WorkspaceField
-                  label="Taxas"
-                  value={record.taxas}
-                  onChange={(value) => set("taxas", value)}
-                  placeholder="Outras taxas recorrentes"
-                />
-              </WorkspaceGrid>
+                {descriptionRevisions.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {descriptionRevisions.map((revision) => (
+                      <div
+                        key={revision.id}
+                        className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
+                            {formatRevisionStatus(revision.status)}
+                          </p>
+                          {revision.status === "proposed" ? (
+                            <div className="flex flex-wrap gap-2">
+                              <form action={acceptDescriptionRevisionAction}>
+                                <input type="hidden" name="propertyId" value={property.id} />
+                                <input type="hidden" name="revisionId" value={revision.id} />
+                                <button
+                                  type="submit"
+                                  className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.32)] px-2.5 py-1.5 text-[0.7rem] text-[rgb(var(--imob-ice))]"
+                                >
+                                  Aceitar
+                                </button>
+                              </form>
+                              <form action={rejectDescriptionRevisionAction}>
+                                <input type="hidden" name="propertyId" value={property.id} />
+                                <input type="hidden" name="revisionId" value={revision.id} />
+                                <button
+                                  type="submit"
+                                  className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.7rem] text-[var(--yzi-text-secondary)]"
+                                >
+                                  Rejeitar
+                                </button>
+                              </form>
+                            </div>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 whitespace-pre-line text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                          {revision.suggestedText}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[0.78rem] text-[var(--yzi-text-secondary)]">
+                    Nenhuma proposta editorial registrada.
+                  </p>
+                )}
+                {proposedRevisions.length > 0 ? (
+                  <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
+                    O aceite atualiza a descricao otimizada por RPC governada.
+                  </p>
+                ) : null}
+              </div>
             </WorkspaceSection>
           </div>
         ) : tab === "arquivos" ? (
-          <WorkspaceUploader
-            key={id}
-            categories={PROPERTY_UPLOAD_CATEGORIES}
-            initialFiles={propertyFiles(property)}
+          <ComingSoonPanel
+            label="Arquivos - em breve"
+            note="Upload e organizacao de midia ainda nao estao conectados a dados reais."
           />
-        ) : tab === "conhecimento" ? (
-          <WorkspaceSection
-            first
-            title="Base de Conhecimento do imóvel"
-            description="Não é uma descrição comum: é o contexto que a YZI usa em site, SEO, criativos, campanhas, chat, atendimento, follow-up e memória. Quanto mais você ensinar aqui, melhor tudo que nasce deste imóvel."
-          >
-            <WorkspaceTextarea
-              label="Conhecimento da YZI"
-              value={record.conhecimento}
-              onChange={(value) => set("conhecimento", value)}
-              rows={14}
-              placeholder={
-                "Escreva como se estivesse apresentando este imóvel para um cliente.\n\nDescrição aprofundada · diferenciais · história · perfil ideal · objeções · motivos de compra · estilo de vida · pontos fortes · pontos fracos."
-              }
-            />
-          </WorkspaceSection>
-        ) : tab === "seo" ? (
-          <ComingSoonPanel label="SEO — em breve" note="Entra com o Site." />
         ) : tab === "publicacao" ? (
           <YziImobPropertyPublicationWorkspaceSlot />
         ) : (
-          <ComingSoonPanel
-            label="IA"
-            note="A YZI já está no Inspector — mais ações chegam aqui."
-          />
+          <ComingSoonPanel label="IA" note="A YZI ja esta no Inspector; mais acoes chegam aqui." />
         )}
 
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          Workspace de demonstração. Nenhum dado é salvo, nenhum upload é enviado e
-          nenhuma publicação acontece sem autorização.
+          Dados reais desta operacao, com tenant boundary aplicado no servidor. Endereco exato nao entra em
+          selects comuns nem em payload publico.
         </p>
       </section>
-    </div>
-  );
-}
-
-function PlanColumn({ label, items }: { label: string; items: string[] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[0.68rem] uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
-        {label}
-      </span>
-      <ul className="flex flex-col gap-1">
-        {items.map((item) => (
-          <li key={item} className="text-[0.76rem] leading-snug text-[var(--yzi-text-primary)]">
-            {item}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

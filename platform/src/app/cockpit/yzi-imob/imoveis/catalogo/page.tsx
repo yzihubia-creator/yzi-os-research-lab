@@ -1,22 +1,22 @@
-import { YziImobPropertiesOverview } from "@/components/yzi-imob/properties/yzi-imob-properties-overview";
+import { YziImobPropertyCatalogV2 } from "@/components/yzi-imob/yzi-imob-property-catalog-v2";
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
 import { listProperties } from "@/lib/yzi-imob/properties/repository";
 
-// Visão geral da área de Imóveis — entrada da área. Números derivados da
-// mesma busca real e escopada do catálogo (`listProperties` filtra por
-// tenant_id explicitamente, defesa em profundidade além de RLS). O catálogo
-// completo vive em ./catalogo.
+// Catálogo de imóveis — busca real, escopada por imobiliária, server-side.
+// Sem sessão ou sem vínculo: estado honesto de acesso, nunca catálogo vazio
+// disfarçado de dado real. `listProperties` já filtra por tenant_id
+// explicitamente (defesa em profundidade além de RLS).
 
-export default async function YziImobImoveisPage() {
+export default async function YziImobCatalogoImoveisPage() {
   const tenantContext = await getTenantContext();
 
   if (tenantContext.status === "no_session") {
     return (
       <YziImobPropertyAccessState
         title="Você precisa entrar para ver seus imóveis"
-        message="Faça login para acessar a área de imóveis."
+        message="Faça login para acessar o catálogo de imóveis."
       />
     );
   }
@@ -30,10 +30,11 @@ export default async function YziImobImoveisPage() {
     );
   }
 
-  // Sessão válida, mas sem imobiliária vinculada: a visão geral continua
-  // visível com estado honesto — nada de números inventados.
+  // Sessão válida, mas sem imobiliária vinculada: a tela (header, explicação
+  // e CTA de cadastro) continua visível — só a ação de salvar fica bloqueada,
+  // dentro do formulário de cadastro.
   if (tenantContext.status === "no_membership") {
-    return <YziImobPropertiesOverview properties={[]} membershipMissing />;
+    return <YziImobPropertyCatalogV2 properties={[]} membershipMissing />;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -42,11 +43,11 @@ export default async function YziImobImoveisPage() {
   if (result.status === "error") {
     return (
       <YziImobPropertyAccessState
-        title="Não foi possível carregar a visão geral"
+        title="Não foi possível carregar o catálogo"
         message="Tente novamente em instantes."
       />
     );
   }
 
-  return <YziImobPropertiesOverview properties={result.value.items} />;
+  return <YziImobPropertyCatalogV2 properties={result.value.items} />;
 }

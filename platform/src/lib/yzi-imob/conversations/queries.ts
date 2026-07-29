@@ -146,6 +146,45 @@ export async function listConversationsForLead(input: {
   }
 }
 
+/**
+ * Lista as conversations do tenant inteiro (não só de um lead), mais recente
+ * primeiro — usada pela superfície de Atendimento (lista/kanban real).
+ * Ordena por `last_message_at` desc (nulls por último, via ordenação
+ * secundária em `started_at`) e usa `id` desc como tiebreak determinístico,
+ * no mesmo padrão de `listConversationsForLead`. Paginação simples via
+ * `limit`/`offset`; limite default e máximo reaproveitam
+ * `DEFAULT_HISTORY_LIMIT`/`MAX_HISTORY_LIMIT` desta fundação.
+ */
+export async function listConversations(input: {
+  tenantId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ConversationListResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const limit = clampLimit(input.limit);
+    const offset = input.offset && Number.isFinite(input.offset) && input.offset > 0
+      ? Math.floor(input.offset)
+      : 0;
+
+    const { data, error } = await supabase
+      .from("yzi_imob_conversations")
+      .select("*")
+      .eq("tenant_id", input.tenantId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .order("started_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      return { status: "error", code: "read_failed", message: "Não foi possível listar as conversations." };
+    }
+    return { status: "ok", conversations: (data ?? []).map(mapConversationRow) };
+  } catch {
+    return { status: "error", code: "unexpected_error", message: "Erro inesperado ao listar conversations." };
+  }
+}
+
 /** Atualiza o estado (`status`) de uma conversation já existente no tenant. */
 export async function updateConversationStatus(input: {
   tenantId: string;

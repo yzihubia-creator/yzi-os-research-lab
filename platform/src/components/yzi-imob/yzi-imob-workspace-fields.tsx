@@ -1,14 +1,14 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { HTMLInputTypeAttribute, KeyboardEvent } from "react";
 
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 
 // Campos canônicos dos Entity Workspaces — o "schema visual do banco".
 // Um único vocabulário de controles para Property, Broker e entidades
-// futuras: nunca duplicar estes componentes por tela. Estado sempre
-// controlado pelo Workspace (local, mock honesto); nenhum submit real.
+// futuras: nunca duplicar estes componentes por tela. O estado é controlado
+// pelo Workspace; persistência, quando aplicável, fica na Server Action.
 
 const controlClass =
   "w-full rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-[0.86rem] text-[var(--yzi-text-primary)] outline-none transition-colors placeholder:text-[var(--yzi-text-faint)] focus:border-[color:rgba(var(--imob-ice),0.35)]";
@@ -16,11 +16,13 @@ const controlClass =
 function FieldShell({
   label,
   hint,
+  error,
   children,
   span2,
 }: {
   label: string;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
   span2?: boolean;
 }) {
@@ -30,6 +32,11 @@ function FieldShell({
       {children}
       {hint ? (
         <span className="text-[0.66rem] text-[var(--yzi-text-faint)]">{hint}</span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-[0.66rem] text-[rgb(255,170,170)]">
+          {error}
+        </span>
       ) : null}
     </div>
   );
@@ -46,6 +53,15 @@ export function WorkspaceField({
   hint,
   suggestions,
   span2,
+  name,
+  type = "text",
+  inputMode,
+  min,
+  max,
+  step,
+  required,
+  autoComplete,
+  error,
 }: {
   label: string;
   value: string;
@@ -55,17 +71,35 @@ export function WorkspaceField({
   hint?: string;
   suggestions?: string[];
   span2?: boolean;
+  name?: string;
+  type?: HTMLInputTypeAttribute;
+  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  min?: string | number;
+  max?: string | number;
+  step?: string | number;
+  required?: boolean;
+  autoComplete?: string;
+  error?: string;
 }) {
   const listId = useId();
   return (
-    <FieldShell label={label} hint={hint} span2={span2}>
+    <FieldShell label={label} hint={hint} error={error} span2={span2}>
       <input
+        name={name}
+        type={type}
         value={value}
         onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}
         readOnly={readOnly}
         aria-readonly={readOnly || undefined}
         list={suggestions ? listId : undefined}
+        inputMode={inputMode}
+        min={min}
+        max={max}
+        step={step}
+        required={required}
+        autoComplete={autoComplete}
+        aria-invalid={Boolean(error) || undefined}
         className={cx(
           controlClass,
           readOnly &&
@@ -91,6 +125,9 @@ export function WorkspaceTextarea({
   placeholder,
   hint,
   span2,
+  name,
+  required,
+  error,
 }: {
   label: string;
   value: string;
@@ -99,14 +136,20 @@ export function WorkspaceTextarea({
   placeholder?: string;
   hint?: string;
   span2?: boolean;
+  name?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
-    <FieldShell label={label} hint={hint} span2={span2}>
+    <FieldShell label={label} hint={hint} error={error} span2={span2}>
       <textarea
+        name={name}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
         placeholder={placeholder}
+        required={required}
+        aria-invalid={Boolean(error) || undefined}
         className={cx(controlClass, "resize-y leading-relaxed")}
       />
     </FieldShell>
@@ -119,18 +162,27 @@ export function WorkspaceDropdown({
   onChange,
   options,
   hint,
+  name,
+  required,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   hint?: string;
+  name?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
-    <FieldShell label={label} hint={hint}>
+    <FieldShell label={label} hint={hint} error={error}>
       <select
+        name={name}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        required={required}
+        aria-invalid={Boolean(error) || undefined}
         className={controlClass}
       >
         {options.map((option) => (
@@ -149,19 +201,22 @@ export function WorkspaceToggle({
   value,
   onChange,
   hint,
+  disabled,
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
   hint?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={value}
+      disabled={disabled}
       onClick={() => onChange(!value)}
-      className="flex items-center justify-between gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-left transition-colors hover:border-[color:rgba(var(--imob-ice),0.25)]"
+      className="flex items-center justify-between gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5 text-left transition-colors hover:border-[color:rgba(var(--imob-ice),0.25)] disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span className="flex min-w-0 flex-col">
         <span className="text-[0.82rem] text-[var(--yzi-text-primary)]">{label}</span>

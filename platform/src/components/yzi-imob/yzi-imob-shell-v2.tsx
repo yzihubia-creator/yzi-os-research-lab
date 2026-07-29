@@ -19,25 +19,20 @@ import {
 // não usa dados reais, não fala com Runtime/API/banco.
 
 const AREA_LABELS: Array<{ match: string; label: string }> = [
-  { match: "/cockpit/yzi-imob/growth/briefing", label: "Growth OS / Briefing" },
-  { match: "/cockpit/yzi-imob/growth/biblioteca", label: "Growth OS / Biblioteca" },
-  { match: "/cockpit/yzi-imob/growth/conteudo", label: "Growth OS / Conteúdo" },
-  { match: "/cockpit/yzi-imob/growth/campanhas", label: "Growth OS / Campanhas" },
+  // Home do ciclo + Revisar Semana exibem "Marketing" (match por prefixo).
+  { match: "/cockpit/yzi-imob/marketing", label: "Marketing" },
   { match: "/cockpit/yzi-imob/growth/resultados", label: "Growth OS / Resultados" },
   { match: "/cockpit/yzi-imob/imoveis", label: "Imóveis" },
   { match: "/cockpit/yzi-imob/corretores", label: "Corretores" },
   // Mesma nomenclatura da sidebar: a rota de clientes exibe "Leads".
   { match: "/cockpit/yzi-imob/clientes", label: "Leads" },
   { match: "/cockpit/yzi-imob/atendimento", label: "Atendimento" },
-  { match: "/cockpit/yzi-imob/studio", label: "Criativos" },
   { match: "/cockpit/yzi-imob/agenda", label: "Agenda" },
   { match: "/cockpit/yzi-imob/radar", label: "Radar" },
   { match: "/cockpit/yzi-imob/apis-creditos", label: "APIs & Créditos" },
+  { match: "/cockpit/yzi-imob/conexoes", label: "Conexões" },
   { match: "/cockpit/yzi-imob/configuracoes", label: "Configurações" },
   { match: "/cockpit/yzi-imob/site", label: "Site" },
-  { match: "/cockpit/yzi-imob/catalogo", label: "Catálogo" },
-  { match: "/cockpit/yzi-imob/runtime", label: "Runtime" },
-  { match: "/cockpit/yzi-imob/briefing", label: "Briefing" },
   { match: "/cockpit/yzi-imob", label: "Início" },
 ];
 
