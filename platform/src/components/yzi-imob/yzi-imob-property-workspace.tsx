@@ -297,7 +297,15 @@ export function YziImobPropertyWorkspace({
       </section>
 
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-8 pb-10">
-        <WorkspaceTabs tabs={TABS} active={tab} onChange={setTab} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <WorkspaceTabs tabs={TABS} active={tab} onChange={setTab} />
+          <Link
+            href={`/cockpit/yzi-imob/imoveis/${encodeURIComponent(property.id)}/creative`}
+            className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.32)] bg-[rgba(var(--imob-ice),0.08)] px-3 py-2 text-[0.74rem] text-[rgb(var(--imob-ice))]"
+          >
+            Creative Engine
+          </Link>
+        </div>
 
         {tab === "informacoes" ? (
           <div className="flex flex-col gap-7">
