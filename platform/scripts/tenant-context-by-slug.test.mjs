@@ -71,9 +71,9 @@ test("tenant route reuses the existing connections RPC, parser, and workspace", 
 test("tenant route has sanitized treatment for session, access denied, and internal errors", () => {
   assert.match(TENANT_ROUTE_SOURCE, /redirect\("\/login"\)/);
   assert.match(TENANT_ROUTE_SOURCE, /tenantContext\.status === "no_membership"/);
-  assert.match(TENANT_ROUTE_SOURCE, /Acesso não disponível/);
+  assert.match(TENANT_ROUTE_SOURCE, /accessState="no_membership"/);
   assert.match(TENANT_ROUTE_SOURCE, /tenantContext\.status === "error"/);
-  assert.match(TENANT_ROUTE_SOURCE, /Conexões indisponíveis/);
+  assert.match(TENANT_ROUTE_SOURCE, /accessState="tenant-error"/);
 });
 
 test("legacy route remains independent from explicit tenant slug", () => {

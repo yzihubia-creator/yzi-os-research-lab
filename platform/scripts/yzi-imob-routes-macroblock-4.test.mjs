@@ -6,6 +6,7 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
 
 const redirects = new Map([
+  ["src/app/cockpit/yzi-imob/marketing/page.tsx", "/cockpit/yzi-imob/marketing/publicacoes"],
   ["src/app/cockpit/yzi-imob/studio/page.tsx", "/cockpit/yzi-imob/marketing/publicacoes"],
   ["src/app/cockpit/yzi-imob/growth/briefing/page.tsx", "/cockpit/yzi-imob/marketing/publicacoes"],
   ["src/app/cockpit/yzi-imob/growth/conteudo/page.tsx", "/cockpit/yzi-imob/marketing/publicacoes"],
