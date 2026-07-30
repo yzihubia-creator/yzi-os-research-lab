@@ -10,6 +10,13 @@ import {
 } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { cx } from "@/components/yzi-imob/yzi-imob-workspace-kit";
 import {
+  MetricBand,
+  SurfaceCanvas,
+  SurfaceHeader,
+  type SurfaceMetric,
+} from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
+import {
   type YziImobAppointment,
   type YziImobAppointmentConfirmationStatus,
   type YziImobAppointmentStatus,
@@ -178,8 +185,10 @@ function formatTimeLabel(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
+// Estado desconhecido nunca vaza cru para a tela: se o contrato ganhar um
+// valor novo, o gestor le "Registrado" ate a traducao existir.
 function statusLabel(status: string): string {
-  return STATUS_LABEL[status as YziImobAppointmentStatus] ?? status;
+  return STATUS_LABEL[status as YziImobAppointmentStatus] ?? "Registrado";
 }
 
 function statusRole(status: string): YziImobRole {
@@ -187,7 +196,7 @@ function statusRole(status: string): YziImobRole {
 }
 
 function confirmationLabel(status: string): string {
-  return CONFIRMATION_LABEL[status as YziImobAppointmentConfirmationStatus] ?? status;
+  return CONFIRMATION_LABEL[status as YziImobAppointmentConfirmationStatus] ?? "Sem confirmacao";
 }
 
 function confirmationRole(status: string): YziImobRole {
@@ -195,7 +204,7 @@ function confirmationRole(status: string): YziImobRole {
 }
 
 function emptyLabel(value: string | null | undefined): string {
-  return value?.trim() || "Ainda sem dados";
+  return value?.trim() || "Nao informado";
 }
 
 function toDatetimeLocalValue(iso: string | null): string {
@@ -210,7 +219,7 @@ function mapCalendarAppointment(appointment: YziImobAppointment): CalendarAppoin
   const start = new Date(appointment.startsAt);
   const todayStart = startOfLocalDay(new Date());
   const dayOffset = Math.round((startOfLocalDay(start).getTime() - todayStart.getTime()) / DAY_MS);
-  const timeLabel = formatTimeLabel(appointment.startsAt) ?? "Ainda sem dados";
+  const timeLabel = formatTimeLabel(appointment.startsAt) ?? "Sem horario";
   const endTimeLabel = formatTimeLabel(appointment.endsAt);
 
   return {
@@ -237,20 +246,20 @@ function mapCalendarAppointment(appointment: YziImobAppointment): CalendarAppoin
 function AccessMessage({ accessState }: { accessState: AccessState }) {
   const messages: Record<AccessState, { title: string; body: string }> = {
     ready: {
-      title: "Nenhum agendamento real neste tenant",
-      body: "Quando houver registros em yzi_imob_appointments, eles aparecerao neste calendario.",
+      title: "Nenhum compromisso agendado ainda",
+      body: "Visitas e reunioes marcadas pela equipe aparecem aqui assim que forem criadas.",
     },
     no_membership: {
-      title: "Sua operacao ainda nao esta disponivel",
-      body: "Nao encontramos uma imobiliaria vinculada a sua conta.",
+      title: "Sua conta ainda nao esta ligada a uma operacao",
+      body: "Conclua a implantacao inicial para comecar a agendar visitas com a equipe.",
     },
     tenant_error: {
-      title: "Nao foi possivel resolver o tenant",
-      body: "Tente novamente em instantes. Se o problema continuar, fale com o administrador.",
+      title: "Nao conseguimos identificar sua operacao agora",
+      body: "Recarregue a pagina. Nenhum compromisso foi alterado.",
     },
     read_error: {
-      title: "Nao foi possivel carregar a agenda",
-      body: "A consulta real falhou. Nenhum agendamento ficticio foi exibido.",
+      title: "Nao foi possivel carregar a agenda agora",
+      body: "A leitura falhou. Preferimos nao mostrar nada a mostrar uma agenda incompleta.",
     },
   };
   const message = messages[accessState];
@@ -269,12 +278,12 @@ function EmptyAgendaMessage({ hasAnyAppointments }: { hasAnyAppointments: boolea
   return (
     <div className="flex flex-col gap-1 rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-4">
       <p className="text-[0.82rem] font-semibold text-[var(--yzi-text-primary)]">
-        {hasAnyAppointments ? "Nenhum agendamento encontrado" : "Nenhum agendamento real neste tenant"}
+        {hasAnyAppointments ? "Nenhum compromisso com esses filtros" : "Nenhum compromisso agendado ainda"}
       </p>
       <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
         {hasAnyAppointments
-          ? "Ajuste busca ou filtros para ver outros registros reais."
-          : "Quando houver registros em yzi_imob_appointments, eles aparecerao neste calendario."}
+          ? "Ajuste a busca ou os filtros para ver os demais compromissos."
+          : "Visitas e reunioes marcadas pela equipe aparecem aqui assim que forem criadas."}
       </p>
     </div>
   );
@@ -803,12 +812,95 @@ export function YziImobAgendaWorkspace({
     }
   }
 
+  const todayList = byOffset.get(0) ?? [];
+  const upcoming = filtered.filter(
+    (appointment) => appointment.dayOffset > 0 && appointment.dayOffset <= 7,
+  );
+  const awaitingConfirmation = filtered.filter(
+    (appointment) =>
+      appointment.status === "scheduled" && appointment.confirmationStatus === "pending",
+  );
+  const missingFeedback = filtered.filter((appointment) =>
+    missingFeedbackSet.has(appointment.id),
+  );
+
+  const metrics: SurfaceMetric[] = [
+    {
+      label: "Hoje",
+      value: String(todayList.length),
+      detail: todayList.length ? "Compromissos marcados para hoje" : "Nada marcado para hoje",
+      tone: todayList.length ? "info" : undefined,
+    },
+    {
+      label: "A confirmar",
+      value: String(awaitingConfirmation.length),
+      detail: "Ainda sem resposta do cliente",
+      tone: awaitingConfirmation.length ? "pending" : undefined,
+    },
+    {
+      label: "Sem retorno da visita",
+      value: String(missingFeedback.length),
+      detail: "Aconteceram e ninguem registrou o resultado",
+      tone: missingFeedback.length ? "attention" : undefined,
+    },
+    {
+      label: "Proximos 7 dias",
+      value: String(upcoming.length),
+      detail: "Ja agendados para a semana",
+    },
+  ];
+
   return (
-    <section className="flex w-full flex-col gap-5 px-6 py-6 md:px-8">
+    <SurfaceCanvas width="wide">
+      <SurfaceHeader
+        kicker="Marketing"
+        title="Agenda"
+        lead="O tempo da equipe: o que acontece hoje, o que ainda espera confirmacao e o que precisa de retorno."
+        secondaryActions={[{ label: "Ver leads", href: "/cockpit/yzi-imob/clientes" }]}
+      />
+
+      <MetricBand metrics={metrics} />
+
+      {awaitingConfirmation.length || missingFeedback.length ? (
+        <YziInsight
+          context="Agenda da equipe"
+          tone={missingFeedback.length ? "attention" : "pending"}
+          stateLabel={missingFeedback.length ? "Precisa de retorno" : "Aguardando confirmacao"}
+          headline={
+            missingFeedback.length
+              ? `${missingFeedback.length} ${missingFeedback.length === 1 ? "visita aconteceu" : "visitas aconteceram"} e ainda nao tem retorno registrado.`
+              : `${awaitingConfirmation.length} ${awaitingConfirmation.length === 1 ? "compromisso ainda espera" : "compromissos ainda esperam"} confirmacao do cliente.`
+          }
+          reading={
+            missingFeedback.length
+              ? "Sem o retorno da visita, o lead fica sem proxima acao e o imovel sem leitura de interesse."
+              : "Compromisso nao confirmado costuma virar horario vazio na agenda do corretor."
+          }
+          evidence={(missingFeedback.length ? missingFeedback : awaitingConfirmation)
+            .slice(0, 3)
+            .map(
+              (appointment) =>
+                `${appointment.title} · ${appointment.dateLabel} ${appointment.timeLabel}`,
+            )}
+          recommendation={
+            missingFeedback.length
+              ? "Abra o compromisso e registre o que aconteceu — leva menos de um minuto e destrava a proxima acao do lead."
+              : "Confirme com o cliente antes do dia. Um compromisso confirmado tem muito mais chance de acontecer."
+          }
+          primaryAction={
+            (missingFeedback[0] ?? awaitingConfirmation[0])
+              ? {
+                  label: missingFeedback.length ? "Registrar retorno" : "Abrir compromisso",
+                  onClick: () =>
+                    setSelectedId((missingFeedback[0] ?? awaitingConfirmation[0]).id),
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-[1.2rem] font-semibold tracking-[-0.01em] text-[var(--yzi-text-primary)]">
-          Agenda
-        </h1>
+        <h2 className="text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">Calendario</h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -983,9 +1075,9 @@ export function YziImobAgendaWorkspace({
       )}
 
       <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-        Dados reais do tenant. Confirmacao externa, recorrencia, notificacoes e integracoes nao
-        foram adicionadas nesta foundation.
+        Lembretes automaticos e compromissos que se repetem ainda nao estao disponiveis: por
+        enquanto, cada compromisso e confirmado manualmente pela equipe.
       </p>
-    </section>
+    </SurfaceCanvas>
   );
 }

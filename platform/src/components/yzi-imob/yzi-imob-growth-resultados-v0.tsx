@@ -3,13 +3,24 @@
 import { useEffect, useMemo } from "react";
 
 import {
-  GrowthCounterStrip,
-  GrowthInspectorPanel,
-  GrowthNavigation,
-  GrowthSectionCard,
-  GrowthSurfaceHeader,
-  GrowthTag,
-} from "@/components/yzi-imob/growth";
+  MetricBand,
+  StateTag,
+  SurfaceBar,
+  SurfaceButton,
+  SurfaceCanvas,
+  SurfaceHeader,
+  SurfaceList,
+  SurfaceScroller,
+  SurfaceSection,
+  SurfaceState,
+  SurfaceToolbar,
+  TYPE,
+  cx,
+  toneColor,
+  type SurfaceMetric,
+  type SurfaceTone,
+} from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
 import type {
   DataAvailability,
@@ -18,22 +29,37 @@ import type {
   ResultsWorkspaceData,
 } from "@/lib/yzi-imob/results/types";
 
-const ACCESS_COPY: Record<Exclude<ResultsAccessState, "ready">, { title: string; body: string }> = {
+// Resultados — o que aconteceu no período. Não é Radar (o que fazer agora),
+// não é Growth OS (onde investir), não é o Início.
+//
+// Correções desta passagem: a tela deixou de expor nome de tabela, id de fonte,
+// nome de fornecedor, nome cru de métrica externa e coluna de banco; os seis
+// cards numerados viraram seções com hierarquia; os gráficos só existem onde
+// ajudam uma decisão (evolução e distribuição), nunca como enfeite.
+
+const ACCESS_COPY: Record<
+  Exclude<ResultsAccessState, "ready">,
+  { tone: SurfaceTone; title: string; body: string }
+> = {
   no_membership: {
-    title: "Operação indisponível",
-    body: "Não encontramos uma imobiliária vinculada a sua conta.",
+    tone: "idle",
+    title: "Sua conta ainda não está ligada a uma operação",
+    body: "Conclua a implantação inicial para acompanhar os resultados da sua imobiliária.",
   },
   permission_denied: {
-    title: "Acesso não autorizado",
-    body: "Seu papel atual não permite acessar esta leitura.",
+    tone: "pending",
+    title: "Seu acesso não inclui esta leitura",
+    body: "Peça a quem administra a operação para liberar os resultados para o seu perfil.",
   },
   tenant_error: {
-    title: "Tenant não resolvido",
-    body: "A leitura foi interrompida antes de consultar as fontes operacionais.",
+    tone: "attention",
+    title: "Não conseguimos identificar sua operação agora",
+    body: "Recarregue a página. Nenhum número foi calculado e nada foi alterado.",
   },
   read_error: {
-    title: "Leitura real indisponível",
-    body: "A consulta falhou. Nenhum zero ou mock foi exibido como substituto.",
+    tone: "attention",
+    title: "Não foi possível ler os resultados agora",
+    body: "A consulta falhou. Preferimos não mostrar nada a mostrar um número que não é seu.",
   },
 };
 
@@ -41,114 +67,280 @@ function formatNumber(value: number | null): string {
   return value === null ? "—" : new Intl.NumberFormat("pt-BR").format(value);
 }
 
-function availabilityLabel(value: DataAvailability): string {
-  return {
-    available: "Disponível",
-    empty: "Sem dados",
-    partial_data: "Dados parciais",
-    unavailable: "Indisponível",
-    stale_data: "Dados desatualizados",
-    configuration_required: "Configuração necessária",
-  }[value];
+function formatPercent(value: number | null): string {
+  return value === null ? "—" : `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
-function EmptyPanel({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="yzi-lens flex flex-col gap-2 rounded-[var(--yzi-radius-lg)] p-5">
-      <h2 className="text-[1rem] font-semibold text-[var(--yzi-text-primary)]">{title}</h2>
-      <p className="max-w-3xl text-[0.82rem] leading-relaxed text-[var(--yzi-text-secondary)]">{body}</p>
-    </section>
-  );
-}
+/** Tradução humana da disponibilidade — nunca o valor cru do contrato. */
+const AVAILABILITY_COPY: Record<DataAvailability, { tone: SurfaceTone; label: string }> = {
+  available: { tone: "ok", label: "Leitura completa" },
+  empty: { tone: "idle", label: "Sem movimento no período" },
+  partial_data: { tone: "pending", label: "Leitura parcial" },
+  unavailable: { tone: "attention", label: "Leitura indisponível" },
+  stale_data: { tone: "pending", label: "Dados de uma leitura anterior" },
+  configuration_required: { tone: "pending", label: "Aguardando configuração" },
+};
 
+const PERIOD_LABEL: Record<string, string> = {
+  "7d": "Últimos 7 dias",
+  "30d": "Últimos 30 dias",
+  "90d": "Últimos 90 dias",
+};
+
+/**
+ * Linha de indicador. `detail` do contrato é uma frase de negócio; `sourceId`
+ * é identificador interno e fica de fora da tela por princípio.
+ */
 function MetricRows({ metrics }: { metrics: readonly ResultsMetricValue[] }) {
+  if (!metrics.length) {
+    return (
+      <p className={TYPE.meta}>Nenhum indicador disponível para este recorte.</p>
+    );
+  }
+
   return (
     <div className="divide-y divide-[color:var(--yzi-border-subtle)]">
-      {metrics.map((metric) => (
-        <div key={metric.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-3 first:pt-0 last:pb-0">
-          <div>
-            <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">{metric.label}</p>
-            <p className="mt-1 text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-              {metric.detail} Fonte: {metric.sourceId}.
-            </p>
+      {metrics.map((metric) => {
+        const availability = AVAILABILITY_COPY[metric.availability];
+        return (
+          <div
+            key={metric.id}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3.5 first:pt-0 last:pb-0"
+          >
+            <div className="min-w-0">
+              <p className={TYPE.itemTitle}>{metric.label}</p>
+              {metric.detail ? (
+                <p className={cx(TYPE.meta, "mt-1 max-w-xl")}>{metric.detail}</p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="text-[1.05rem] font-semibold tabular-nums text-[var(--yzi-text-primary)]">
+                {formatNumber(metric.value)}
+              </span>
+              {metric.availability !== "available" ? (
+                <StateTag tone={availability.tone} label={availability.label} />
+              ) : null}
+            </div>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-[1.05rem] font-semibold text-[var(--yzi-text-primary)]">
-              {formatNumber(metric.value)}
-            </p>
-            {metric.availability !== "available" ? (
-              <p className="mt-1 text-[0.62rem] text-[var(--yzi-text-faint)]">
-                {availabilityLabel(metric.availability)}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function Filters({ data }: { data: ResultsWorkspaceData }) {
+/** Distribuição — barra proporcional, não pizza decorativa. */
+function Distribution({
+  items,
+  emptyLabel,
+}: {
+  items: readonly { id: string; label: string; count: number; percentage: number }[];
+  emptyLabel: string;
+}) {
+  if (!items.length) {
+    return <p className={TYPE.meta}>{emptyLabel}</p>;
+  }
+
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+
   return (
-    <form method="get" className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-      <label className="sr-only" htmlFor="results-period">Período</label>
-      <select id="results-period" name="period" defaultValue={data.filters.period} className="yzi-field">
-        <option value="7d">7 dias</option>
-        <option value="30d">30 dias</option>
-        <option value="90d">90 dias</option>
-      </select>
-      <label className="sr-only" htmlFor="results-property">Imóvel</label>
-      <select id="results-property" name="property" defaultValue={data.filters.propertyId ?? ""} className="yzi-field">
-        <option value="">Todos os imóveis</option>
-        {data.filterOptions.properties.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <label className="sr-only" htmlFor="results-broker">Corretor</label>
-      <select id="results-broker" name="broker" defaultValue={data.filters.brokerUserId ?? ""} className="yzi-field">
-        <option value="">Todos os corretores</option>
-        {data.filterOptions.brokers.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <label className="sr-only" htmlFor="results-channel">Canal</label>
-      <select id="results-channel" name="channel" defaultValue={data.filters.channel ?? ""} className="yzi-field">
-        <option value="">Todos os canais</option>
-        {data.filterOptions.channels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <label className="sr-only" htmlFor="results-status">Status</label>
-      <select id="results-status" name="status" defaultValue={data.filters.status ?? ""} className="yzi-field">
-        <option value="">Todos os status</option>
-        {data.filterOptions.statuses.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <button type="submit" className="rounded-[var(--yzi-radius-sm)] bg-[var(--yzi-text-primary)] px-4 py-2 text-[0.76rem] font-semibold text-[var(--yzi-surface-base)]">
-        Aplicar
-      </button>
-    </form>
+    <ul className="flex flex-col gap-3.5">
+      {items.map((item) => (
+        <li key={item.id} className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="min-w-0 truncate text-[0.8rem] text-[var(--yzi-text-primary)]">
+              {item.label}
+            </span>
+            <span className="shrink-0 text-[0.76rem] tabular-nums text-[var(--yzi-text-secondary)]">
+              {formatNumber(item.count)}
+              <span className="ml-2 text-[var(--yzi-text-faint)]">
+                {formatPercent(item.percentage)}
+              </span>
+            </span>
+          </div>
+          <SurfaceBar
+            value={item.count}
+            total={total}
+            label={`${item.label}: ${item.count} de ${total}`}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function MetricoolBlock({ data }: { data: ResultsWorkspaceData }) {
-  if (data.social.availability === "configuration_required") {
+/** Evolução — colunas simples com rótulo legível, sem biblioteca de gráfico. */
+function Trend({ points }: { points: ResultsWorkspaceData["trend"] }) {
+  if (!points.length) {
     return (
-      <EmptyPanel
-        title="Aguardando configuração da Metricool"
-        body="As publicações internas continuam disponíveis. Métricas externas só aparecerão após configuração e coleta reais."
+      <p className={TYPE.meta}>
+        Ainda não há períodos suficientes para comparar a evolução.
+      </p>
+    );
+  }
+
+  const max = Math.max(
+    1,
+    ...points.map((point) =>
+      Math.max(point.leads, point.interests, point.conversations, point.appointments),
+    ),
+  );
+
+  const series = [
+    { key: "leads" as const, label: "Leads", tone: "info" as SurfaceTone },
+    { key: "conversations" as const, label: "Conversas", tone: "pending" as SurfaceTone },
+    { key: "appointments" as const, label: "Visitas", tone: "ok" as SurfaceTone },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        {series.map((item) => (
+          <li key={item.key} className="flex items-center gap-2 text-[0.72rem] text-[var(--yzi-text-secondary)]">
+            <span
+              aria-hidden
+              className="h-2 w-2 rounded-sm"
+              style={{ backgroundColor: toneColor(item.tone, 0.85) }}
+            />
+            {item.label}
+          </li>
+        ))}
+      </ul>
+
+      <SurfaceScroller label="Evolução do período">
+        <div className="flex min-w-full items-end gap-3">
+          {points.map((point) => (
+            <div key={point.label} className="flex min-w-[52px] flex-1 flex-col items-center gap-2">
+              <div className="flex h-28 w-full items-end justify-center gap-1">
+                {series.map((item) => {
+                  const value = point[item.key];
+                  return (
+                    <span
+                      key={item.key}
+                      title={`${item.label}: ${formatNumber(value)}`}
+                      className="w-2.5 rounded-t-sm"
+                      style={{
+                        height: `${Math.max(2, (value / max) * 100)}%`,
+                        backgroundColor: toneColor(item.tone, 0.8),
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <span className="whitespace-nowrap text-[0.64rem] text-[var(--yzi-text-faint)]">
+                {point.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </SurfaceScroller>
+
+      <SurfaceScroller label="Evolução do período em números">
+        <table className="w-full min-w-[420px] border-collapse text-left">
+          <caption className="sr-only">
+            Leads, conversas e visitas por período
+          </caption>
+          <thead>
+            <tr className="border-b border-[color:var(--yzi-border-subtle)]">
+              <th scope="col" className={cx(TYPE.label, "py-2 pr-4 font-medium")}>
+                Período
+              </th>
+              {series.map((item) => (
+                <th
+                  key={item.key}
+                  scope="col"
+                  className={cx(TYPE.label, "py-2 pr-4 text-right font-medium")}
+                >
+                  {item.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((point) => (
+              <tr key={point.label} className="border-b border-[color:var(--yzi-border-subtle)] last:border-b-0">
+                <th scope="row" className="py-2 pr-4 text-[0.76rem] font-normal text-[var(--yzi-text-secondary)]">
+                  {point.label}
+                </th>
+                {series.map((item) => (
+                  <td
+                    key={item.key}
+                    className="py-2 pr-4 text-right text-[0.76rem] tabular-nums text-[var(--yzi-text-primary)]"
+                  >
+                    {formatNumber(point[item.key])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SurfaceScroller>
+    </div>
+  );
+}
+
+/**
+ * Desempenho do conteúdo publicado. O executor externo que coleta as métricas
+ * nunca é nomeado: o gestor vê "publicação" e "alcance", não fornecedor.
+ */
+function ContentPerformance({ data }: { data: ResultsWorkspaceData }) {
+  const { social } = data;
+
+  if (social.availability === "configuration_required") {
+    return (
+      <SurfaceState
+        tone="pending"
+        title="Desempenho das publicações ainda não está ligado"
+        body="Suas publicações continuam sendo registradas normalmente. O alcance e a interação só aparecem depois que a medição de redes for concluída em Conexões."
+        action={{ label: "Concluir em Conexões", href: "/cockpit/yzi-imob/conexoes" }}
       />
     );
   }
-  if (data.social.availability === "unavailable") {
-    return <EmptyPanel title="Métricas externas indisponíveis" body="A fonte Metricool não pôde ser lida nesta sessão." />;
+
+  if (social.availability === "unavailable") {
+    return (
+      <SurfaceState
+        tone="attention"
+        title="Não foi possível ler o desempenho das publicações"
+        body="A medição de redes não respondeu nesta consulta. Os números de publicação abaixo continuam válidos."
+      />
+    );
   }
-  if (!data.social.metrics.length) {
-    return <EmptyPanel title="Nenhuma métrica externa coletada" body="A conexão está disponível, mas não existem métricas persistidas no período." />;
+
+  if (!social.metrics.length) {
+    return (
+      <SurfaceState
+        tone="idle"
+        title="Nenhuma medição coletada neste período"
+        body="A medição está ativa, mas ainda não recebeu números para as publicações deste recorte."
+      />
+    );
   }
+
+  // Agrega por rede: uma leitura por canal, não uma lista crua de métricas.
+  const byNetwork = new Map<string, number>();
+  for (const metric of social.metrics) {
+    const key = metric.network === "instagram" ? "Instagram" : "Facebook";
+    byNetwork.set(key, (byNetwork.get(key) ?? 0) + metric.value);
+  }
+
   return (
-    <div className="divide-y divide-[color:var(--yzi-border-subtle)]">
-      {data.social.metrics.slice(0, 12).map((metric, index) => (
-        <div key={`${metric.socialPublicationId}-${metric.providerMetricName}-${index}`} className="flex items-center justify-between gap-4 py-2.5">
-          <span className="text-[0.76rem] text-[var(--yzi-text-secondary)]">
-            {metric.network} · {metric.normalizedMetricName ?? metric.providerMetricName}
-          </span>
-          <span className="font-mono text-[0.8rem] text-[var(--yzi-text-primary)]">{formatNumber(metric.value)}</span>
-        </div>
-      ))}
+    <div className="flex flex-col gap-4">
+      <Distribution
+        items={[...byNetwork.entries()].map(([label, count]) => {
+          const total = [...byNetwork.values()].reduce((sum, value) => sum + value, 0);
+          return {
+            id: label,
+            label,
+            count,
+            percentage: total > 0 ? (count / total) * 100 : 0,
+          };
+        })}
+        emptyLabel="Sem medição por canal neste período."
+      />
+      <p className={TYPE.meta}>
+        Números somados das publicações do período. Cada canal mede interação de
+        um jeito próprio, então compare a evolução de um canal com ele mesmo.
+      </p>
     </div>
   );
 }
@@ -161,108 +353,300 @@ export function YziImobGrowthResultadosV0({
   data: ResultsWorkspaceData | null;
 }) {
   const { select } = useYziImobWorkspace();
-  const counters = useMemo(
-    () => (data?.summary.operation ?? []).slice(0, 5).map((metric) => ({
-      label: metric.label,
-      value: formatNumber(metric.value),
-      detail: metric.availability === "available" ? metric.detail : availabilityLabel(metric.availability),
-    })),
-    [data],
-  );
+
+  const headline = useMemo(() => {
+    if (!data) return null;
+    const leads = data.summary.operation.find((metric) => metric.id === "period-leads");
+    const appointments = data.summary.commercial.find((metric) =>
+      metric.id.includes("appointment"),
+    );
+    const conversionRate = data.rates[0] ?? null;
+    return { leads, appointments, conversionRate };
+  }, [data]);
 
   useEffect(() => {
     select({
       name: "Resultados",
-      subtitle: "Leitura operacional consolidada",
-      statusLabel: data ? availabilityLabel(data.availability) : "Sem leitura",
+      subtitle: data ? data.period.label : "Sem leitura disponível",
+      statusLabel: data
+        ? AVAILABILITY_COPY[data.availability].label
+        : "Leitura indisponível",
       situation: data
-        ? `${data.period.label}, com filtros aplicados no servidor e fontes tenant-scoped.`
-        : "Os dados operacionais não estão disponíveis.",
-      pendencies: data ? [...data.omittedBlocks] : ["Resolver a leitura real antes de exibir métricas."],
-      checklist: [
-        { label: "Tenant resolvido", done: Boolean(data) },
-        { label: "Período aplicado no servidor", done: Boolean(data) },
-        { label: "Sem métricas simuladas", done: true },
-      ],
+        ? `Leitura de ${data.period.label.toLowerCase()} para ${data.tenantLabel}.`
+        : "Os resultados não puderam ser lidos agora.",
+      pendencies: data ? [...data.omittedBlocks] : [],
+      checklist: [],
       score: 0,
-      scoreLabel: "Sem score inventado",
-      nextAction: "Investigar gargalos com base nas entidades relacionadas.",
+      scoreLabel: "",
+      nextAction: data
+        ? "Compare o período atual com o anterior antes de mudar a operação."
+        : "Recarregue a página para tentar a leitura novamente.",
       suggestions: [],
-      history: data?.sources.map((source) => source.label) ?? [],
+      history: [],
     });
   }, [data, select]);
 
-  const accessCopy = accessState === "ready"
-    ? { title: "Leitura real indisponível", body: "Nenhum dado foi recebido e nenhum mock foi exibido." }
-    : ACCESS_COPY[accessState];
+  if (!data) {
+    const copy =
+      accessState === "ready" ? ACCESS_COPY.read_error : ACCESS_COPY[accessState];
+    return (
+      <SurfaceCanvas width="wide">
+        <SurfaceHeader
+          kicker="Inteligência"
+          title="Resultados"
+          lead="O que aconteceu na sua operação no período — leads, visitas, imóveis e canais."
+        />
+        <SurfaceState tone={copy.tone} title={copy.title} body={copy.body} />
+      </SurfaceCanvas>
+    );
+  }
+
+  const availability = AVAILABILITY_COPY[data.availability];
+
+  const metrics: SurfaceMetric[] = data.summary.operation.slice(0, 4).map((metric) => ({
+    label: metric.label,
+    value: formatNumber(metric.value),
+    detail:
+      metric.availability === "available"
+        ? metric.detail
+        : AVAILABILITY_COPY[metric.availability].label,
+  }));
 
   return (
-    <section className="yzi-growth-surface flex min-h-full w-full flex-col gap-6 px-4 pb-10 pt-5 sm:px-6 min-[1720px]:px-8">
-      <header className="flex flex-col gap-5">
-        <GrowthSurfaceHeader
-          title="Resultados"
-          subtitle="O que aconteceu na operação, calculado somente com contratos reais."
-          tenantLabel={data ? `tenant: ${data.tenantLabel}` : "tenant: indisponível"}
-        />
-        {data ? <GrowthCounterStrip counters={counters} /> : null}
-        <GrowthNavigation active="resultados" />
-      </header>
-
-      {!data ? (
-        <EmptyPanel title={accessCopy.title} body={accessCopy.body} />
-      ) : (
-        <div className="flex flex-col gap-4">
-          <section className="yzi-lens rounded-[var(--yzi-radius-lg)] p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-[1rem] font-semibold text-[var(--yzi-text-primary)]">Filtros da leitura</h2>
-                <p className="mt-1 text-[0.72rem] text-[var(--yzi-text-secondary)]">{data.period.label}</p>
-              </div>
-              <GrowthTag>{availabilityLabel(data.availability)}</GrowthTag>
-            </div>
-            <Filters data={data} />
-          </section>
-
-          {data.isEmpty ? (
-            <EmptyPanel title="Zero ocorrências no período" body="As fontes foram consultadas com sucesso, mas os filtros não encontraram eventos. Isso não representa indisponibilidade." />
-          ) : null}
-
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <GrowthSectionCard title="1. Resumo do período"><MetricRows metrics={data.summary.operation} /></GrowthSectionCard>
-            <GrowthSectionCard title="2. Movimento dos imóveis">
-              <MetricRows metrics={data.summary.operation.filter((metric) => metric.id.includes("properties") || metric.id.includes("publication"))} />
-            </GrowthSectionCard>
-            <GrowthSectionCard title="3. Atendimento e leads">
-              <MetricRows metrics={[...data.summary.service, ...data.summary.operation.filter((metric) => ["period-leads", "period-interests"].includes(metric.id))]} />
-            </GrowthSectionCard>
-            <GrowthSectionCard title="4. Corretores e visitas"><MetricRows metrics={data.summary.commercial} /></GrowthSectionCard>
-            <GrowthSectionCard title="5. Publicação e conteúdo">
-              <MetricRows metrics={data.summary.content} />
-              <div className="mt-4 border-t border-[color:var(--yzi-border-subtle)] pt-4"><MetricoolBlock data={data} /></div>
-            </GrowthSectionCard>
-            <GrowthSectionCard title="6. Gargalos do período"><MetricRows metrics={data.bottlenecks} /></GrowthSectionCard>
+    <SurfaceCanvas width="wide">
+      <SurfaceHeader
+        kicker="Inteligência"
+        title="Resultados"
+        lead="O que aconteceu na sua operação no período — leads, visitas, imóveis e canais."
+        secondaryActions={[{ label: "Ver o que fazer agora", href: "/cockpit/yzi-imob/radar" }]}
+        aside={
+          <div className="flex flex-wrap items-center gap-3">
+            <StateTag tone={availability.tone} label={availability.label} />
+            <span className={TYPE.meta}>
+              {PERIOD_LABEL[data.filters.period] ?? data.period.label}
+            </span>
           </div>
+        }
+      />
 
-          {data.operationalHealth.availability === "available" ? (
-            <GrowthSectionCard title="Saúde operacional — gestor">
-              <MetricRows metrics={[
-                { id: "health-inbound", label: "Operações inbound com falha", value: data.operationalHealth.inboundFailed, availability: "available", sourceId: "service", detail: "Snapshot de observabilidade." },
-                { id: "health-outbound", label: "Outbound com falha", value: data.operationalHealth.outboundFailed, availability: "available", sourceId: "service", detail: "Snapshot de observabilidade." },
-                { id: "health-recovery", label: "Recuperações executadas", value: data.operationalHealth.recoveryExecuted, availability: "available", sourceId: "commercial", detail: "Follow-ups com recovery_count real." },
-              ]} />
-            </GrowthSectionCard>
-          ) : null}
+      {metrics.length ? <MetricBand metrics={metrics} /> : null}
 
-          <GrowthInspectorPanel
-            title="Fonte e disponibilidade"
-            sections={data.sources.map((item) => ({
-              label: item.label,
-              value: `${availabilityLabel(item.availability)} · ${item.tables.join(", ")}. ${item.detail}`,
-            }))}
-            note={data.omittedBlocks.join(" ")}
+      <SurfaceToolbar>
+        <form method="get" className="grid w-full grid-cols-2 gap-2 lg:grid-cols-6">
+          <label className="sr-only" htmlFor="results-period">
+            Período
+          </label>
+          <select
+            id="results-period"
+            name="period"
+            defaultValue={data.filters.period}
+            className="yzi-field"
+          >
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="90d">Últimos 90 dias</option>
+          </select>
+
+          <label className="sr-only" htmlFor="results-property">
+            Imóvel
+          </label>
+          <select
+            id="results-property"
+            name="property"
+            defaultValue={data.filters.propertyId ?? ""}
+            className="yzi-field"
+          >
+            <option value="">Todos os imóveis</option>
+            {data.filterOptions.properties.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="sr-only" htmlFor="results-broker">
+            Corretor
+          </label>
+          <select
+            id="results-broker"
+            name="broker"
+            defaultValue={data.filters.brokerUserId ?? ""}
+            className="yzi-field"
+          >
+            <option value="">Todos os corretores</option>
+            {data.filterOptions.brokers.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="sr-only" htmlFor="results-channel">
+            Canal de origem
+          </label>
+          <select
+            id="results-channel"
+            name="channel"
+            defaultValue={data.filters.channel ?? ""}
+            className="yzi-field"
+          >
+            <option value="">Todos os canais</option>
+            {data.filterOptions.channels.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="sr-only" htmlFor="results-status">
+            Situação
+          </label>
+          <select
+            id="results-status"
+            name="status"
+            defaultValue={data.filters.status ?? ""}
+            className="yzi-field"
+          >
+            <option value="">Todas as situações</option>
+            {data.filterOptions.statuses.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <SurfaceButton action={{ label: "Aplicar" }} kind="primary" type="submit" />
+        </form>
+      </SurfaceToolbar>
+
+      {data.isEmpty ? (
+        <SurfaceState
+          tone="idle"
+          title="Nenhum movimento neste recorte"
+          body="A leitura funcionou, mas não houve leads, visitas ou publicações com esses filtros. Amplie o período ou remova um filtro."
+        />
+      ) : (
+        headline?.leads?.value != null && (
+          <YziInsight
+            context={PERIOD_LABEL[data.filters.period] ?? data.period.label}
+            headline={`${formatNumber(headline.leads.value)} ${headline.leads.value === 1 ? "lead entrou" : "leads entraram"} no período.`}
+            reading={
+              headline.appointments?.value != null && headline.appointments.value > 0
+                ? `Desses, ${formatNumber(headline.appointments.value)} chegaram a visita agendada. O caminho até a visita é onde a operação ganha ou perde.`
+                : "Nenhum deles chegou a visita agendada ainda. O interesse existe, mas ainda não virou encontro."
+            }
+            evidence={data.rates
+              .slice(0, 3)
+              .map((rate) => `${rate.label}: ${formatPercent(rate.value)}`)}
+            recommendation={
+              headline.appointments?.value
+                ? "Compare este período com o anterior antes de mudar a operação: uma queda de leads com visitas estáveis é um problema diferente do inverso."
+                : "Vale revisar o tempo de primeira resposta no Atendimento — leads que esperam raramente marcam visita."
+            }
+            analysisHref="/cockpit/yzi-imob/radar"
+            analysisLabel="Ver sinais abertos"
           />
-        </div>
+        )
       )}
-    </section>
+
+      <SurfaceSection
+        first
+        title="Movimento do período"
+        description="Os números principais da operação no recorte selecionado."
+      >
+        <SurfaceList>
+          <div className="py-1">
+            <MetricRows metrics={data.summary.operation} />
+          </div>
+        </SurfaceList>
+      </SurfaceSection>
+
+      {data.trend.length ? (
+        <SurfaceSection
+          title="Evolução"
+          description="Como leads, conversas e visitas se moveram ao longo do período."
+        >
+          <Trend points={data.trend} />
+        </SurfaceSection>
+      ) : null}
+
+      <SurfaceSection
+        title="Onde os leads nasceram"
+        description="Origem e temperatura dos leads que entraram no período."
+      >
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            <h3 className={TYPE.itemTitle}>Canal de origem</h3>
+            <Distribution
+              items={data.leadSources}
+              emptyLabel="Nenhum lead com origem registrada neste período."
+            />
+          </div>
+          <div className="flex flex-col gap-3">
+            <h3 className={TYPE.itemTitle}>Temperatura</h3>
+            <Distribution
+              items={data.leadTemperatures}
+              emptyLabel="Nenhum lead classificado neste período."
+            />
+          </div>
+        </div>
+      </SurfaceSection>
+
+      <SurfaceSection
+        title="Atendimento e comercial"
+        description="O que a equipe conseguiu conduzir depois que o lead entrou."
+      >
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            <h3 className={TYPE.itemTitle}>Atendimento</h3>
+            <MetricRows metrics={data.summary.service} />
+          </div>
+          <div className="flex flex-col gap-3">
+            <h3 className={TYPE.itemTitle}>Corretores e visitas</h3>
+            <MetricRows metrics={data.summary.commercial} />
+          </div>
+        </div>
+      </SurfaceSection>
+
+      <SurfaceSection
+        title="Conteúdo publicado"
+        description="O que saiu para o público no período e como foi recebido."
+      >
+        <div className="flex flex-col gap-5">
+          <MetricRows metrics={data.summary.content} />
+          <ContentPerformance data={data} />
+        </div>
+      </SurfaceSection>
+
+      {data.bottlenecks.length ? (
+        <SurfaceSection
+          title="Onde a operação travou"
+          description="Pontos em que leads e visitas pararam de avançar no período."
+        >
+          <SurfaceList>
+            <div className="py-1">
+              <MetricRows metrics={data.bottlenecks} />
+            </div>
+          </SurfaceList>
+        </SurfaceSection>
+      ) : null}
+
+      {data.availability !== "available" ? (
+        <SurfaceState
+          compact
+          tone={availability.tone}
+          title={
+            data.availability === "partial_data"
+              ? "Parte da leitura ficou de fora"
+              : availability.label
+          }
+          body={
+            data.omittedBlocks.length
+              ? "Alguns blocos não puderam ser calculados neste recorte e por isso não aparecem acima. Nada foi estimado para preencher o espaço."
+              : "Alguns números podem estar incompletos neste recorte. Nada foi estimado para preencher o espaço."
+          }
+        />
+      ) : null}
+    </SurfaceCanvas>
   );
 }
