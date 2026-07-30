@@ -1,50 +1,47 @@
 import Link from "next/link";
 
+import { YziImobCarouselReview } from "@/components/yzi-imob/creative/yzi-imob-carousel-review";
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
+import { YziAlert, YziPanel, YziStatusBadge } from "@/components/yzi-os/yzi-primitives";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
+import type { CarouselEditorialPlan } from "@/lib/yzi-imob/creative/carousel/types";
 import { getCreativeWorkspace } from "@/lib/yzi-imob/creative/repository";
-import type {
-  CreativeDeliverable,
-  CreativeRevision,
-} from "@/lib/yzi-imob/creative/types";
+import type { CreativeRevision } from "@/lib/yzi-imob/creative/types";
 import { listPropertyPublicationMedia } from "@/lib/yzi-imob/publication/repository";
 import { getPropertyById } from "@/lib/yzi-imob/properties/repository";
 
-import {
-  createCreativeRequestAction,
-  decideCreativeRevisionAction,
-} from "./actions";
+import { createCreativeRequestAction } from "./actions";
 
 const STATUS_LABELS: Record<string, string> = {
   queued: "Na fila",
-  generating: "Gerando estrutura",
-  in_review: "Aguardando revisão",
+  generating: "Geração pendente",
+  in_review: "Aguardando aprovação",
   changes_requested: "Ajustes solicitados",
   approved: "Aprovado",
-  completed: "Concluído",
-  failed: "Falhou",
-  cancelled: "Cancelado",
-  planned: "Planejado",
-  processing: "Processando",
-  succeeded: "Concluído",
+  failed: "Geração falhou",
   rejected: "Reprovado",
-  superseded: "Substituído",
+  succeeded: "Geração concluída",
 };
 
-function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+function isCarouselPlan(value: unknown): value is CarouselEditorialPlan {
+  if (!value || typeof value !== "object") return false;
+  const plan = value as Partial<CarouselEditorialPlan>;
+  return (
+    plan.kind === "carousel_editorial_plan" &&
+    plan.templateKey === "property_editorial_v1" &&
+    Array.isArray(plan.cards) &&
+    plan.cards.length === 7
+  );
 }
 
-function deliverableLabel(deliverable: CreativeDeliverable): string {
-  return deliverable.deliverableType === "carousel" ? "Carrossel" : "Tour em vídeo";
+function planFor(revision: CreativeRevision | null): CarouselEditorialPlan | null {
+  const blueprint = revision?.contentSnapshot?.blueprint;
+  return isCarouselPlan(blueprint) ? blueprint : null;
 }
 
-function revisionFor(
-  deliverable: CreativeDeliverable,
-  revisions: readonly CreativeRevision[],
-): CreativeRevision | null {
-  return revisions.find((revision) => revision.id === deliverable.currentRevisionId) ?? null;
+function statusLabel(value: string): string {
+  return STATUS_LABELS[value] ?? value;
 }
 
 export default async function CreativeEnginePropertyPage({
@@ -84,47 +81,52 @@ export default async function CreativeEnginePropertyPage({
       />
     );
   }
-
   if (workspaceResult.status === "error") {
     return (
       <YziImobPropertyAccessState
-        title="Estado criativo indisponível"
-        message="Não foi possível carregar o pedido e seu histórico. Nenhuma nova operação foi iniciada."
+        title="Erro de leitura do Creative Engine"
+        message="Não foi possível carregar pedido, revisões e assets. Nenhum estado vazio foi presumido e nenhuma operação foi iniciada."
       />
     );
   }
 
   const workspace = workspaceResult.value;
-  const mediaReadFailed = mediaResult.status === "error";
-  const sourceMedia =
+  const carousel = workspace.deliverables.find((item) => item.deliverableType === "carousel") ?? null;
+  const currentRevision =
+    workspace.revisions.find((item) => item.id === carousel?.currentRevisionId) ?? null;
+  const plan = planFor(currentRevision);
+  const approvedMedia =
     mediaResult.status === "ok"
       ? mediaResult.value.filter(
-          (media) => media.isPublicationAllowed && media.processingStatus === "ready",
+          (item) =>
+            item.mediaType === "image" &&
+            item.isPublicationAllowed &&
+            item.processingStatus === "ready",
         )
       : [];
-  const canApprove = ["owner", "admin"].includes(tenantContext.role);
   const feedback =
     query.result === "created"
-      ? "Pedido criado e saída sintética preparada para revisão."
+      ? "Carrossel preparado em uma revisão nova e preservada no histórico."
       : query.result === "approved"
-        ? "Decisão registrada. A elegibilidade para publicação foi atualizada."
+        ? "Decisão humana registrada."
         : query.result === "error"
-          ? "A operação não pôde ser concluída. Revise os dados e tente novamente."
+          ? "A operação não foi concluída. O estado anterior foi preservado."
           : null;
+  const canDecide = ["owner", "admin"].includes(tenantContext.role);
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 lg:px-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[0.66rem] uppercase tracking-[0.18em] text-[var(--yzi-text-faint)]">
-            Creative Engine · fundação
+            Creative Engine · Carrossel editorial
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-[var(--yzi-text-primary)]">
-            Conteúdo de {propertyResult.value.title}
+            {propertyResult.value.title}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-            Produção governada a partir das mídias do imóvel. Nesta etapa, as saídas são
-            estruturas sintéticas: nenhum arquivo é renderizado e nada é publicado.
+            Sete cards em 4:5, compostos somente a partir do imóvel e de suas mídias
+            canônicas. Nenhum conteúdo foi publicado.
           </p>
         </div>
         <Link
@@ -133,240 +135,125 @@ export default async function CreativeEnginePropertyPage({
         >
           Voltar ao imóvel
         </Link>
-      </div>
+      </header>
 
-      {feedback ? (
-        <p
-          role="status"
-          className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-sm text-[var(--yzi-text-secondary)]"
-        >
-          {feedback}
-        </p>
+      {feedback ? <YziAlert tone={query.result === "error" ? "blocked" : "success"}>{feedback}</YziAlert> : null}
+      {mediaResult.status === "error" ? (
+        <YziAlert tone="blocked" title="Erro de leitura das mídias">
+          A seleção canônica não pôde ser verificada; uma nova geração permanece bloqueada.
+        </YziAlert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <article className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <YziPanel>
           <p className="text-xs text-[var(--yzi-text-faint)]">Pedido</p>
-          <p className="mt-2 text-sm font-medium text-[var(--yzi-text-primary)]">
-            {workspace.request ? statusLabel(workspace.request.status) : "Ainda não criado"}
+          <p className="mt-2 text-sm text-[var(--yzi-text-primary)]">
+            {workspace.request ? statusLabel(workspace.request.status) : "Nenhum pedido criativo"}
           </p>
-          {workspace.request ? (
-            <p className="mt-1 break-all text-[0.68rem] text-[var(--yzi-text-faint)]">
-              ID {workspace.request.id}
-            </p>
-          ) : null}
-        </article>
-        <article className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
-          <p className="text-xs text-[var(--yzi-text-faint)]">Entregáveis</p>
-          <p className="mt-2 text-sm font-medium text-[var(--yzi-text-primary)]">
-            {workspace.deliverables.length}
+        </YziPanel>
+        <YziPanel>
+          <p className="text-xs text-[var(--yzi-text-faint)]">Revisão atual</p>
+          <p className="mt-2 text-sm text-[var(--yzi-text-primary)]">
+            {currentRevision ? `#${currentRevision.revisionNumber}` : "Ainda não criada"}
           </p>
-        </article>
-        <article className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
-          <p className="text-xs text-[var(--yzi-text-faint)]">Job de geração</p>
-          <p className="mt-2 text-sm font-medium text-[var(--yzi-text-primary)]">
-            {workspace.latestJob ? statusLabel(workspace.latestJob.status) : "Não iniciado"}
-          </p>
-          {workspace.latestJob ? (
-            <p className="mt-1 break-all text-[0.68rem] text-[var(--yzi-text-faint)]">
-              ID {workspace.latestJob.id}
-            </p>
-          ) : null}
-        </article>
+        </YziPanel>
+        <YziPanel>
+          <p className="text-xs text-[var(--yzi-text-faint)]">Estado</p>
+          <div className="mt-2">
+            <YziStatusBadge tone={carousel?.publicationEligible ? "opportunity" : "neutral"}>
+              {carousel ? statusLabel(carousel.status) : "Sem carrossel"}
+            </YziStatusBadge>
+          </div>
+        </YziPanel>
       </div>
 
       {!workspace.request ? (
-        <form
-          action={createCreativeRequestAction}
-          className="flex flex-col gap-5 rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-raised)] p-5"
-        >
-          <input type="hidden" name="propertyId" value={id} />
-          <input
-            type="hidden"
-            name="idempotencyKey"
-            value={`creative:${id}:${crypto.randomUUID()}`}
-          />
-          <div>
-            <h2 className="text-base font-semibold text-[var(--yzi-text-primary)]">
-              Preparar conteúdo
-            </h2>
-            <p className="mt-1 text-xs text-[var(--yzi-text-secondary)]">
-              Escolha somente formatos e mídias deste imóvel.
-            </p>
-          </div>
-
-          <label className="flex flex-col gap-2 text-xs text-[var(--yzi-text-secondary)]">
-            Objetivo
-            <select
-              name="objective"
-              required
-              className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm text-[var(--yzi-text-primary)]"
+        <YziPanel variant="yzi" className="max-w-2xl">
+          <h2 className="text-base font-semibold">Preparar carrossel editorial</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
+            A seleção das imagens será feita no servidor entre as mídias prontas e
+            autorizadas deste imóvel. O navegador não envia URLs, fatos ou ownership.
+          </p>
+          <form action={createCreativeRequestAction} className="mt-5 flex flex-col gap-4">
+            <input type="hidden" name="propertyId" value={id} />
+            <input type="hidden" name="idempotencyKey" value={`carousel:${id}:${crypto.randomUUID()}`} />
+            <label className="text-xs text-[var(--yzi-text-secondary)]">
+              Objetivo editorial
+              <select name="objective" className="mt-1 w-full rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm">
+                <option value="present_property">Apresentar o imóvel</option>
+                <option value="generate_visits">Convidar para uma visita</option>
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={mediaResult.status !== "ok" || approvedMedia.length === 0}
+              className="w-fit rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.35)] bg-[rgba(var(--imob-ice),0.1)] px-4 py-2 text-sm text-[rgb(var(--imob-ice))] disabled:opacity-40"
             >
-              <option value="Apresentar os principais diferenciais do imóvel">
-                Apresentar diferenciais
-              </option>
-              <option value="Convidar potenciais clientes para uma visita ao imóvel">
-                Gerar visitas
-              </option>
-            </select>
-          </label>
-
-          <fieldset className="flex flex-wrap gap-4">
-            <legend className="mb-2 text-xs text-[var(--yzi-text-secondary)]">Formatos</legend>
-            <label className="flex items-center gap-2 text-sm text-[var(--yzi-text-primary)]">
-              <input type="checkbox" name="formats" value="carousel" defaultChecked />
-              Carrossel
-            </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--yzi-text-primary)]">
-              <input type="checkbox" name="formats" value="video_tour" defaultChecked />
-              Tour em vídeo
-            </label>
-          </fieldset>
-
-          <fieldset className="flex flex-wrap gap-4">
-            <legend className="mb-2 text-xs text-[var(--yzi-text-secondary)]">
-              Canais pretendidos
-            </legend>
-            <label className="flex items-center gap-2 text-sm text-[var(--yzi-text-primary)]">
-              <input type="checkbox" name="channels" value="social_feed" defaultChecked />
-              Feed social
-            </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--yzi-text-primary)]">
-              <input type="checkbox" name="channels" value="social_video" defaultChecked />
-              Vídeo social
-            </label>
-          </fieldset>
-
-          <fieldset className="grid gap-2">
-            <legend className="mb-2 text-xs text-[var(--yzi-text-secondary)]">
-              Mídias canônicas
-            </legend>
-            {mediaReadFailed ? (
-              <p role="alert" className="text-sm text-[var(--yzi-text-secondary)]">
-                Não foi possível verificar as mídias canônicas. A criação permanece bloqueada.
-              </p>
-            ) : sourceMedia.length ? (
-              sourceMedia.map((media, index) => (
-                <label
-                  key={media.id}
-                  className="flex items-center justify-between gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] px-3 py-2 text-sm text-[var(--yzi-text-primary)]"
-                >
-                  <span>
-                    {media.mediaType === "image" ? "Imagem" : "Vídeo"} {index + 1}
-                    {media.isCover ? " · capa" : ""}
-                  </span>
-                  <input
-                    type="checkbox"
-                    name="sourceMediaIds"
-                    value={media.id}
-                    defaultChecked
-                  />
-                </label>
-              ))
-            ) : (
-              <p className="text-sm text-[var(--yzi-text-secondary)]">
-                O imóvel ainda não possui mídia pronta e autorizada.
-              </p>
-            )}
-          </fieldset>
-
-          <button
-            type="submit"
-            disabled={!sourceMedia.length}
-            className="w-fit rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.35)] bg-[rgba(var(--imob-ice),0.1)] px-4 py-2 text-sm text-[rgb(var(--imob-ice))] disabled:opacity-40"
-          >
-            Criar pedido sintético
-          </button>
-        </form>
+              Gerar preview local
+            </button>
+          </form>
+        </YziPanel>
+      ) : !carousel ? (
+        <YziAlert tone="warning" title="Pedido sem carrossel">
+          O pedido existente não contém o entregável ativo desta unidade.
+        </YziAlert>
+      ) : carousel.status === "generating" || workspace.latestJob?.status === "processing" ? (
+        <YziAlert tone="info" title="Geração pendente">
+          O job local ainda não concluiu a revisão. Nenhum preview parcial foi tratado como pronto.
+        </YziAlert>
+      ) : carousel.status === "failed" || workspace.latestJob?.status === "failed" ? (
+        <YziAlert tone="blocked" title="Geração falhou">
+          O último job falhou com um código sanitizado. A revisão anterior permanece preservada.
+        </YziAlert>
+      ) : !currentRevision ? (
+        <YziAlert tone="warning" title="Preview indisponível">
+          O entregável ainda não possui uma revisão atual.
+        </YziAlert>
+      ) : !plan ? (
+        <YziAlert tone="blocked" title="Plano inválido">
+          A revisão atual não atende ao contrato de sete cards do template canônico.
+        </YziAlert>
       ) : (
-        <div className="flex flex-col gap-4">
-          {workspace.deliverables.map((deliverable) => {
-            const revision = revisionFor(deliverable, workspace.revisions);
-            return (
-              <article
-                key={deliverable.id}
-                className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-raised)] p-5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-[var(--yzi-text-primary)]">
-                      {deliverableLabel(deliverable)}
-                    </h2>
-                    <p className="mt-1 text-xs text-[var(--yzi-text-secondary)]">
-                      {statusLabel(deliverable.status)} · revisão{" "}
-                      {revision?.revisionNumber ?? "não criada"}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-[color:var(--yzi-border-subtle)] px-3 py-1 text-xs text-[var(--yzi-text-secondary)]">
-                    {deliverable.publicationEligible
-                      ? "Elegível para publicação"
-                      : "Publicação bloqueada"}
-                  </span>
-                </div>
-
-                {revision ? (
-                  <div className="mt-4 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
-                    <p className="text-xs text-[var(--yzi-text-faint)]">
-                      Blueprint sintético · sem render
-                    </p>
-                    <p className="mt-2 text-sm text-[var(--yzi-text-secondary)]">
-                      {revision.contentSnapshot.blueprint.kind === "carousel_blueprint"
-                        ? `${revision.contentSnapshot.blueprint.slides.length} quadros planejados`
-                        : `${revision.contentSnapshot.blueprint.scenes.length} cenas · ${revision.contentSnapshot.blueprint.durationSeconds}s`}
-                    </p>
-
-                    {revision.status === "in_review" && canApprove ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <form action={decideCreativeRevisionAction}>
-                          <input type="hidden" name="propertyId" value={id} />
-                          <input type="hidden" name="revisionId" value={revision.id} />
-                          <input type="hidden" name="decision" value="approved" />
-                          <button
-                            type="submit"
-                            className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.35)] px-3 py-2 text-xs text-[rgb(var(--imob-ice))]"
-                          >
-                            Aprovar revisão
-                          </button>
-                        </form>
-                        <form action={decideCreativeRevisionAction} className="flex gap-2">
-                          <input type="hidden" name="propertyId" value={id} />
-                          <input type="hidden" name="revisionId" value={revision.id} />
-                          <input type="hidden" name="decision" value="changes_requested" />
-                          <input
-                            required
-                            name="observation"
-                            aria-label="Observação dos ajustes"
-                            placeholder="Ajuste necessário"
-                            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-transparent px-3 py-2 text-xs text-[var(--yzi-text-primary)]"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-2 text-xs text-[var(--yzi-text-secondary)]"
-                          >
-                            Solicitar ajustes
-                          </button>
-                        </form>
-                      </div>
-                    ) : null}
-                    {revision.status === "in_review" && !canApprove ? (
-                      <p className="mt-4 text-xs text-[var(--yzi-text-secondary)]">
-                        A revisão aguarda decisão de um proprietário ou administrador do tenant.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
+        <YziImobCarouselReview
+          propertyId={id}
+          revision={currentRevision}
+          plan={plan}
+          media={approvedMedia.map((item) => ({
+            id: item.id,
+            url: item.url,
+            altText: item.altText,
+          }))}
+          canDecide={canDecide}
+        />
       )}
 
+      {workspace.revisions.length ? (
+        <YziPanel>
+          <h2 className="text-sm font-semibold">Histórico de revisões</h2>
+          <ol className="mt-4 divide-y divide-[color:var(--yzi-border-subtle)]">
+            {workspace.revisions.map((revision) => (
+              <li key={revision.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-[var(--yzi-text-primary)]">Revisão #{revision.revisionNumber}</p>
+                  <p className="mt-1 text-xs text-[var(--yzi-text-faint)]">
+                    {revision.sourceRevisionId ? "Derivada da revisão anterior" : "Versão inicial"} · {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(revision.createdAt))}
+                  </p>
+                </div>
+                <YziStatusBadge tone={revision.status === "approved" ? "opportunity" : revision.status === "rejected" ? "blocked" : "neutral"}>
+                  {statusLabel(revision.status)}
+                </YziStatusBadge>
+              </li>
+            ))}
+          </ol>
+        </YziPanel>
+      ) : null}
+
       <p className="text-xs leading-relaxed text-[var(--yzi-text-faint)]">
-        Fonte: imóvel e mídias canônicas do tenant. A aprovação só altera a elegibilidade;
-        não agenda nem publica conteúdo.
-        {workspace.events[0]
-          ? ` Última evidência: ${workspace.events[0].eventType} · ${workspace.events[0].id}.`
-          : ""}
+        Evidência: imóvel {id}
+        {workspace.request ? ` · pedido ${workspace.request.id}` : ""}
+        {carousel ? ` · entregável ${carousel.id}` : ""}
+        {currentRevision ? ` · revisão ${currentRevision.id}` : ""}. Fonte factual:
+        cadastro canônico do imóvel; seleção visual: mídias governadas do mesmo tenant e imóvel.
       </p>
     </section>
   );

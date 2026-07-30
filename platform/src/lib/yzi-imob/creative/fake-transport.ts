@@ -2,13 +2,12 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { buildCarouselEditorialPlan } from "./carousel/editorial-plan.ts";
 import {
   CREATIVE_CONTRACT_VERSION,
-  type CarouselBlueprint,
   type CreativeContentSnapshot,
   type CreativeGenerationContext,
   type SyntheticCreativeOutput,
-  type VideoTourBlueprint,
 } from "./types.ts";
 
 export type CreativeGenerationTransport = {
@@ -30,67 +29,6 @@ export function hashCreativeSnapshot(snapshot: CreativeContentSnapshot): string 
   return createHash("sha256").update(stableJson(snapshot)).digest("hex");
 }
 
-function locationLabel(context: CreativeGenerationContext): string {
-  return [context.property.neighborhood, context.property.city].filter(Boolean).join(", ");
-}
-
-function carouselBlueprint(context: CreativeGenerationContext): CarouselBlueprint {
-  const selected = context.sourceMedia.slice(0, 4);
-  const detail = [
-    context.property.bedrooms === null ? null : `${context.property.bedrooms} quartos`,
-    context.property.privateArea === null ? null : `${context.property.privateArea} m²`,
-  ]
-    .filter(Boolean)
-    .join(" • ");
-
-  return {
-    kind: "carousel_blueprint",
-    slides: [
-      {
-        order: 1,
-        role: "cover",
-        headline: context.property.title,
-        sourceMediaId: selected[0]?.id ?? null,
-      },
-      ...selected.slice(1).map((media, index) => ({
-        order: index + 2,
-        role: "highlight" as const,
-        headline: `Destaque ${index + 1} do imóvel`,
-        sourceMediaId: media.id,
-      })),
-      {
-        order: selected.length + 1,
-        role: "details",
-        headline: detail || locationLabel(context) || "Conheça os detalhes",
-        sourceMediaId: null,
-      },
-      {
-        order: selected.length + 2,
-        role: "call_to_action",
-        headline: "Agende uma visita",
-        sourceMediaId: null,
-      },
-    ],
-  };
-}
-
-function videoTourBlueprint(context: CreativeGenerationContext): VideoTourBlueprint {
-  const selected = context.sourceMedia.slice(0, 6);
-  return {
-    kind: "video_tour_blueprint",
-    durationSeconds: selected.length * 4,
-    scenes: selected.map((media, index) => ({
-      order: index + 1,
-      durationSeconds: 4,
-      direction:
-        index === 0
-          ? `Abertura do imóvel: ${context.property.title}`
-          : `Percurso visual pelo ambiente ${index + 1}`,
-      sourceMediaId: media.id,
-    })),
-  };
-}
-
 export class DeterministicCreativeFakeTransport implements CreativeGenerationTransport {
   async generate(
     context: CreativeGenerationContext,
@@ -101,7 +39,7 @@ export class DeterministicCreativeFakeTransport implements CreativeGenerationTra
         property_id: context.property.id,
         request_id: context.request.id,
         deliverable_id: deliverable.id,
-        deliverable_type: deliverable.deliverableType,
+        deliverable_type: "carousel",
         channels: context.request.intendedChannels,
         objective: context.request.objective,
         synthetic: true,
@@ -111,10 +49,18 @@ export class DeterministicCreativeFakeTransport implements CreativeGenerationTra
           creative_revision_required: true,
           external_publication_allowed: false,
         },
-        blueprint:
-          deliverable.deliverableType === "carousel"
-            ? carouselBlueprint(context)
-            : videoTourBlueprint(context),
+        blueprint: buildCarouselEditorialPlan({
+          property: { ...context.property, tenantId: context.tenantId },
+          media: context.sourceMedia.map((media) => ({
+            ...media,
+            tenantId: context.tenantId,
+            propertyId: context.property.id,
+          })),
+          objective:
+            context.request.context.objective_key === "generate_visits"
+              ? "generate_visits"
+              : "present_property",
+        }),
       };
 
       return {

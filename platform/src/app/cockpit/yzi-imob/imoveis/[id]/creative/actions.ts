@@ -8,7 +8,9 @@ import { getTenantContext } from "@/lib/tenant/tenant-context";
 import {
   createCreativeRequestAndGenerate,
   decideCreativeRevision,
+  requestCreativeCarouselRevision,
 } from "@/lib/yzi-imob/creative/repository";
+import type { CarouselAdjustment } from "@/lib/yzi-imob/creative/carousel/types";
 import type {
   CreativeDeliverableType,
   CreativeRevisionDecision,
@@ -17,14 +19,6 @@ import type {
 function formText(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function formTexts(formData: FormData, name: string): string[] {
-  return formData
-    .getAll(name)
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
 
 async function requireCreativeContext(allowedRoles: readonly string[]) {
@@ -48,13 +42,13 @@ export async function createCreativeRequestAction(formData: FormData): Promise<v
   const context = await requireCreativeContext(["owner", "admin", "operator"]);
   if (!context || !propertyId) redirect(creativePath(propertyId, "error"));
 
-  const formats = formTexts(formData, "formats").filter(
-    (format): format is CreativeDeliverableType =>
-      format === "carousel" || format === "video_tour",
-  );
-  const channels = formTexts(formData, "channels");
-  const sourceMediaIds = formTexts(formData, "sourceMediaIds");
-  const objective = formText(formData, "objective");
+  const formats: readonly CreativeDeliverableType[] = ["carousel"];
+  const channels = ["social_feed"];
+  const objectiveKey = formText(formData, "objective");
+  const objective =
+    objectiveKey === "generate_visits"
+      ? "Convidar potenciais clientes para uma visita ao imóvel"
+      : "Apresentar os principais diferenciais do imóvel";
   const idempotencyKey = formText(formData, "idempotencyKey");
 
   const supabase = await createServerSupabaseClient();
@@ -66,8 +60,7 @@ export async function createCreativeRequestAction(formData: FormData): Promise<v
       objective,
       formats,
       intendedChannels: channels,
-      sourceMediaIds,
-      context: { origin: "property_workspace" },
+      context: { origin: "property_workspace", objective_key: objectiveKey },
       idempotencyKey,
     },
   );
@@ -82,7 +75,12 @@ export async function decideCreativeRevisionAction(formData: FormData): Promise<
   const decision = formText(formData, "decision") as CreativeRevisionDecision;
   const observation = formText(formData, "observation");
   const context = await requireCreativeContext(["owner", "admin"]);
-  if (!context || !propertyId || !revisionId) {
+  if (
+    !context ||
+    !propertyId ||
+    !revisionId ||
+    !["approved", "changes_requested", "rejected"].includes(decision)
+  ) {
     redirect(creativePath(propertyId, "error"));
   }
 
@@ -95,6 +93,37 @@ export async function decideCreativeRevisionAction(formData: FormData): Promise<
     decision,
     observation || null,
   );
+
+  if (result.status === "ok" && decision === "changes_requested") {
+    const kind = formText(formData, "adjustmentKind");
+    const cardPosition = Number(formText(formData, "cardPosition"));
+    const replacementMediaId = formText(formData, "replacementMediaId");
+    const idempotencyKey = formText(formData, "idempotencyKey");
+    const note = observation || undefined;
+    let adjustment: CarouselAdjustment | null = null;
+    if (kind === "swap_media" || kind === "use_approved_media") {
+      adjustment = replacementMediaId
+        ? { kind, cardPosition, replacementMediaId, note }
+        : null;
+    } else if (kind === "shorten_headline" || kind === "remove_fact" || kind === "correct_fact") {
+      adjustment = { kind, cardPosition, note };
+    } else if (kind === "change_cta" && cardPosition === 7 && note) {
+      adjustment = { kind, cardPosition: 7, note };
+    }
+    if (!adjustment) redirect(creativePath(propertyId, "error"));
+    const revisionResult = await requestCreativeCarouselRevision(
+      supabase,
+      context.tenant.id,
+      propertyId,
+      revisionId,
+      adjustment,
+      idempotencyKey,
+    );
+    revalidatePath(`/cockpit/yzi-imob/imoveis/${propertyId}/creative`);
+    redirect(
+      creativePath(propertyId, revisionResult.status === "ok" ? "created" : "error"),
+    );
+  }
 
   revalidatePath(`/cockpit/yzi-imob/imoveis/${propertyId}/creative`);
   redirect(creativePath(propertyId, result.status === "ok" ? "approved" : "error"));

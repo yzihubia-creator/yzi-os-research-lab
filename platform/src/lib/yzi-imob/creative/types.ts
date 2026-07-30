@@ -1,11 +1,17 @@
-export const CREATIVE_CONTRACT_VERSION = "2026-07-29.v1" as const;
+import type { CarouselEditorialPlan } from "./carousel/types.ts";
 
-export const ACTIVE_CREATIVE_DELIVERABLE_TYPES = ["carousel", "video_tour"] as const;
+export const CREATIVE_CONTRACT_VERSION = "2026-07-29.carousel.v1" as const;
+
+export const ACTIVE_CREATIVE_DELIVERABLE_TYPES = ["carousel"] as const;
 export type CreativeDeliverableType = (typeof ACTIVE_CREATIVE_DELIVERABLE_TYPES)[number];
 
 // Reserved for later contract evolution. They are intentionally not accepted
 // by the v1 request validator or database constraints.
-export const RESERVED_CREATIVE_DELIVERABLE_TYPES = ["story_pack", "static_post"] as const;
+export const RESERVED_CREATIVE_DELIVERABLE_TYPES = [
+  "video_tour",
+  "story_pack",
+  "static_post",
+] as const;
 
 export const CREATIVE_REQUEST_STATUS_VALUES = [
   "queued",
@@ -50,6 +56,15 @@ export type CreativeJobStatus = (typeof CREATIVE_JOB_STATUS_VALUES)[number];
 
 export type CreativeRevisionDecision = "approved" | "changes_requested" | "rejected";
 
+export type CreativeAssetKind =
+  | "structured_preview"
+  | "rendered_preview"
+  | "final_render"
+  | "source_media"
+  | "thumbnail";
+export type CreativeStorageState = "not_required" | "pending" | "stored" | "failed" | "promoted";
+export type CreativePublicationState = "not_eligible" | "eligible" | "published";
+
 export type CreativeRequest = {
   id: string;
   tenantId: string;
@@ -86,6 +101,7 @@ export type CreativeRevision = {
   propertyId: string;
   requestId: string;
   deliverableId: string;
+  sourceRevisionId: string | null;
   revisionNumber: number;
   status: CreativeRevisionStatus;
   contentSnapshot: CreativeContentSnapshot;
@@ -110,6 +126,12 @@ export type CreativeAsset = {
   mediaType: "image" | "video" | "structured";
   syntheticUri: string | null;
   contentHash: string | null;
+  assetPosition: number | null;
+  assetKind: CreativeAssetKind;
+  storageState: CreativeStorageState;
+  publicationState: CreativePublicationState;
+  storageBucket: "yzi-imob-private" | "yzi-imob-public" | null;
+  objectPath: string | null;
   metadata: Readonly<Record<string, unknown>>;
   createdAt: string;
 };
@@ -145,27 +167,6 @@ export type CreativeGenerationEvent = {
   createdAt: string;
 };
 
-export type CarouselBlueprint = {
-  kind: "carousel_blueprint";
-  slides: readonly {
-    order: number;
-    role: "cover" | "highlight" | "details" | "call_to_action";
-    headline: string;
-    sourceMediaId: string | null;
-  }[];
-};
-
-export type VideoTourBlueprint = {
-  kind: "video_tour_blueprint";
-  durationSeconds: number;
-  scenes: readonly {
-    order: number;
-    durationSeconds: number;
-    direction: string;
-    sourceMediaId: string;
-  }[];
-};
-
 export type CreativeContentSnapshot = {
   contract_version: typeof CREATIVE_CONTRACT_VERSION;
   property_id: string;
@@ -181,7 +182,7 @@ export type CreativeContentSnapshot = {
     creative_revision_required: true;
     external_publication_allowed: false;
   };
-  blueprint: CarouselBlueprint | VideoTourBlueprint;
+  blueprint: CarouselEditorialPlan;
 };
 
 export type CreativeGenerationContext = {
@@ -191,8 +192,16 @@ export type CreativeGenerationContext = {
     title: string;
     city: string | null;
     neighborhood: string | null;
+    referenceCode: string | null;
+    price: number | null;
     bedrooms: number | null;
+    suites: number | null;
+    parkingSpaces: number | null;
     privateArea: number | null;
+    totalArea: number | null;
+    availabilityStatus: string | null;
+    shortSummary: string | null;
+    propertyFeatures: readonly unknown[];
   };
   request: CreativeRequest;
   deliverables: readonly CreativeDeliverable[];
@@ -201,6 +210,8 @@ export type CreativeGenerationContext = {
     mediaType: "image" | "video";
     sortOrder: number;
     isCover: boolean;
+    isPublicationAllowed: boolean;
+    processingStatus: string;
   }[];
 };
 
@@ -215,7 +226,6 @@ export type CreateCreativeRequestInput = {
   objective: string;
   formats: readonly CreativeDeliverableType[];
   intendedChannels: readonly string[];
-  sourceMediaIds: readonly string[];
   context?: Readonly<Record<string, unknown>>;
   idempotencyKey: string;
 };

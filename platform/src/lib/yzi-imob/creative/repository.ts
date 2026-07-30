@@ -14,15 +14,16 @@ import {
   type CreativeRevisionDecision,
   type CreativeWorkspace,
 } from "./types.ts";
+import type { CarouselAdjustment } from "./carousel/types.ts";
 
 const REQUEST_COLUMNS =
   "id, tenant_id, property_id, status, objective, desired_formats, intended_channels, context, idempotency_key, created_by_user_id, created_at, updated_at, completed_at";
 const DELIVERABLE_COLUMNS =
   "id, tenant_id, property_id, request_id, deliverable_type, status, current_revision_id, approved_revision_id, publication_eligible, created_at, updated_at";
 const REVISION_COLUMNS =
-  "id, tenant_id, property_id, request_id, deliverable_id, revision_number, status, content_snapshot, content_hash, review_observation, created_by_user_id, decided_by_user_id, decided_at, created_at, updated_at";
+  "id, tenant_id, property_id, request_id, deliverable_id, source_revision_id, revision_number, status, content_snapshot, content_hash, review_observation, created_by_user_id, decided_by_user_id, decided_at, created_at, updated_at";
 const ASSET_COLUMNS =
-  "id, tenant_id, property_id, request_id, deliverable_id, revision_id, source_property_media_id, asset_role, media_type, synthetic_uri, content_hash, metadata, created_at";
+  "id, tenant_id, property_id, request_id, deliverable_id, revision_id, source_property_media_id, asset_role, media_type, synthetic_uri, content_hash, asset_position, asset_kind, storage_state, publication_state, storage_bucket, object_path, metadata, created_at";
 const JOB_COLUMNS =
   "id, tenant_id, property_id, request_id, status, idempotency_key, correlation_id, attempt_count, max_attempts, last_error_code, started_at, completed_at, created_at, updated_at";
 const EVENT_COLUMNS =
@@ -98,6 +99,7 @@ function mapRevision(row: Row): CreativeRevision {
     propertyId: text(row, "property_id"),
     requestId: text(row, "request_id"),
     deliverableId: text(row, "deliverable_id"),
+    sourceRevisionId: optionalText(row, "source_revision_id"),
     revisionNumber: Number(row.revision_number),
     status: text(row, "status") as CreativeRevision["status"],
     contentSnapshot: row.content_snapshot as CreativeRevision["contentSnapshot"],
@@ -124,6 +126,14 @@ function mapAsset(row: Row): CreativeAsset {
     mediaType: text(row, "media_type") as CreativeAsset["mediaType"],
     syntheticUri: optionalText(row, "synthetic_uri"),
     contentHash: optionalText(row, "content_hash"),
+    assetPosition: row.asset_position === null || row.asset_position === undefined
+      ? null
+      : Number(row.asset_position),
+    assetKind: text(row, "asset_kind") as CreativeAsset["assetKind"],
+    storageState: text(row, "storage_state") as CreativeAsset["storageState"],
+    publicationState: text(row, "publication_state") as CreativeAsset["publicationState"],
+    storageBucket: optionalText(row, "storage_bucket") as CreativeAsset["storageBucket"],
+    objectPath: optionalText(row, "object_path"),
     metadata: object(row, "metadata"),
     createdAt: text(row, "created_at"),
   };
@@ -170,15 +180,13 @@ function isValidInput(input: CreateCreativeRequestInput): boolean {
   return (
     input.objective.trim().length >= 3 &&
     input.objective.trim().length <= 1000 &&
-    formats.length >= 1 &&
-    formats.length <= 2 &&
+    formats.length === 1 &&
     formats.every((format) =>
       (ACTIVE_CREATIVE_DELIVERABLE_TYPES as readonly string[]).includes(format),
     ) &&
     channels.length >= 1 &&
     channels.length <= 10 &&
     channels.every((channel) => /^[a-z0-9_]{1,40}$/.test(channel)) &&
-    new Set(input.sourceMediaIds).size >= 1 &&
     input.idempotencyKey.trim().length >= 1 &&
     input.idempotencyKey.trim().length <= 200
   );
@@ -294,7 +302,24 @@ export async function createCreativeRequestAndGenerate(
   const formats = [...new Set(input.formats)].sort();
   const channels = [...new Set(input.intendedChannels.map((channel) => channel.trim().toLowerCase()))]
     .sort();
-  const sourceMediaIds = [...new Set(input.sourceMediaIds)].sort();
+  const mediaResult = await supabase
+    .from("yzi_imob_property_media")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("property_id", input.propertyId)
+    .eq("media_type", "image")
+    .eq("is_publication_allowed", true)
+    .eq("processing_status", "ready")
+    .order("is_cover", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+  if (mediaResult.error) {
+    return { status: "error", code: "read_failed", detail: mediaResult.error.message };
+  }
+  const sourceMediaIds = ((mediaResult.data as { id: string }[] | null) ?? []).map(
+    (media) => media.id,
+  );
+  if (!sourceMediaIds.length) return { status: "error", code: "invalid_input" };
   const { data, error } = await supabase.rpc("create_yzi_imob_creative_request", {
     p_property_id: input.propertyId,
     p_objective: input.objective.trim(),
@@ -344,6 +369,53 @@ export async function createCreativeRequestAndGenerate(
   }
 
   return getCreativeWorkspace(supabase, tenantId, input.propertyId, created.request_id);
+}
+
+export async function requestCreativeCarouselRevision(
+  supabase: SupabaseClient,
+  tenantId: string,
+  propertyId: string,
+  revisionId: string,
+  adjustment: CarouselAdjustment,
+  idempotencyKey: string,
+): Promise<CreativeRepositoryResult<CreativeWorkspace>> {
+  if (
+    !revisionId ||
+    !idempotencyKey ||
+    idempotencyKey.length > 200 ||
+    adjustment.cardPosition < 1 ||
+    adjustment.cardPosition > 7
+  ) {
+    return { status: "error", code: "invalid_input" };
+  }
+
+  const { data, error } = await supabase.rpc("request_yzi_imob_creative_carousel_revision", {
+    p_revision_id: revisionId,
+    p_adjustment_kind: adjustment.kind,
+    p_card_position: adjustment.cardPosition,
+    p_replacement_media_id:
+      "replacementMediaId" in adjustment ? adjustment.replacementMediaId : null,
+    p_observation: adjustment.note?.trim() || null,
+    p_idempotency_key: idempotencyKey.trim(),
+  });
+  if (error || !data) {
+    return { status: "error", code: "generation_failed", detail: error?.message };
+  }
+  const queued = (Array.isArray(data) ? data[0] : data) as { job_id?: string } | null;
+  if (!queued?.job_id) return { status: "error", code: "generation_failed" };
+  const start = await supabase.rpc("start_yzi_imob_creative_generation_job", {
+    p_job_id: queued.job_id,
+  });
+  if (start.error) {
+    return { status: "error", code: "generation_failed", detail: start.error.message };
+  }
+  const complete = await supabase.rpc("complete_yzi_imob_creative_generation_job", {
+    p_job_id: queued.job_id,
+  });
+  if (complete.error) {
+    return { status: "error", code: "generation_failed", detail: complete.error.message };
+  }
+  return getCreativeWorkspace(supabase, tenantId, propertyId);
 }
 
 export async function decideCreativeRevision(
