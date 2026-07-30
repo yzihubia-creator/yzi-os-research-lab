@@ -50,6 +50,8 @@ export type PropertyPublicationReviewDecision = "approved" | "rejected" | "chang
 
 export type PropertyPublicationMedia = {
   id: string;
+  tenantId: string;
+  propertyId: string;
   mediaType: "image" | "video";
   url: string | null;
   altText: string | null;
@@ -57,6 +59,20 @@ export type PropertyPublicationMedia = {
   isCover: boolean;
   isPublicationAllowed: boolean;
   processingStatus: "processing" | "ready" | "failed";
+  environmentType:
+    | "facade" | "entrance" | "living_room" | "balcony" | "kitchen"
+    | "bedroom" | "suite" | "bathroom" | "leisure" | "view"
+    | "floor_plan" | "location" | "detail" | "brand" | "other";
+  displayOrder: number;
+  isPrimary: boolean;
+  eligibleForCarousel: boolean;
+  eligibleForVideo: boolean;
+  mediaStatus: "pending" | "approved" | "excluded" | "failed";
+  orientation: "portrait" | "landscape" | "square" | "unknown";
+  width: number | null;
+  height: number | null;
+  humanNote: string | null;
+  exclusionReason: string | null;
 };
 
 export type PublicationReadinessEligibility = {

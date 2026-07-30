@@ -157,6 +157,7 @@ export function YziImobCarouselReview({
                 <form action={decideCreativeRevisionAction}>
                   <input type="hidden" name="propertyId" value={propertyId} />
                   <input type="hidden" name="revisionId" value={revision.id} />
+                  <input type="hidden" name="deliverableType" value="carousel" />
                   <input type="hidden" name="decision" value="approved" />
                   <YziButton type="submit" variant="authorization" className="w-full" disabled={plan.approvalBlocked}>
                     Aprovar carrossel
@@ -166,6 +167,7 @@ export function YziImobCarouselReview({
               <form action={decideCreativeRevisionAction} className="flex flex-col gap-3">
                 <input type="hidden" name="propertyId" value={propertyId} />
                 <input type="hidden" name="revisionId" value={revision.id} />
+                <input type="hidden" name="deliverableType" value="carousel" />
                 <input type="hidden" name="decision" value="changes_requested" />
                 <input
                   type="hidden"
@@ -202,6 +204,7 @@ export function YziImobCarouselReview({
                 <form action={decideCreativeRevisionAction}>
                   <input type="hidden" name="propertyId" value={propertyId} />
                   <input type="hidden" name="revisionId" value={revision.id} />
+                  <input type="hidden" name="deliverableType" value="carousel" />
                   <input type="hidden" name="decision" value="rejected" />
                   <input type="hidden" name="observation" value="Revisão reprovada na análise humana." />
                   <YziButton type="submit" variant="danger" className="w-full">Reprovar</YziButton>

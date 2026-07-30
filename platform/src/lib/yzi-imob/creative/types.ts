@@ -1,27 +1,28 @@
 import type { CarouselEditorialPlan } from "./carousel/types.ts";
+import type { VideoTourPlan } from "./video-tour/types.ts";
 
-export const CREATIVE_CONTRACT_VERSION = "2026-07-29.carousel.v1" as const;
+export const CREATIVE_CONTRACT_VERSION = "2026-07-30.creative-mvp.v1" as const;
 
-export const ACTIVE_CREATIVE_DELIVERABLE_TYPES = ["carousel"] as const;
+export const ACTIVE_CREATIVE_DELIVERABLE_TYPES = ["carousel", "video_tour"] as const;
 export type CreativeDeliverableType = (typeof ACTIVE_CREATIVE_DELIVERABLE_TYPES)[number];
 
 // Reserved for later contract evolution. They are intentionally not accepted
 // by the v1 request validator or database constraints.
 export const RESERVED_CREATIVE_DELIVERABLE_TYPES = [
-  "video_tour",
   "story_pack",
   "static_post",
 ] as const;
 
 export const CREATIVE_REQUEST_STATUS_VALUES = [
-  "queued",
-  "generating",
-  "in_review",
+  "preparing",
+  "partially_ready",
+  "awaiting_approval",
   "changes_requested",
   "approved",
-  "completed",
+  "partially_failed",
   "failed",
   "cancelled",
+  "completed",
 ] as const;
 export type CreativeRequestStatus = (typeof CREATIVE_REQUEST_STATUS_VALUES)[number];
 
@@ -31,6 +32,7 @@ export const CREATIVE_DELIVERABLE_STATUS_VALUES = [
   "in_review",
   "changes_requested",
   "approved",
+  "rejected",
   "failed",
   "cancelled",
 ] as const;
@@ -141,6 +143,10 @@ export type CreativeGenerationJob = {
   tenantId: string;
   propertyId: string;
   requestId: string;
+  deliverableId: string;
+  operation: "generate" | "revise" | "retry";
+  retryOfJobId: string | null;
+  retryNumber: number;
   status: CreativeJobStatus;
   idempotencyKey: string;
   correlationId: string;
@@ -167,7 +173,7 @@ export type CreativeGenerationEvent = {
   createdAt: string;
 };
 
-export type CreativeContentSnapshot = {
+type CreativeContentSnapshotBase = {
   contract_version: typeof CREATIVE_CONTRACT_VERSION;
   property_id: string;
   request_id: string;
@@ -182,8 +188,17 @@ export type CreativeContentSnapshot = {
     creative_revision_required: true;
     external_publication_allowed: false;
   };
-  blueprint: CarouselEditorialPlan;
 };
+
+export type CreativeContentSnapshot =
+  | (CreativeContentSnapshotBase & {
+      deliverable_type: "carousel";
+      blueprint: CarouselEditorialPlan;
+    })
+  | (CreativeContentSnapshotBase & {
+      deliverable_type: "video_tour";
+      blueprint: VideoTourPlan;
+    });
 
 export type CreativeGenerationContext = {
   tenantId: string;
@@ -212,6 +227,13 @@ export type CreativeGenerationContext = {
     isCover: boolean;
     isPublicationAllowed: boolean;
     processingStatus: string;
+    environmentType: string;
+    displayOrder: number;
+    isPrimary: boolean;
+    eligibleForCarousel: boolean;
+    eligibleForVideo: boolean;
+    mediaStatus: string;
+    orientation: string;
   }[];
 };
 
@@ -235,6 +257,7 @@ export type CreativeWorkspace = {
   deliverables: readonly CreativeDeliverable[];
   revisions: readonly CreativeRevision[];
   assets: readonly CreativeAsset[];
+  jobs: readonly CreativeGenerationJob[];
   latestJob: CreativeGenerationJob | null;
   events: readonly CreativeGenerationEvent[];
 };

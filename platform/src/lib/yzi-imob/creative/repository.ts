@@ -15,6 +15,7 @@ import {
   type CreativeWorkspace,
 } from "./types.ts";
 import type { CarouselAdjustment } from "./carousel/types.ts";
+import type { VideoTourAdjustment } from "./video-tour/types.ts";
 
 const REQUEST_COLUMNS =
   "id, tenant_id, property_id, status, objective, desired_formats, intended_channels, context, idempotency_key, created_by_user_id, created_at, updated_at, completed_at";
@@ -25,7 +26,7 @@ const REVISION_COLUMNS =
 const ASSET_COLUMNS =
   "id, tenant_id, property_id, request_id, deliverable_id, revision_id, source_property_media_id, asset_role, media_type, synthetic_uri, content_hash, asset_position, asset_kind, storage_state, publication_state, storage_bucket, object_path, metadata, created_at";
 const JOB_COLUMNS =
-  "id, tenant_id, property_id, request_id, status, idempotency_key, correlation_id, attempt_count, max_attempts, last_error_code, started_at, completed_at, created_at, updated_at";
+  "id, tenant_id, property_id, request_id, deliverable_id, operation, retry_of_job_id, retry_number, status, idempotency_key, correlation_id, attempt_count, max_attempts, last_error_code, started_at, completed_at, created_at, updated_at";
 const EVENT_COLUMNS =
   "id, tenant_id, property_id, request_id, deliverable_id, revision_id, job_id, event_type, correlation_id, metadata, created_at";
 
@@ -145,6 +146,10 @@ function mapJob(row: Row): CreativeGenerationJob {
     tenantId: text(row, "tenant_id"),
     propertyId: text(row, "property_id"),
     requestId: text(row, "request_id"),
+    deliverableId: text(row, "deliverable_id"),
+    operation: text(row, "operation") as CreativeGenerationJob["operation"],
+    retryOfJobId: optionalText(row, "retry_of_job_id"),
+    retryNumber: Number(row.retry_number),
     status: text(row, "status") as CreativeGenerationJob["status"],
     idempotencyKey: text(row, "idempotency_key"),
     correlationId: text(row, "correlation_id"),
@@ -180,7 +185,8 @@ function isValidInput(input: CreateCreativeRequestInput): boolean {
   return (
     input.objective.trim().length >= 3 &&
     input.objective.trim().length <= 1000 &&
-    formats.length === 1 &&
+    formats.length >= 1 &&
+    formats.length <= 2 &&
     formats.every((format) =>
       (ACTIVE_CREATIVE_DELIVERABLE_TYPES as readonly string[]).includes(format),
     ) &&
@@ -220,6 +226,7 @@ export async function getCreativeWorkspace(
         deliverables: [],
         revisions: [],
         assets: [],
+        jobs: [],
         latestJob: null,
         events: [],
       },
@@ -227,7 +234,7 @@ export async function getCreativeWorkspace(
   }
 
   const request = mapRequest(requestResult.data as unknown as Row);
-  const [deliverablesResult, revisionsResult, assetsResult, jobResult, eventsResult] =
+  const [deliverablesResult, revisionsResult, assetsResult, jobsResult, eventsResult] =
     await Promise.all([
       supabase
         .from("yzi_imob_creative_deliverables")
@@ -257,8 +264,7 @@ export async function getCreativeWorkspace(
         .eq("property_id", propertyId)
         .eq("request_id", request.id)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .limit(50),
       supabase
         .from("yzi_imob_creative_generation_events")
         .select(EVENT_COLUMNS)
@@ -273,7 +279,7 @@ export async function getCreativeWorkspace(
     deliverablesResult.error ??
     revisionsResult.error ??
     assetsResult.error ??
-    jobResult.error ??
+    jobsResult.error ??
     eventsResult.error;
   if (error) return { status: "error", code: "read_failed", detail: error.message };
 
@@ -286,7 +292,10 @@ export async function getCreativeWorkspace(
       ),
       revisions: ((revisionsResult.data as unknown as Row[] | null) ?? []).map(mapRevision),
       assets: ((assetsResult.data as unknown as Row[] | null) ?? []).map(mapAsset),
-      latestJob: jobResult.data ? mapJob(jobResult.data as unknown as Row) : null,
+      jobs: ((jobsResult.data as unknown as Row[] | null) ?? []).map(mapJob),
+      latestJob: jobsResult.data?.[0]
+        ? mapJob(jobsResult.data[0] as unknown as Row)
+        : null,
       events: ((eventsResult.data as unknown as Row[] | null) ?? []).map(mapEvent),
     },
   };
@@ -302,7 +311,7 @@ export async function createCreativeRequestAndGenerate(
   const formats = [...new Set(input.formats)].sort();
   const channels = [...new Set(input.intendedChannels.map((channel) => channel.trim().toLowerCase()))]
     .sort();
-  const mediaResult = await supabase
+  let mediaQuery = supabase
     .from("yzi_imob_property_media")
     .select("id")
     .eq("tenant_id", tenantId)
@@ -310,6 +319,15 @@ export async function createCreativeRequestAndGenerate(
     .eq("media_type", "image")
     .eq("is_publication_allowed", true)
     .eq("processing_status", "ready")
+    .eq("media_status", "approved");
+  if (formats.length === 2) {
+    mediaQuery = mediaQuery.or("eligible_for_carousel.eq.true,eligible_for_video.eq.true");
+  } else if (formats[0] === "carousel") {
+    mediaQuery = mediaQuery.eq("eligible_for_carousel", true);
+  } else {
+    mediaQuery = mediaQuery.eq("eligible_for_video", true);
+  }
+  const mediaResult = await mediaQuery
     .order("is_cover", { ascending: false })
     .order("sort_order", { ascending: true })
     .order("id", { ascending: true });
@@ -336,36 +354,36 @@ export async function createCreativeRequestAndGenerate(
     | null;
   if (!created) return { status: "error", code: "create_failed" };
 
-  if (created.request_status === "in_review" || created.request_status === "completed") {
-    return getCreativeWorkspace(supabase, tenantId, input.propertyId, created.request_id);
-  }
-
-  const startResult = await supabase.rpc("start_yzi_imob_creative_generation_job", {
-    p_job_id: created.job_id,
-  });
-  if (startResult.error) {
-    return { status: "error", code: "generation_failed", detail: startResult.error.message };
-  }
-  const started = (Array.isArray(startResult.data) ? startResult.data[0] : startResult.data) as
-    | { job_status: string }
-    | null;
-  if (started?.job_status === "succeeded") {
-    return getCreativeWorkspace(supabase, tenantId, input.propertyId, created.request_id);
-  }
-
-  const completion = await supabase.rpc("complete_yzi_imob_creative_generation_job", {
-    p_job_id: created.job_id,
-  });
-  if (completion.error) {
-    await supabase.rpc("fail_yzi_imob_creative_generation_job", {
-      p_job_id: created.job_id,
-      p_error_code: "synthetic_completion_failed",
+  const jobs = await supabase
+    .from("yzi_imob_creative_generation_jobs")
+    .select("id,status")
+    .eq("tenant_id", tenantId)
+    .eq("property_id", input.propertyId)
+    .eq("request_id", created.request_id)
+    .eq("operation", "generate")
+    .order("created_at", { ascending: true });
+  if (jobs.error) return { status: "error", code: "read_failed", detail: jobs.error.message };
+  for (const job of jobs.data ?? []) {
+    if (job.status === "succeeded") continue;
+    const startResult = await supabase.rpc("start_yzi_imob_creative_generation_job", {
+      p_job_id: job.id,
     });
-    return {
-      status: "error",
-      code: "generation_failed",
-      detail: completion.error.message,
-    };
+    if (startResult.error) {
+      await supabase.rpc("fail_yzi_imob_creative_generation_job", {
+        p_job_id: job.id,
+        p_error_code: "synthetic_start_failed",
+      });
+      continue;
+    }
+    const completion = await supabase.rpc("complete_yzi_imob_creative_generation_job", {
+      p_job_id: job.id,
+    });
+    if (completion.error) {
+      await supabase.rpc("fail_yzi_imob_creative_generation_job", {
+        p_job_id: job.id,
+        p_error_code: "synthetic_completion_failed",
+      });
+    }
   }
 
   return getCreativeWorkspace(supabase, tenantId, input.propertyId, created.request_id);
@@ -414,6 +432,91 @@ export async function requestCreativeCarouselRevision(
   });
   if (complete.error) {
     return { status: "error", code: "generation_failed", detail: complete.error.message };
+  }
+  return getCreativeWorkspace(supabase, tenantId, propertyId);
+}
+
+export async function requestCreativeVideoRevision(
+  supabase: SupabaseClient,
+  tenantId: string,
+  propertyId: string,
+  revisionId: string,
+  adjustment: VideoTourAdjustment,
+  idempotencyKey: string,
+): Promise<CreativeRepositoryResult<CreativeWorkspace>> {
+  if (!revisionId || !idempotencyKey || idempotencyKey.length > 200) {
+    return { status: "error", code: "invalid_input" };
+  }
+  const scenePosition = "scenePosition" in adjustment ? adjustment.scenePosition : null;
+  const { data, error } = await supabase.rpc("request_yzi_imob_creative_video_revision", {
+    p_revision_id: revisionId,
+    p_adjustment_kind: adjustment.kind,
+    p_scene_position: scenePosition,
+    p_replacement_media_id:
+      adjustment.kind === "swap_scene_media" ? adjustment.replacementMediaId : null,
+    p_duration: adjustment.kind === "reduce_duration" ? adjustment.duration : null,
+    p_observation: adjustment.kind === "correct_cta" ? adjustment.cta : null,
+    p_idempotency_key: idempotencyKey.trim(),
+  });
+  if (error || !data) {
+    return { status: "error", code: "generation_failed", detail: error?.message };
+  }
+  const queued = (Array.isArray(data) ? data[0] : data) as { job_id?: string } | null;
+  if (!queued?.job_id) return { status: "error", code: "generation_failed" };
+  const start = await supabase.rpc("start_yzi_imob_creative_generation_job", {
+    p_job_id: queued.job_id,
+  });
+  if (start.error) {
+    return { status: "error", code: "generation_failed", detail: start.error.message };
+  }
+  const complete = await supabase.rpc("complete_yzi_imob_creative_generation_job", {
+    p_job_id: queued.job_id,
+  });
+  if (complete.error) {
+    await supabase.rpc("fail_yzi_imob_creative_generation_job", {
+      p_job_id: queued.job_id,
+      p_error_code: "synthetic_completion_failed",
+    });
+    return { status: "error", code: "generation_failed", detail: complete.error.message };
+  }
+  return getCreativeWorkspace(supabase, tenantId, propertyId);
+}
+
+export async function retryCreativeGenerationJob(
+  supabase: SupabaseClient,
+  tenantId: string,
+  propertyId: string,
+  failedJobId: string,
+  idempotencyKey: string,
+): Promise<CreativeRepositoryResult<CreativeWorkspace>> {
+  if (!failedJobId || !idempotencyKey || idempotencyKey.length > 200) {
+    return { status: "error", code: "invalid_input" };
+  }
+  const queued = await supabase.rpc("retry_yzi_imob_creative_generation_job", {
+    p_failed_job_id: failedJobId,
+    p_idempotency_key: idempotencyKey.trim(),
+  });
+  if (queued.error || !queued.data) {
+    return { status: "error", code: "generation_failed", detail: queued.error?.message };
+  }
+  const row = (Array.isArray(queued.data) ? queued.data[0] : queued.data) as
+    | { job_id?: string }
+    | null;
+  if (!row?.job_id) return { status: "error", code: "generation_failed" };
+  const start = await supabase.rpc("start_yzi_imob_creative_generation_job", {
+    p_job_id: row.job_id,
+  });
+  if (start.error) {
+    return { status: "error", code: "generation_failed", detail: start.error.message };
+  }
+  const complete = await supabase.rpc("complete_yzi_imob_creative_generation_job", {
+    p_job_id: row.job_id,
+  });
+  if (complete.error) {
+    await supabase.rpc("fail_yzi_imob_creative_generation_job", {
+      p_job_id: row.job_id,
+      p_error_code: "synthetic_completion_failed",
+    });
   }
   return getCreativeWorkspace(supabase, tenantId, propertyId);
 }

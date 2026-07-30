@@ -40,7 +40,7 @@ const JOB_COLUMNS =
   "id, tenant_id, property_id, publication_id, operation, status, revision_id, publication_version, correlation_id, attempt_count, max_attempts, last_error_code, scheduled_at, started_at, completed_at";
 
 const MEDIA_COLUMNS =
-  "id, tenant_id, property_id, media_type, public_url, alt_text, sort_order, is_cover, is_publication_allowed, processing_status";
+  "id, tenant_id, property_id, media_type, public_url, alt_text, sort_order, is_cover, is_publication_allowed, processing_status, environment_type, display_order, is_primary, eligible_for_carousel, eligible_for_video, media_status, orientation, width_px, height_px, human_note, exclusion_reason";
 
 type PublicationRow = {
   id: string;
@@ -103,6 +103,8 @@ type JobRow = {
 
 type MediaRow = {
   id: string;
+  tenant_id: string;
+  property_id: string;
   media_type: string;
   public_url: string | null;
   alt_text: string | null;
@@ -110,6 +112,17 @@ type MediaRow = {
   is_cover: boolean;
   is_publication_allowed: boolean;
   processing_status: string;
+  environment_type: string;
+  display_order: number;
+  is_primary: boolean;
+  eligible_for_carousel: boolean;
+  eligible_for_video: boolean;
+  media_status: string;
+  orientation: string;
+  width_px: number | null;
+  height_px: number | null;
+  human_note: string | null;
+  exclusion_reason: string | null;
 };
 
 export type PropertyPublicationRepositoryError =
@@ -200,6 +213,8 @@ function mapJob(row: JobRow): PropertyPublicationJob {
 function mapMedia(row: MediaRow): PropertyPublicationMedia {
   return {
     id: row.id,
+    tenantId: row.tenant_id,
+    propertyId: row.property_id,
     mediaType: row.media_type as PropertyPublicationMedia["mediaType"],
     url: row.public_url,
     altText: row.alt_text,
@@ -208,6 +223,18 @@ function mapMedia(row: MediaRow): PropertyPublicationMedia {
     isPublicationAllowed: row.is_publication_allowed,
     processingStatus:
       row.processing_status as PropertyPublicationMedia["processingStatus"],
+    environmentType:
+      row.environment_type as PropertyPublicationMedia["environmentType"],
+    displayOrder: row.display_order,
+    isPrimary: row.is_primary,
+    eligibleForCarousel: row.eligible_for_carousel,
+    eligibleForVideo: row.eligible_for_video,
+    mediaStatus: row.media_status as PropertyPublicationMedia["mediaStatus"],
+    orientation: row.orientation as PropertyPublicationMedia["orientation"],
+    width: row.width_px,
+    height: row.height_px,
+    humanNote: row.human_note,
+    exclusionReason: row.exclusion_reason,
   };
 }
 
