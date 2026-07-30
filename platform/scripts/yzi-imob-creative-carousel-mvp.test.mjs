@@ -267,7 +267,7 @@ test("frontend is editorial, honest and supplier-neutral", () => {
   assert.match(FRONTEND, /Card \{selected \+ 1\} de 7/);
   assert.match(FRONTEND, /Caption preparada/);
   assert.match(FRONTEND, /Histórico de revisões/);
-  assert.match(FRONTEND, /Erro de leitura do Creative Engine/);
+  assert.match(FRONTEND, /Erro de leitura do estúdio criativo/);
   assert.match(FRONTEND, /Nenhum pedido criativo/);
   assert.doesNotMatch(
     FRONTEND,

@@ -95,10 +95,9 @@ const context = {
   ],
 };
 
-test("current contract activates only the property carousel", () => {
-  assert.deepEqual(ACTIVE_CREATIVE_DELIVERABLE_TYPES, ["carousel"]);
+test("current contract activates carousel and video tour only", () => {
+  assert.deepEqual(ACTIVE_CREATIVE_DELIVERABLE_TYPES, ["carousel", "video_tour"]);
   assert.deepEqual(RESERVED_CREATIVE_DELIVERABLE_TYPES, [
-    "video_tour",
     "story_pack",
     "static_post",
   ]);
@@ -219,9 +218,9 @@ test("application repository always scopes reads by tenant and property", () => 
 
 test("minimal UI exposes status and approval, not an editor or external engine", () => {
   assert.match(UI, /Pedido/);
-  assert.match(UI, /Carrossel editorial/);
+  assert.match(UI, /Estúdio criativo/);
   assert.match(UI, /Revisão atual/);
   assert.match(UI, /Aprovar carrossel/);
-  assert.match(UI, /preview local/i);
+  assert.match(UI, /Preparar conteúdo/i);
   assert.doesNotMatch(UI, /Higgsfield|Metricool|drag-and-drop|contenteditable/i);
 });
