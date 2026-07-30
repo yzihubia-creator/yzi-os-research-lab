@@ -1,6 +1,5 @@
 // YZI IMOB — Conexões (barrel). Catálogo estático de conexões operacionais:
-// o que o produto pode vir a suportar, não o que uma imobiliária específica
-// tem conectado hoje (não existe Tenant Connection nesta base ainda).
+// o que o produto suporta e o estado seguro resolvido pelo backend.
 
 export {
   CONNECTIONS_CATALOG,
@@ -32,3 +31,19 @@ export type {
   ConnectionPriority,
   ConnectionState,
 } from "./types";
+export {
+  buildConnectionsLoadFailure,
+  buildConnectionsViewModelFromRpcPayload,
+  deriveConnectionTruth,
+} from "./view-model";
+export {
+  CONNECTION_CATEGORY_VALUES,
+  CONNECTION_HUMAN_STATUS_VALUES,
+} from "./public-view-model";
+export type {
+  ConnectionCapabilityTruth,
+  ConnectionCategory,
+  ConnectionHumanStatus,
+  ConnectionsViewModel,
+  ConnectionViewModelItem,
+} from "./public-view-model";

@@ -30,6 +30,10 @@ export type SafePersistedConnection = SafeConnectionState & {
   lastSyncAt: string | null;
   pendingPublications: number;
   recentFailures: number;
+  authorizationExpired: boolean;
+  governedAuthorizationValidated: boolean;
+  governedRuntimeValidated: boolean;
+  humanCapabilities: string[];
 };
 
 type MetaAssetKind =
@@ -78,19 +82,25 @@ export function mapPersistedStatus(status: string | null): ConnectionState {
   switch (status) {
     case "connected":
     case "active":
+    case "ready":
       return "conectado";
     case "partially_connected":
       return "parcialmente-conectado";
     case "configuring":
     case "validating":
+    case "connecting":
       return "em-configuracao";
     case "awaiting_account_selection":
     case "awaiting_customer":
     case "pending_authorization":
+    case "awaiting_authorization":
     case "provisioning":
     case "configuration_required":
       return "aguardando-autorizacao";
     case "attention_required":
+    case "needs_attention":
+    case "expired":
+    case "refresh_failed":
     case "validation_failed":
     case "token_invalid":
     case "plan_insufficient":
@@ -99,6 +109,8 @@ export function mapPersistedStatus(status: string | null): ConnectionState {
       return "requer-atencao";
     case "disabled":
     case "disconnected":
+    case "revoked":
+    case "unavailable":
     case "not_configured":
     default:
       return "nao-configurado";
@@ -116,7 +128,14 @@ export function parseTenantConnectionsRpcPayload(payload: unknown): SafePersiste
     const visualId = readVisualConnectionId(record);
     if (!visualId) continue;
 
-    const rawStatus = readString(record.status);
+    const rawStatus =
+      readString(record.connection_state) ??
+      readString(record.auth_state) ??
+      readString(record.status);
+    const rawAuthorizationState = readString(record.auth_state);
+    const rawHealthState = readString(record.health_state);
+    const rawCapabilities =
+      record.capability_snapshot ?? record.capabilities;
 
     parsed.push({
       id: visualId,
@@ -126,10 +145,18 @@ export function parseTenantConnectionsRpcPayload(payload: unknown): SafePersiste
       ...readSafeMetadata(record),
       assets: readAssets(record.assets),
       availableNetworks: readMetricoolNetworks(record.assets),
-      capabilityIds: readMetricoolCapabilities(record.capabilities),
+      capabilityIds: readConnectionCapabilities(rawCapabilities),
       lastSyncAt: readDateString(record.last_sync_at),
       pendingPublications: readNonNegativeInteger(record.pending_publications),
       recentFailures: readNonNegativeInteger(record.recent_failures),
+      authorizationExpired:
+        rawStatus === "expired" ||
+        rawStatus === "token_invalid" ||
+        isExpiredDate(readDateString(record.expires_at)),
+      governedAuthorizationValidated:
+        rawAuthorizationState === "authorized",
+      governedRuntimeValidated: rawHealthState === "healthy",
+      humanCapabilities: readHumanCapabilities(rawCapabilities),
     });
   }
 
@@ -173,6 +200,14 @@ export function mergeConnectionsCatalogWithPersistedState(
       applyMetricoolSemantics(mergedEntry);
     }
 
+    if (entry.id === "geracao-criativa") {
+      const unlockedIds = new Set(persistedConnection.capabilityIds);
+      mergedEntry.capabilities = mergedEntry.capabilities.map((capability) => ({
+        ...capability,
+        unlocked: unlockedIds.has(capability.id),
+      }));
+    }
+
     if (entry.id === "meta" && entry.channels) {
       mergedEntry.channels = mergeMetaChannels(entry.channels, persistedConnection.assets);
       applyMetaChannelSemantics(mergedEntry);
@@ -191,8 +226,12 @@ function readVisualConnectionId(record: Record<string, unknown>): string | null 
   if (catalogId === "meta") return "meta";
 
   const provider = readString(record.provider);
+  const connectionKind = readString(record.connection_kind);
   if (provider === "meta") return "meta";
   if (provider === "metricool") return "metricool";
+  if (provider === "higgsfield") return "geracao-criativa";
+  if (connectionKind === "metricool") return "metricool";
+  if (connectionKind === "higgsfield") return "geracao-criativa";
 
   return catalogId && CONNECTIONS_CATALOG.some((entry) => entry.id === catalogId)
     ? catalogId
@@ -208,9 +247,24 @@ function readMetricoolNetworks(value: unknown): string[] {
   })));
 }
 
-function readMetricoolCapabilities(value: unknown): ConnectionCapabilityId[] {
+function readConnectionCapabilities(value: unknown): ConnectionCapabilityId[] {
   if (!Array.isArray(value)) return [];
   const mapped = value.flatMap((item) => {
+    if (typeof item === "string") {
+      switch (item) {
+        case "social_content_publish":
+          return ["publicar-conteudo" as const];
+        case "social_content_schedule":
+          return ["programar-publicacao" as const];
+        case "social_metrics_read":
+          return ["ler-metricas" as const];
+        case "image_generation":
+        case "video_generation":
+          return ["produzir-criativos" as const];
+        default:
+          return [];
+      }
+    }
     const record = asRecord(item);
     if (!record || record.unlocked !== true) return [];
     switch (readString(record.capability_id)) {
@@ -226,6 +280,40 @@ function readMetricoolCapabilities(value: unknown): ConnectionCapabilityId[] {
     }
   });
   return Array.from(new Set(mapped));
+}
+
+function readHumanCapabilities(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const labels = value.flatMap((item) => {
+    const capability =
+      typeof item === "string"
+        ? item
+        : readString(asRecord(item)?.capability_id);
+    switch (capability) {
+      case "social_content_publish":
+      case "social_publish":
+        return ["Publicação social"];
+      case "social_calendar_read":
+      case "social_content_schedule":
+      case "social_schedule":
+        return ["Calendário de conteúdo"];
+      case "social_metrics_read":
+      case "post_metrics":
+      case "profile_metrics":
+        return ["Métricas sociais"];
+      case "image_generation":
+        return ["Produção de imagens"];
+      case "video_generation":
+        return ["Produção de vídeos"];
+      default:
+        return [];
+    }
+  });
+  return Array.from(new Set(labels));
+}
+
+function isExpiredDate(value: string | null): boolean {
+  return value !== null && Date.parse(value) <= Date.now();
 }
 
 function applyMetricoolSemantics(entry: ConnectionEntry): void {

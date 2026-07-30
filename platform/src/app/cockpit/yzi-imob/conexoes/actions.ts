@@ -5,19 +5,29 @@ import { getTenantContext } from "@/lib/tenant/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
   startMetaOAuthAuthorization,
-  type StartMetaOAuthInput,
+  type MetaOAuthEntryCatalogId,
   type StartMetaOAuthResult,
 } from "@/lib/yzi-imob/connections/meta-oauth-start";
 
 export async function startMetaOAuthAuthorizationAction(
-  input: StartMetaOAuthInput,
+  catalogId: MetaOAuthEntryCatalogId,
 ): Promise<StartMetaOAuthResult> {
+  const tenantContext = await getTenantContext();
+  if (tenantContext.status !== "tenant_found") {
+    return {
+      status: "forbidden",
+      message: "A sessão atual não pode iniciar esta configuração.",
+    };
+  }
   const supabase = await createServerSupabaseClient();
-  return startMetaOAuthAuthorization(supabase, input);
+  return startMetaOAuthAuthorization(supabase, {
+    tenantId: tenantContext.tenant.id,
+    catalogId,
+  });
 }
 
 export type MetricoolConnectionActionResult =
-  | { status: "ok"; connectionStatus: string }
+  | { status: "ok"; connectionStatus: string; authorizationUrl?: string }
   | {
       status: "error";
       code: "access_denied" | "configuration_required" | "operation_failed";
@@ -46,6 +56,34 @@ export async function requestMetricoolValidationAction(): Promise<MetricoolConne
 
 export async function disconnectMetricoolConnectionAction(): Promise<MetricoolConnectionActionResult> {
   return runMetricoolConnectionAction("disconnect_yzi_imob_metricool_connection");
+}
+
+export type ConnectionCommand = "configure" | "test" | "disconnect";
+
+export async function runConnectionCommandAction(input: {
+  connectionId: string;
+  command: ConnectionCommand;
+}): Promise<MetricoolConnectionActionResult> {
+  const operationalIntent = {
+    "publicacao-social": "social_operations",
+    "producao-criativa-complementar": "creative_production",
+  } as const;
+  if (!(input.connectionId in operationalIntent)) {
+    return { status: "error", code: "access_denied" };
+  }
+  // The browser supplies only an allowlisted operational intent. Provider,
+  // endpoint, tool and authorization headers are resolved by the server runtime.
+  if (input.connectionId === "producao-criativa-complementar") {
+    return { status: "error", code: "configuration_required" };
+  }
+  switch (input.command) {
+    case "configure":
+      return requestMetricoolConfigurationAction();
+    case "test":
+      return requestMetricoolValidationAction();
+    case "disconnect":
+      return disconnectMetricoolConnectionAction();
+  }
 }
 
 async function runMetricoolConnectionAction(

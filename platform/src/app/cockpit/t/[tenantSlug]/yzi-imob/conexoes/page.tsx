@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { YziImobConnectionsWorkspace } from "@/components/yzi-imob/yzi-imob-connections-workspace";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContextBySlug } from "@/lib/tenant/tenant-context";
-import { buildConnectionsCatalogFromRpcPayload } from "@/lib/yzi-imob/connections/persisted-state";
+import {
+  buildConnectionsLoadFailure,
+  buildConnectionsViewModelFromRpcPayload,
+} from "@/lib/yzi-imob/connections/view-model";
 
 type MetaOAuthCallbackStatus =
   | "success"
@@ -93,9 +96,11 @@ export default async function YziImobTenantConexoesPage({ params, searchParams }
   if (tenantContext.status === "no_membership") {
     return (
       <YziImobConnectionsWorkspace
-        accessState="no_membership"
-        connections={[]}
-        metaOAuthStatus={metaOAuthStatus}
+        viewModel={buildConnectionsLoadFailure(
+          "no_membership",
+          "A sessão atual não pode ler as conexões deste tenant.",
+        )}
+        authorizationCallbackStatus={metaOAuthStatus}
       />
     );
   }
@@ -103,9 +108,11 @@ export default async function YziImobTenantConexoesPage({ params, searchParams }
   if (tenantContext.status === "error") {
     return (
       <YziImobConnectionsWorkspace
-        accessState="tenant-error"
-        connections={[]}
-        metaOAuthStatus={metaOAuthStatus}
+        viewModel={buildConnectionsLoadFailure(
+          "tenant_error",
+          "Não foi possível resolver o tenant para carregar conexões.",
+        )}
+        authorizationCallbackStatus={metaOAuthStatus}
       />
     );
   }
@@ -114,22 +121,21 @@ export default async function YziImobTenantConexoesPage({ params, searchParams }
   if (result.status === "error") {
     return (
       <YziImobConnectionsWorkspace
-        accessState="read-error"
-        connections={[]}
-        metaOAuthStatus={metaOAuthStatus}
-        readErrorMessage={result.message}
-        tenantId={tenantContext.tenant.id}
+        viewModel={buildConnectionsLoadFailure("error", result.message)}
+        authorizationCallbackStatus={metaOAuthStatus}
       />
     );
   }
 
-  const connections = buildConnectionsCatalogFromRpcPayload(result.payload);
+  const viewModel = buildConnectionsViewModelFromRpcPayload(
+    result.payload,
+    tenantContext.tenant.id,
+  );
 
   return (
     <YziImobConnectionsWorkspace
-      connections={connections}
-      metaOAuthStatus={metaOAuthStatus}
-      tenantId={tenantContext.tenant.id}
+      viewModel={viewModel}
+      authorizationCallbackStatus={metaOAuthStatus}
     />
   );
 }
