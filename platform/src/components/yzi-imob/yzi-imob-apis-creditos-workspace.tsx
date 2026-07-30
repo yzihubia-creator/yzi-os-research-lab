@@ -1,12 +1,33 @@
-import Link from "next/link";
-
-import { WorkspaceSection } from "@/components/yzi-imob/yzi-imob-workspace-kit";
-import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
+import {
+  MetricBand,
+  SurfaceButton,
+  SurfaceCanvas,
+  SurfaceHeader,
+  SurfaceList,
+  SurfaceRow,
+  SurfaceSection,
+  SurfaceState,
+  TYPE,
+  type SurfaceMetric,
+  type SurfaceTone,
+} from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { YziInsight, YziRestrictedState } from "@/components/yzi-imob/yzi-imob-yzi-kit";
 import type {
   OperationalConsumptionSummary,
   SystemResourceState,
   SystemResourceStatus,
 } from "@/lib/yzi-imob/consumption/types";
+
+// APIs & Créditos — quanto a operação consumiu e o que está no limite.
+//
+// O gestor precisa entender e controlar consumo; ele não precisa saber qual
+// fornecedor executa cada capacidade. Por isso a tela lê o `capability` do
+// contrato e apresenta a CAPACIDADE em linguagem de produto — o `label` e o
+// `description` do contrato, que carregam nome de fornecedor e vocabulário de
+// engenharia, ficam de fora por princípio.
+//
+// As seções numeradas ("1. Estado das integrações", "2. Uso operacional"…)
+// foram substituídas por títulos que dizem o que o gestor vai encontrar.
 
 type AccessState =
   | "ready"
@@ -15,13 +36,35 @@ type AccessState =
   | "tenant_error"
   | "read_error";
 
-const STATUS_LABEL: Record<SystemResourceStatus, string> = {
-  available: "Disponível",
-  partial: "Parcial",
-  unavailable: "Indisponível",
-  configuration_required: "Configuração necessária",
-  stale: "Desatualizado",
-  error: "Requer atenção",
+/** Capacidade do produto → linguagem do gestor. Nunca o fornecedor por trás. */
+const CAPABILITY_COPY: Record<
+  SystemResourceState["capability"],
+  { category: string; label: string; description: string }
+> = {
+  outbound_messages: {
+    category: "Atendimento",
+    label: "Mensagens enviadas",
+    description: "Mensagens que a operação enviou para clientes e leads no período.",
+  },
+  social_publication: {
+    category: "Publicação",
+    label: "Publicações em redes",
+    description: "Conteúdos aprovados que foram programados ou publicados no período.",
+  },
+  runner_execution: {
+    category: "Automações",
+    label: "Rotinas automáticas",
+    description: "Tarefas que a operação executou sozinha em segundo plano.",
+  },
+};
+
+const STATUS_STATE: Record<SystemResourceStatus, { tone: SurfaceTone; label: string }> = {
+  available: { tone: "ok", label: "Funcionando normalmente" },
+  partial: { tone: "pending", label: "Parcialmente disponível" },
+  unavailable: { tone: "idle", label: "Indisponível" },
+  configuration_required: { tone: "pending", label: "Aguardando configuração" },
+  stale: { tone: "pending", label: "Última leitura antiga" },
+  error: { tone: "attention", label: "Precisa de atenção" },
 };
 
 const UNIT_LABEL: Record<SystemResourceState["usage_unit"], [string, string]> = {
@@ -30,116 +73,94 @@ const UNIT_LABEL: Record<SystemResourceState["usage_unit"], [string, string]> = 
   executions: ["execução", "execuções"],
 };
 
-function statusRole(status: SystemResourceStatus) {
-  if (status === "available") return "coldGreen" as const;
-  if (status === "partial" || status === "stale" || status === "configuration_required") {
-    return "amber" as const;
-  }
-  if (status === "error") return "wine" as const;
-  return "graphite" as const;
+function formatUsage(resource: SystemResourceState): string {
+  if (!resource.usage_available || resource.usage_value === null) return "—";
+  const unit = UNIT_LABEL[resource.usage_unit];
+  return `${resource.usage_value.toLocaleString("pt-BR")} ${
+    resource.usage_value === 1 ? unit[0] : unit[1]
+  }`;
 }
 
 function formatUpdatedAt(value: string | null): string {
-  if (!value) return "Sem leitura disponível";
-  return new Intl.DateTimeFormat("pt-BR", {
+  if (!value) return "Sem leitura registrada";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem leitura registrada";
+  return `Atualizado em ${new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
-}
-
-function UsageValue({ resource }: { resource: SystemResourceState }) {
-  if (!resource.usage_available || resource.usage_value === null) {
-    return (
-      <span className="text-[0.76rem] text-[var(--yzi-text-faint)]">
-        Uso operacional indisponível
-      </span>
-    );
-  }
-  const unit = UNIT_LABEL[resource.usage_unit];
-  return (
-    <span className="text-[0.88rem] font-medium tabular-nums text-[var(--yzi-text-primary)]">
-      {resource.usage_value.toLocaleString("pt-BR")}{" "}
-      {resource.usage_value === 1 ? unit[0] : unit[1]}
-    </span>
-  );
-}
-
-function ResourceRow({ resource }: { resource: SystemResourceState }) {
-  const role = statusRole(resource.status);
-  return (
-    <article className="grid gap-4 border-b border-[color:var(--yzi-border-subtle)] py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <div className="mb-1.5 flex flex-wrap items-center gap-2">
-          <h3 className="text-[0.88rem] font-medium text-[var(--yzi-text-primary)]">
-            {resource.label}
-          </h3>
-          <span
-            className="rounded-full border px-2 py-0.5 text-[0.62rem]"
-            style={{
-              borderColor: imobRgba(role, 0.32),
-              color: imobRgba(role, 0.95),
-              backgroundColor: imobRgba(role, 0.08),
-            }}
-          >
-            {STATUS_LABEL[resource.status]}
-          </span>
-        </div>
-        <p className="text-[0.75rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          {resource.description}
-        </p>
-        <p className="mt-1 text-[0.66rem] text-[var(--yzi-text-faint)]">
-          Atualizado em {formatUpdatedAt(resource.last_updated_at)}
-        </p>
-      </div>
-      <div className="flex items-center gap-4 sm:justify-end">
-        <UsageValue resource={resource} />
-        <Link
-          href={resource.action_href}
-          className="shrink-0 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
-        >
-          Abrir
-        </Link>
-      </div>
-    </article>
-  );
-}
-
-function AvailabilityNotice({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-5 py-4">
-      <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">{title}</p>
-      <p className="mt-1 text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-        {body}
-      </p>
-    </div>
-  );
+  }).format(date)}`;
 }
 
 function AccessNotice({ accessState }: { accessState: Exclude<AccessState, "ready"> }) {
-  const content = {
-    no_session: ["Sessão necessária", "Entre novamente para consultar o estado da operação."],
-    no_membership: [
-      "Operação não vinculada",
-      "Sua conta ainda não pertence a uma imobiliária. Nenhum consumo foi consultado.",
-    ],
-    tenant_error: [
-      "Operação indisponível",
-      "Não foi possível resolver sua operação agora. Nenhum valor foi estimado.",
-    ],
-    read_error: [
-      "Leitura indisponível",
-      "As fontes operacionais não responderam. Recarregue a página para tentar novamente.",
-    ],
-  }[accessState];
+  const copy: Record<
+    Exclude<AccessState, "ready">,
+    { tone: SurfaceTone; title: string; body: string }
+  > = {
+    no_session: {
+      tone: "pending",
+      title: "Entre novamente para ver seu consumo",
+      body: "Sua sessão expirou. Nenhum consumo foi consultado.",
+    },
+    no_membership: {
+      tone: "idle",
+      title: "Sua conta ainda não está ligada a uma operação",
+      body: "Conclua a implantação inicial para acompanhar o consumo da sua imobiliária.",
+    },
+    tenant_error: {
+      tone: "attention",
+      title: "Não conseguimos identificar sua operação agora",
+      body: "Recarregue a página. Nenhum valor foi estimado.",
+    },
+    read_error: {
+      tone: "attention",
+      title: "Não foi possível ler o consumo agora",
+      body: "A leitura falhou. Preferimos não mostrar nada a mostrar um número que não é seu.",
+    },
+  };
 
-  return <AvailabilityNotice title={content[0]} body={content[1]} />;
+  const content = copy[accessState];
+  return <SurfaceState tone={content.tone} title={content.title} body={content.body} />;
+}
+
+function ResourceRow({
+  resource,
+  showUsage = true,
+}: {
+  resource: SystemResourceState;
+  showUsage?: boolean;
+}) {
+  const copy = CAPABILITY_COPY[resource.capability];
+  const state = STATUS_STATE[resource.status];
+
+  return (
+    <SurfaceRow
+      title={copy.label}
+      description={copy.description}
+      tone={state.tone}
+      stateLabel={state.label}
+      meta={
+        <span className="flex flex-wrap gap-x-4 gap-y-1">
+          <span>{copy.category}</span>
+          <span>{formatUpdatedAt(resource.last_updated_at)}</span>
+        </span>
+      }
+      actions={
+        <>
+          {showUsage ? (
+            <span className="text-[0.92rem] font-semibold tabular-nums text-[var(--yzi-text-primary)]">
+              {resource.usage_available && resource.usage_value !== null ? (
+                formatUsage(resource)
+              ) : (
+                <span className={TYPE.meta}>Consumo indisponível</span>
+              )}
+            </span>
+          ) : null}
+          <SurfaceButton action={{ label: "Abrir", href: resource.action_href }} />
+        </>
+      }
+    />
+  );
 }
 
 export function YziImobApisCreditosWorkspace({
@@ -149,88 +170,144 @@ export function YziImobApisCreditosWorkspace({
   summary: OperationalConsumptionSummary | null;
   accessState: AccessState;
 }) {
-  const integrationResources =
-    summary?.resources.filter((resource) => resource.connection_status !== null) ?? [];
-  const attentionResources =
-    summary?.resources.filter((resource) =>
-      ["partial", "unavailable", "configuration_required", "stale", "error"].includes(
-        resource.status,
-      ),
-    ) ?? [];
+  const header = (
+    <SurfaceHeader
+      kicker="Sistema"
+      title="Consumo da operação"
+      lead="Quanto cada capacidade do produto consumiu no período, o que está no limite e o que precisa de atenção."
+      secondaryActions={[{ label: "Ver canais", href: "/cockpit/yzi-imob/conexoes" }]}
+    />
+  );
+
+  if (accessState !== "ready" || !summary) {
+    return (
+      <SurfaceCanvas>
+        {header}
+        <AccessNotice accessState={accessState === "ready" ? "read_error" : accessState} />
+      </SurfaceCanvas>
+    );
+  }
+
+  const attention = summary.resources.filter((resource) =>
+    ["partial", "unavailable", "configuration_required", "stale", "error"].includes(
+      resource.status,
+    ),
+  );
+
+  const measured = summary.resources.filter(
+    (resource) => resource.usage_available && resource.usage_value !== null,
+  );
+
+  const topConsumer = [...measured].sort(
+    (a, b) => (b.usage_value ?? 0) - (a.usage_value ?? 0),
+  )[0];
+
+  const metrics: SurfaceMetric[] = summary.resources.slice(0, 3).map((resource) => {
+    const copy = CAPABILITY_COPY[resource.capability];
+    const state = STATUS_STATE[resource.status];
+    return {
+      label: copy.category,
+      value:
+        resource.usage_available && resource.usage_value !== null
+          ? resource.usage_value.toLocaleString("pt-BR")
+          : "—",
+      detail: copy.label,
+      tone: state.tone === "ok" ? undefined : state.tone,
+    };
+  });
+
+  metrics.push({
+    label: "Precisam de atenção",
+    value: String(attention.length),
+    detail: attention.length ? "Capacidades com pendência" : "Nenhuma pendência",
+    tone: attention.length ? "attention" : "ok",
+  });
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-8 sm:px-8 sm:py-10">
-      <header className="flex flex-col gap-1.5">
-        <h1 className="text-[1.5rem] font-semibold tracking-[-0.01em] text-[var(--yzi-text-primary)]">
-          APIs &amp; Créditos
-        </h1>
-        <p className="max-w-2xl text-[0.82rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          Estado das integrações e consumo operacional registrado. Cobrança financeira
-          só aparece quando houver uma fonte real do provedor.
-        </p>
-      </header>
+    <SurfaceCanvas>
+      {header}
 
-      {accessState !== "ready" || !summary ? (
-        <AccessNotice
-          accessState={accessState === "ready" ? "read_error" : accessState}
+      <MetricBand metrics={metrics} />
+
+      {topConsumer ? (
+        <YziInsight
+          context={summary.period.label}
+          tone={attention.length ? "attention" : "ok"}
+          stateLabel={attention.length ? "Requer revisão" : "Dentro do esperado"}
+          headline={`${CAPABILITY_COPY[topConsumer.capability].label} foi o que mais consumiu: ${formatUsage(topConsumer)}.`}
+          reading={
+            attention.length
+              ? `Outras ${attention.length === 1 ? "capacidade está" : `${attention.length} capacidades estão`} com pendência de configuração ou leitura antiga, então o total do período pode estar incompleto.`
+              : "Todas as capacidades responderam nesta leitura, então o total do período reflete o consumo real."
+          }
+          evidence={measured.map(
+            (resource) =>
+              `${CAPABILITY_COPY[resource.capability].category}: ${formatUsage(resource)}`,
+          )}
+          recommendation="Compare este período com o anterior antes de mudar o ritmo de publicação ou de atendimento — um pico isolado raramente justifica ajuste."
+          analysisHref="/cockpit/yzi-imob/growth/resultados"
+          analysisLabel="Ver resultados do período"
         />
-      ) : (
-        <div className="flex flex-col gap-7">
-          <WorkspaceSection
-            title="1. Estado das integrações"
-            description="Conexão e saúde são independentes da disponibilidade de uso e custo."
-          >
-            <div className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] px-5">
-              {integrationResources.map((resource) => (
-                <ResourceRow key={`${resource.provider}:${resource.capability}`} resource={resource} />
-              ))}
-            </div>
-          </WorkspaceSection>
+      ) : null}
 
-          <WorkspaceSection
-            title="2. Uso operacional"
-            description={`${summary.period.label}. Contagens do backend da operação; não representam cobrança do provedor.`}
-          >
-            <div className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] px-5">
-              {summary.resources.map((resource) => (
-                <ResourceRow key={`${resource.provider}:${resource.capability}:usage`} resource={resource} />
-              ))}
-            </div>
-          </WorkspaceSection>
+      <SurfaceSection
+        first
+        title="Consumo por capacidade"
+        description={`${summary.period.label}. Contagens do que a sua operação realmente executou.`}
+      >
+        <SurfaceList>
+          {summary.resources.map((resource) => (
+            <ResourceRow key={`${resource.capability}:usage`} resource={resource} />
+          ))}
+        </SurfaceList>
+      </SurfaceSection>
 
-          <WorkspaceSection title="3. Custos conhecidos">
-            <AvailabilityNotice
-              title="Consumo financeiro ainda não disponível"
-              body="Não há fonte de cobrança real integrada para WhatsApp, Metricool ou execuções operacionais. Zero não é usado como custo."
-            />
-          </WorkspaceSection>
-
-          <WorkspaceSection title="4. Limites conhecidos">
-            <AvailabilityNotice
-              title="Limites de provedor ainda não disponíveis"
-              body="Nenhum limite de API, crédito mensal ou orçamento foi registrado por fonte confiável."
-            />
-          </WorkspaceSection>
-
-          <WorkspaceSection
-            title="5. Itens com atenção"
-            description="Configuração, falhas de leitura e dados desatualizados."
-          >
-            {attentionResources.length ? (
-              <div className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] px-5">
-                {attentionResources.map((resource) => (
-                  <ResourceRow key={`${resource.provider}:${resource.capability}:attention`} resource={resource} />
-                ))}
-              </div>
-            ) : (
-              <AvailabilityNotice
-                title="Nenhum item exige atenção agora"
-                body="As fontes operacionais consultadas estão disponíveis."
+      <SurfaceSection
+        title="Precisa de atenção"
+        description="Capacidades com configuração pendente, leitura antiga ou falha."
+        count={attention.length ? String(attention.length) : undefined}
+      >
+        {attention.length ? (
+          <SurfaceList>
+            {attention.map((resource) => (
+              <ResourceRow
+                key={`${resource.capability}:attention`}
+                resource={resource}
+                showUsage={false}
               />
-            )}
-          </WorkspaceSection>
-        </div>
-      )}
-    </section>
+            ))}
+          </SurfaceList>
+        ) : (
+          <SurfaceState
+            tone="ok"
+            title="Nenhuma capacidade exige atenção agora"
+            body="Tudo o que a operação usa respondeu normalmente nesta leitura."
+          />
+        )}
+      </SurfaceSection>
+
+      <SurfaceSection
+        title="Franquia e limites"
+        description="Saldo disponível, projeção do período e alertas de limite."
+      >
+        <YziRestrictedState
+          context="Consumo da operação"
+          stateLabel="Aguardando liberação"
+          title="Sua operação ainda não tem franquia ou limite definidos."
+          body="Enquanto não houver um limite acordado para a sua conta, mostrar saldo ou projeção seria inventar um número. O consumo acima continua sendo real e atualizado."
+        />
+      </SurfaceSection>
+
+      <SurfaceSection
+        title="Custos"
+        description="Valor financeiro por capacidade no período."
+      >
+        <SurfaceState
+          tone="idle"
+          title="Custo financeiro ainda não é medido nesta operação"
+          body="Não existe fonte de cobrança ligada à sua conta. Preferimos deixar o campo vazio a mostrar zero como se fosse um custo real."
+        />
+      </SurfaceSection>
+    </SurfaceCanvas>
   );
 }

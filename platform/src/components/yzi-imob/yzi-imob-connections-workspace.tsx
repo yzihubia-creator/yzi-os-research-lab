@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { runConnectionCommandAction } from "@/app/cockpit/yzi-imob/conexoes/actions";
 import {
@@ -13,18 +12,29 @@ import {
   type ConnectionViewModelItem,
 } from "@/lib/yzi-imob/connections/public-view-model";
 import {
-  CounterStrip,
-  EntityHero,
-  WorkspaceSection,
-  WorkspaceTabs,
+  MetricBand,
+  StateTag,
+  SurfaceButton,
+  SurfaceCanvas,
+  SurfaceHeader,
+  SurfaceSection,
+  SurfaceSegmented,
+  SurfaceState,
+  TYPE,
   cx,
-  type CounterItem,
-  type WorkspaceTab,
-} from "@/components/yzi-imob/yzi-imob-workspace-kit";
-import {
-  imobRgba,
-  type YziImobRole,
-} from "@/components/yzi-imob/yzi-imob-status-colors";
+  toneColor,
+  type SurfaceMetric,
+  type SurfaceTone,
+} from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
+
+// Conexões — o que a operação consegue fazer hoje e o que ainda falta liberar.
+//
+// Correções desta passagem: o composer da YZI que não fazia nada (`onAsk` vazio)
+// saiu — um campo que aceita texto e ignora é uma promessa falsa; a leitura da
+// YZI virou um diagnóstico real do estado das conexões; a copy deixou de citar
+// "backend" e "capabilities"; estados vazios e de erro passaram a usar o
+// vocabulário único do produto.
 
 type AuthorizationCallbackStatus =
   | "success"
@@ -39,36 +49,24 @@ type ConnectionsWorkspaceProps = {
   authorizationCallbackStatus?: AuthorizationCallbackStatus | null;
 };
 
-const STATUS_ROLE: Record<ConnectionHumanStatus, YziImobRole> = {
-  "Não conectado": "neutral",
-  "Aguardando autorização": "amber",
-  Conectando: "amber",
-  Ativo: "coldGreen",
-  "Precisa de atenção": "wine",
-  "Autorização expirada": "wine",
-  Indisponível: "neutral",
+const STATUS_TONE: Record<ConnectionHumanStatus, SurfaceTone> = {
+  "Não conectado": "idle",
+  "Aguardando autorização": "pending",
+  Conectando: "pending",
+  Ativo: "ok",
+  "Precisa de atenção": "attention",
+  "Autorização expirada": "attention",
+  Indisponível: "idle",
 };
 
-function StateChip({ status }: { status: ConnectionHumanStatus }) {
-  const role = STATUS_ROLE[status];
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.64rem]"
-      style={{
-        borderColor: imobRgba(role, 0.32),
-        backgroundColor: imobRgba(role, 0.1),
-        color: imobRgba(role, 0.95),
-      }}
-    >
-      <span
-        aria-hidden
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: imobRgba(role, 0.9) }}
-      />
-      {status}
-    </span>
-  );
-}
+/** O que cada categoria destrava no produto — o gestor lê consequência. */
+const CATEGORY_IMPACT: Record<ConnectionCategory, string> = {
+  Atendimento: "Receber e responder mensagens de clientes.",
+  "Publicação social": "Programar e publicar conteúdo nas redes.",
+  Site: "Manter as páginas dos imóveis no ar.",
+  "Dados e mensuração": "Medir alcance e desempenho do que foi publicado.",
+  "Produção criativa": "Gerar as peças que a equipe aprova antes de publicar.",
+};
 
 function displayDate(value: string | null): string {
   if (!value) return "Ainda não verificada";
@@ -82,68 +80,43 @@ function displayDate(value: string | null): string {
 
 function callbackNotice(
   status: AuthorizationCallbackStatus | null | undefined,
-): { role: "success" | "warning"; message: string } | null {
+): { tone: SurfaceTone; title: string; body: string } | null {
   switch (status) {
     case "success":
       return {
-        role: "success",
-        message: "A autorização foi concluída. O estado abaixo foi recarregado a partir do backend.",
+        tone: "ok",
+        title: "Autorização concluída",
+        body: "O estado abaixo já reflete a autorização que você acabou de conceder.",
       };
     case "cancelled":
-      return { role: "warning", message: "A autorização foi cancelada." };
+      return {
+        tone: "idle",
+        title: "Autorização cancelada",
+        body: "Nada foi alterado. Você pode recomeçar quando quiser.",
+      };
     case "expired":
-      return { role: "warning", message: "A autorização expirou. Inicie o fluxo novamente." };
+      return {
+        tone: "pending",
+        title: "A autorização expirou antes de concluir",
+        body: "O tempo para concluir acabou. Comece o processo novamente.",
+      };
     case "invalid_state":
-      return { role: "warning", message: "A autorização é inválida ou já foi consumida." };
+      return {
+        tone: "pending",
+        title: "Esta autorização não é mais válida",
+        body: "Ela já foi usada ou expirou. Comece o processo novamente.",
+      };
     case "provider_error":
     case "internal_error":
       return {
-        role: "warning",
-        message: "Não foi possível concluir a autorização agora.",
+        tone: "attention",
+        title: "Não foi possível concluir a autorização",
+        body: "Nada foi alterado na sua operação. Tente novamente em alguns minutos.",
       };
     case null:
     case undefined:
       return null;
   }
-}
-
-function ConnectionRow({
-  item,
-  active,
-  onSelect,
-}: {
-  item: ConnectionViewModelItem;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      className={cx(
-        "flex w-full flex-col gap-1.5 px-4 py-3.5 text-left transition-colors",
-        active
-          ? "bg-[var(--yzi-surface-elevated)]"
-          : "hover:bg-[var(--yzi-surface-elevated)]/50",
-      )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-[0.86rem] font-medium text-[var(--yzi-text-primary)]">
-          {item.nome}
-        </span>
-        <StateChip status={item.status} />
-      </div>
-      <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-        {item.resumo}
-      </p>
-      {item.proximaAcao ? (
-        <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          Próxima ação: {item.proximaAcao}
-        </p>
-      ) : null}
-    </button>
-  );
 }
 
 function ConnectionCommands({ item }: { item: ConnectionViewModelItem }) {
@@ -165,18 +138,18 @@ function ConnectionCommands({ item }: { item: ConnectionViewModelItem }) {
         }
         setMessage(
           command === "configure"
-            ? "Solicitação de configuração registrada."
+            ? "Pedido de configuração registrado."
             : command === "test"
-              ? "Validação controlada enfileirada."
-              : "Conexão revogada localmente.",
+              ? "Verificação em andamento. O estado se atualiza em instantes."
+              : "Conexão removida da sua operação.",
         );
         router.refresh();
         return;
       }
       setMessage(
         result.code === "configuration_required"
-          ? "A configuração server-side ainda precisa ser concluída."
-          : "A ação não pôde ser concluída. Nenhum segredo ou conteúdo foi alterado.",
+          ? "Esta conexão ainda depende de uma liberação que não está do seu lado."
+          : "Não foi possível concluir. Nada foi alterado na sua operação.",
       );
     });
   }
@@ -185,47 +158,45 @@ function ConnectionCommands({ item }: { item: ConnectionViewModelItem }) {
     return null;
   }
 
+  const connectLabel =
+    item.status === "Aguardando autorização"
+      ? "Continuar autorização"
+      : item.status === "Autorização expirada" || item.status === "Precisa de atenção"
+        ? "Reconectar"
+        : "Conectar";
+
   return (
-    <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
+    <div className="flex flex-col gap-2.5 border-t border-[color:var(--yzi-border-subtle)] pt-4">
       <div className="flex flex-wrap gap-2">
         {item.podeConfigurar ? (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => run("configure")}
-            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {item.status === "Aguardando autorização"
-              ? "Continuar autorização"
-              : item.status === "Autorização expirada" ||
-                  item.status === "Precisa de atenção"
-                ? "Reconectar"
-                : "Conectar"}
-          </button>
+          <SurfaceButton
+            kind="primary"
+            action={{ label: connectLabel, disabled: isPending, onClick: () => run("configure") }}
+          />
         ) : null}
         {item.podeTestar ? (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => run("test")}
-            className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-1.5 text-[0.72rem] text-[var(--yzi-text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Verificar conexão
-          </button>
+          <SurfaceButton
+            action={{
+              label: "Verificar conexão",
+              disabled: isPending,
+              onClick: () => run("test"),
+            }}
+          />
         ) : null}
         {item.podeDesconectar ? (
           <button
             type="button"
             disabled={isPending}
             onClick={() => run("disconnect")}
-            className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-wine),0.3)] px-3 py-1.5 text-[0.72rem] text-[rgb(var(--imob-wine))] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center rounded-[var(--yzi-radius-sm)] border px-3.5 py-2 text-[0.75rem] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ borderColor: toneColor("blocked", 0.34), color: toneColor("blocked", 0.95) }}
           >
-            Revogar
+            Remover conexão
           </button>
         ) : null}
       </div>
       {message ? (
-        <p role="status" className="text-[0.7rem] text-[var(--yzi-text-secondary)]">
+        <p role="status" aria-live="polite" className={TYPE.meta}>
           {message}
         </p>
       ) : null}
@@ -233,74 +204,61 @@ function ConnectionCommands({ item }: { item: ConnectionViewModelItem }) {
   );
 }
 
-function ConnectionDetail({ item }: { item: ConnectionViewModelItem }) {
+function ConnectionCard({ item }: { item: ConnectionViewModelItem }) {
+  const tone = STATUS_TONE[item.status];
+
   return (
-    <div className="flex flex-col gap-5 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-5 py-5 shadow-[var(--yzi-edge-highlight)]">
-      <div className="flex flex-col gap-2">
-        <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--yzi-text-faint)]">
-          {item.categoria}
-        </span>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h3 className="text-[1.05rem] font-semibold text-[var(--yzi-text-primary)]">
+    <article
+      className="flex flex-col gap-4 rounded-[var(--yzi-radius-md)] border bg-[var(--yzi-surface-base)] px-5 py-4 shadow-[var(--yzi-edge-highlight)]"
+      style={{ borderColor: toneColor(tone, 0.22) }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h3 className="text-[0.95rem] font-medium text-[var(--yzi-text-primary)]">
             {item.nome}
           </h3>
-          <StateChip status={item.status} />
+          <p className={cx(TYPE.body, "max-w-xl")}>{item.finalidade}</p>
         </div>
-        <p className="text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          {item.finalidade}
-        </p>
+        <StateTag tone={tone} label={item.status} />
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
-        <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
-          Estado operacional
-        </span>
-        <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-          {item.resumo}
-        </p>
-        <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
-          Última verificação: {displayDate(item.ultimaVerificacao)}
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
-        <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
-          Recursos disponíveis
-        </span>
-        {item.capabilitiesDisponiveis.length ? (
-          <ul className="flex flex-col gap-1.5">
-            {item.capabilitiesDisponiveis.map((capability) => (
-              <li
-                key={capability}
-                className="flex items-center gap-2 text-[0.76rem] text-[var(--yzi-text-secondary)]"
-              >
-                <span
-                  aria-hidden
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: imobRgba("coldGreen", 0.85) }}
-                />
-                {capability}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[0.72rem] text-[var(--yzi-text-faint)]">
-            Nenhum recurso liberado neste estado.
-          </p>
-        )}
-      </div>
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <dt className={TYPE.label}>Situação</dt>
+          <dd className={TYPE.body}>{item.resumo}</dd>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <dt className={TYPE.label}>O que já está liberado</dt>
+          <dd>
+            {item.capabilitiesDisponiveis.length ? (
+              <ul className="flex flex-col gap-1">
+                {item.capabilitiesDisponiveis.map((capability) => (
+                  <li
+                    key={capability}
+                    className="flex items-start gap-2 text-[0.78rem] text-[var(--yzi-text-secondary)]"
+                  >
+                    <span
+                      aria-hidden
+                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: toneColor("ok", 0.85) }}
+                    />
+                    {capability}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={TYPE.meta}>Nada liberado neste estado.</p>
+            )}
+          </dd>
+        </div>
+      </dl>
 
       {item.incidentesHumanos.length ? (
-        <div className="flex flex-col gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
-          <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
-            Pontos de atenção
-          </span>
-          <ul className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-4">
+          <p className={TYPE.label}>Pontos de atenção</p>
+          <ul className="flex flex-col gap-1">
             {item.incidentesHumanos.map((incident) => (
-              <li
-                key={incident}
-                className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]"
-              >
+              <li key={incident} className={TYPE.body}>
                 {incident}
               </li>
             ))}
@@ -310,26 +268,15 @@ function ConnectionDetail({ item }: { item: ConnectionViewModelItem }) {
 
       {item.proximaAcao ? (
         <div className="flex flex-col gap-1.5 border-t border-[color:var(--yzi-border-subtle)] pt-4">
-          <span className="text-[0.72rem] font-medium text-[var(--yzi-text-primary)]">
-            Próxima ação
-          </span>
-          <p className="text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-            {item.proximaAcao}
-          </p>
+          <p className={TYPE.label}>Próximo passo</p>
+          <p className={TYPE.body}>{item.proximaAcao}</p>
         </div>
       ) : null}
 
       <ConnectionCommands item={item} />
 
-      {item.id === "publicacao-social" ? (
-        <Link
-          href="/cockpit/yzi-imob/marketing/publicacoes"
-          className="text-[0.72rem] text-[var(--yzi-text-secondary)] underline decoration-[color:var(--yzi-border-subtle)] underline-offset-4 hover:text-[var(--yzi-text-primary)]"
-        >
-          Abrir histórico de publicações →
-        </Link>
-      ) : null}
-    </div>
+      <p className={TYPE.meta}>Última verificação: {displayDate(item.ultimaVerificacao)}</p>
+    </article>
   );
 }
 
@@ -337,22 +284,19 @@ export function YziImobConnectionsWorkspace({
   viewModel,
   authorizationCallbackStatus,
 }: ConnectionsWorkspaceProps) {
-  const [activeCategory, setActiveCategory] =
-    useState<ConnectionCategory>("Atendimento");
-  const [selectedId, setSelectedId] = useState<string>(
-    viewModel.items[0]?.id ?? "",
-  );
+  const [activeCategory, setActiveCategory] = useState<ConnectionCategory>("Atendimento");
   const notice = callbackNotice(authorizationCallbackStatus);
+
   const items = useMemo(
     () => (viewModel.loadState === "ready" ? viewModel.items : []),
     [viewModel],
   );
+
   const categoryItems = useMemo(
     () => items.filter((item) => item.categoria === activeCategory),
     [activeCategory, items],
   );
-  const selected =
-    items.find((item) => item.id === selectedId) ?? categoryItems[0];
+
   const counts = useMemo(
     () => ({
       active: items.filter((item) => item.status === "Ativo").length,
@@ -368,112 +312,147 @@ export function YziImobConnectionsWorkspace({
     }),
     [items],
   );
-  const counters: CounterItem[] = [
-    { label: "Ativas", value: String(counts.active), detail: "Conexões validadas e saudáveis.", role: "coldGreen" },
-    { label: "Em preparação", value: String(counts.configuring), detail: "Configuração ou verificação pendente.", role: "cyan" },
-    { label: "Com atenção", value: String(counts.attention), detail: "Autorização ou saúde precisa de revisão.", role: "amber" },
-    { label: "Não disponíveis", value: String(counts.unavailable), detail: "Não configuradas ou fora do MVP.", role: "neutral" },
+
+  const metrics: SurfaceMetric[] = [
+    {
+      label: "Ativas",
+      value: String(counts.active),
+      detail: "Funcionando agora",
+      tone: "ok",
+    },
+    {
+      label: "Em preparação",
+      value: String(counts.configuring),
+      detail: "Falta concluir a autorização",
+      tone: counts.configuring ? "pending" : undefined,
+    },
+    {
+      label: "Precisam de atenção",
+      value: String(counts.attention),
+      detail: "Pararam de funcionar",
+      tone: counts.attention ? "attention" : undefined,
+    },
+    {
+      label: "Não configuradas",
+      value: String(counts.unavailable),
+      detail: "Ainda não fazem parte da operação",
+    },
   ];
-  const tabs: WorkspaceTab[] = CONNECTION_CATEGORY_VALUES.map((category) => ({
+
+  const options = CONNECTION_CATEGORY_VALUES.map((category) => ({
     id: category,
     label: category,
+    count: items.filter((item) => item.categoria === category).length,
   }));
 
-  function selectCategory(id: string) {
-    const category = id as ConnectionCategory;
-    setActiveCategory(category);
-    const first = items.find((item) => item.categoria === category);
-    setSelectedId(first?.id ?? "");
+  const attentionItems = items.filter((item) =>
+    ["Precisa de atenção", "Autorização expirada"].includes(item.status),
+  );
+  const pendingItems = items.filter((item) =>
+    ["Conectando", "Aguardando autorização"].includes(item.status),
+  );
+
+  const header = (
+    <SurfaceHeader
+      kicker="Sistema"
+      title="Conexões"
+      lead="O que sua operação consegue fazer hoje: atender, publicar, medir e produzir. Cada conexão mostra o que já está liberado e o que falta."
+      secondaryActions={[{ label: "Ver consumo", href: "/cockpit/yzi-imob/apis-creditos" }]}
+    />
+  );
+
+  if (viewModel.loadState !== "ready") {
+    const tone: SurfaceTone =
+      viewModel.loadState === "empty"
+        ? "idle"
+        : viewModel.loadState === "no_membership" || viewModel.loadState === "no_session"
+          ? "pending"
+          : "attention";
+    return (
+      <SurfaceCanvas>
+        {header}
+        <SurfaceState
+          tone={tone}
+          title={
+            viewModel.loadState === "empty"
+              ? "Nenhuma conexão configurada ainda"
+              : "Não foi possível ler suas conexões agora"
+          }
+          body={viewModel.message}
+        />
+      </SurfaceCanvas>
+    );
   }
 
   return (
-    <div className="flex w-full flex-col">
-      <section className="mx-auto flex w-full max-w-6xl flex-col px-8 pb-12 pt-10">
-        <EntityHero
-          compactComposer
-          backHref="/cockpit/yzi-imob"
-          backLabel="Início"
-          kicker="Operação integrada"
-          title="Conexões"
-          subtitle="Acompanhe o estado verdadeiro das capabilities que permitem atender, publicar e medir a operação."
-          statusLabel={
-            viewModel.loadState !== "ready"
-              ? "Estado real indisponível"
-              : counts.attention
-                ? "Conexões precisam de atenção"
-                : counts.active
-                  ? "Operação conectada"
-                  : "Conexões em configuração"
-          }
-          composerPlaceholder="Pergunte sobre suas conexões"
-          quickActions={[]}
-          assistantMessage={
-            viewModel.loadState === "ready"
-              ? "Uma conta existente só aparece como ativa depois de autorização e saúde validadas."
-              : viewModel.message
-          }
-          onAsk={() => undefined}
-        />
-        {notice ? (
-          <div
-            className={cx(
-              "mt-5 rounded-[var(--yzi-radius-md)] border px-4 py-3 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]",
-              notice.role === "success"
-                ? "border-[rgba(var(--imob-green),0.34)] bg-[rgba(var(--imob-green),0.08)]"
-                : "border-[rgba(var(--imob-amber),0.34)] bg-[rgba(var(--imob-amber),0.08)]",
-            )}
-          >
-            {notice.message}
-          </div>
-        ) : null}
-      </section>
+    <SurfaceCanvas width="wide">
+      {header}
 
-      <section className="w-full">
-        <CounterStrip counters={counters} variant="home" />
-      </section>
+      {notice ? (
+        <SurfaceState compact tone={notice.tone} title={notice.title} body={notice.body} />
+      ) : null}
 
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 pb-10 pt-10">
-        <WorkspaceSection
-          title="Conexões por categoria"
-          description="O estado vem do backend e não é promovido apenas porque uma conta existe."
-          first
-        >
-          {viewModel.loadState === "ready" ? (
-            <>
-              <WorkspaceTabs tabs={tabs} active={activeCategory} onChange={selectCategory} />
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.3fr_1fr]">
-                <div className="flex h-fit flex-col divide-y divide-[color:var(--yzi-border-subtle)] overflow-hidden rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
-                  {categoryItems.length ? (
-                    categoryItems.map((item) => (
-                      <ConnectionRow
-                        key={item.id}
-                        item={item}
-                        active={item.id === selected?.id}
-                        onSelect={() => setSelectedId(item.id)}
-                      />
-                    ))
-                  ) : (
-                    <p className="px-4 py-3.5 text-[0.76rem] text-[var(--yzi-text-secondary)]">
-                      Nenhuma conexão nesta categoria.
-                    </p>
-                  )}
-                </div>
-                {selected ? (
-                  <ConnectionDetail item={selected} />
-                ) : (
-                  <p className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-3.5 text-[0.76rem] text-[var(--yzi-text-secondary)]">
-                    Nenhuma conexão disponível para detalhar.
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="rounded-[var(--yzi-radius-md)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-3.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-              {viewModel.message}
-            </p>
+      <MetricBand metrics={metrics} />
+
+      {attentionItems.length ? (
+        <YziInsight
+          context="Conexões da operação"
+          tone="attention"
+          stateLabel="Precisa de atenção"
+          headline={`${attentionItems.length} ${attentionItems.length === 1 ? "conexão parou" : "conexões pararam"} de funcionar.`}
+          reading="Enquanto isso, a parte do produto que depende dela fica indisponível — mesmo que o resto continue rodando normalmente."
+          evidence={attentionItems.map(
+            (item) => `${item.nome}: ${CATEGORY_IMPACT[item.categoria]}`,
           )}
-        </WorkspaceSection>
-      </section>
-    </div>
+          recommendation="Reconecte a partir do card correspondente abaixo. Nada do que já foi publicado ou atendido é perdido nesse processo."
+        />
+      ) : pendingItems.length ? (
+        <YziInsight
+          context="Conexões da operação"
+          tone="pending"
+          stateLabel="Em preparação"
+          headline={`${pendingItems.length} ${pendingItems.length === 1 ? "conexão está" : "conexões estão"} aguardando verificação.`}
+          reading="Uma conta existir não basta: ela só passa a valer depois que a autorização e a verificação são concluídas. Até lá o produto não promete o que ainda não pode entregar."
+          evidence={pendingItems.map((item) => `${item.nome}: ${item.proximaAcao ?? item.resumo}`)}
+          recommendation="Conclua a etapa indicada em cada card. Algumas verificações dependem de aprovação externa e podem levar alguns dias."
+        />
+      ) : counts.active ? (
+        <YziInsight
+          context="Conexões da operação"
+          tone="ok"
+          stateLabel="Operação conectada"
+          headline={`${counts.active} ${counts.active === 1 ? "conexão está ativa" : "conexões estão ativas"} e verificadas.`}
+          reading="Tudo o que essas conexões liberam está disponível para a equipe usar agora."
+        />
+      ) : null}
+
+      <SurfaceSection
+        first
+        title="Conexões por área"
+        description={CATEGORY_IMPACT[activeCategory]}
+        actions={
+          <SurfaceSegmented
+            legend="Área da operação"
+            options={options}
+            value={activeCategory}
+            onChange={setActiveCategory}
+          />
+        }
+      >
+        {categoryItems.length ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {categoryItems.map((item) => (
+              <ConnectionCard key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <SurfaceState
+            tone="idle"
+            title="Nenhuma conexão nesta área"
+            body="Quando esta área passar a fazer parte da sua operação, as conexões dela aparecem aqui."
+          />
+        )}
+      </SurfaceSection>
+    </SurfaceCanvas>
   );
 }

@@ -9,8 +9,16 @@ import type {
   OperationalSettingsViewModel,
 } from "@/lib/tenant/operational-settings";
 import {
-  CounterStrip,
-  EntityHero,
+  MetricBand,
+  StateTag,
+  SurfaceCanvas,
+  SurfaceHeader,
+  SurfaceState,
+  TYPE,
+  type SurfaceMetric,
+} from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
+import {
   WorkspaceGrid,
   WorkspaceSection,
   WorkspaceTabs,
@@ -393,69 +401,82 @@ export function YziImobOperationalSettingsWorkspace({
     },
   ];
 
-  function answer(text: string) {
-    const normalized = text.trim().toLowerCase();
-    if (!normalized) return;
-    if (normalized.includes("incompleto")) {
-      setAssistantNote(
-        pending.length === 0
-          ? "Nada está em aberto — sua configuração está completa. Sempre que a rotina mudar, atualize aqui."
-          : `Pontos em aberto: ${pending.join(" ")}`,
-      );
-      return;
-    }
-    if (normalized.includes("operação") || normalized.includes("regras")) {
-      setActiveTab("operacao");
-      setAssistantNote("Abri a aba Operação — as regras de distribuição e captação ficam aqui.");
-      return;
-    }
-    if (normalized.includes("atendimento")) {
-      setActiveTab("atendimento");
-      setAssistantNote("Abri a aba Atendimento e YZI — horários e comportamento ficam aqui.");
-      return;
-    }
-    if (normalized.includes("equipe")) {
-      setActiveTab("equipe");
-      setAssistantNote("Abri a aba Equipe e implantação — responsável e convites ficam aqui.");
-      return;
-    }
-    setAssistantNote(
-      "Ainda não converso livremente nesta tela. Use as ações rápidas ou navegue pelas abas para revisar cada área.",
-    );
-  }
+  // Cada pendencia leva a aba onde ela e resolvida: aviso sem destino e so
+  // ruido. O mapa vive aqui porque `pendingItems` e puro e nao conhece a UI.
+  const PENDING_TAB: Array<{ match: string; tab: TabId }> = [
+    { match: "Identificação", tab: "imobiliaria" },
+    { match: "Distribuição", tab: "operacao" },
+    { match: "Foco comercial", tab: "operacao" },
+    { match: "Horário", tab: "atendimento" },
+    { match: "Dias de atendimento", tab: "atendimento" },
+    { match: "Tom da", tab: "marca" },
+    { match: "implantação", tab: "equipe" },
+  ];
 
-  const statusLabel = configured ? "Operação configurada" : "Configuração incompleta";
+  const firstPendingTab =
+    PENDING_TAB.find((entry) => pending.some((item) => item.includes(entry.match)))?.tab ??
+    "imobiliaria";
+
+  const metrics: SurfaceMetric[] = counters.map((counter) => ({
+    label: counter.label,
+    value: counter.value,
+    detail: counter.detail,
+    tone: counter.accent ? "attention" : undefined,
+  }));
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-8 py-10">
-      <EntityHero
-        backHref="/cockpit/yzi-imob"
-        backLabel="Início"
-        kicker="Configurações"
+    <SurfaceCanvas>
+      <SurfaceHeader
+        kicker="Sistema"
         title="Configurações da operação"
-        subtitle="Mantenha atualizadas as informações que orientam como a YZI organiza sua imobiliária, sua equipe e seu atendimento."
-        statusLabel={statusLabel}
-        composerPlaceholder="Pergunte sobre a configuração da sua operação"
-        quickActions={[
-          { label: "O que está incompleto?" },
-          { label: "Revisar regras da operação" },
-          { label: "Revisar atendimento" },
-          { label: "Ver equipe pendente" },
-        ]}
-        assistantMessage={
-          assistantNote ??
-          "Estas definições orientam como eu organizo sua operação. Sempre que sua rotina mudar, atualize aqui para que eu continue trabalhando com o contexto correto."
+        lead="As definições que orientam como sua imobiliária, sua equipe e seu atendimento funcionam no dia a dia."
+        aside={
+          <div className="flex flex-wrap items-center gap-3">
+            <StateTag
+              tone={configured ? "ok" : "pending"}
+              label={configured ? "Operação configurada" : "Configuração incompleta"}
+            />
+            {assistantNote ? <span className={TYPE.meta}>{assistantNote}</span> : null}
+          </div>
         }
-        onAsk={answer}
       />
 
-      <CounterStrip counters={counters} />
+      <MetricBand metrics={metrics} />
+
+      {pending.length ? (
+        <YziInsight
+          context="Configuração da operação"
+          tone="pending"
+          stateLabel={`${pending.length} ${pending.length === 1 ? "ponto em aberto" : "pontos em aberto"}`}
+          headline={
+            pending.length === 1
+              ? "Falta uma definição para a operação rodar com o contexto certo."
+              : `Faltam ${pending.length} definições para a operação rodar com o contexto certo.`
+          }
+          reading="Sem essas informações, a distribuição de leads e o atendimento seguem regras genéricas em vez das suas."
+          evidence={pending}
+          recommendation="Comece pela primeira da lista: as demais costumam depender dela."
+          primaryAction={
+            canEdit
+              ? {
+                  label: "Resolver agora",
+                  onClick: () => {
+                    setActiveTab(firstPendingTab);
+                    setAssistantNote(null);
+                  },
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {!canEdit ? (
-        <p className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-4 py-3 text-[0.78rem] text-[var(--yzi-text-secondary)]">
-          Você pode ver estas configurações, mas somente quem administra a
-          operação pode alterá-las.
-        </p>
+        <SurfaceState
+          compact
+          tone="pending"
+          title="Você pode ver, mas não alterar estas configurações"
+          body="Somente quem administra a operação pode editar. Peça a alteração a quem administra ou solicite o acesso."
+        />
       ) : null}
 
       <div className="flex flex-col gap-7">
@@ -560,7 +581,7 @@ export function YziImobOperationalSettingsWorkspace({
           organizar imóveis, leads, comunicação e equipe.
         </p>
       </div>
-    </section>
+    </SurfaceCanvas>
   );
 }
 
