@@ -21,7 +21,11 @@ import {
 const AREA_LABELS: Array<{ match: string; label: string }> = [
   // Home do ciclo + Revisar Semana exibem "Marketing" (match por prefixo).
   { match: "/cockpit/yzi-imob/marketing", label: "Marketing" },
-  { match: "/cockpit/yzi-imob/growth/resultados", label: "Growth OS / Resultados" },
+  // Resultados precisa vir ANTES de /growth: o match é por prefixo e
+  // /growth/resultados também casaria com Growth OS.
+  { match: "/cockpit/yzi-imob/growth/resultados", label: "Resultados" },
+  { match: "/cockpit/yzi-imob/growth", label: "Growth OS" },
+  { match: "/cockpit/yzi-imob/sistema", label: "Sistema" },
   { match: "/cockpit/yzi-imob/imoveis", label: "Imóveis" },
   { match: "/cockpit/yzi-imob/corretores", label: "Corretores" },
   // Mesma nomenclatura da sidebar: a rota de clientes exibe "Leads".

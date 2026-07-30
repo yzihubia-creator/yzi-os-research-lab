@@ -9,16 +9,17 @@ import { YziPresence } from "@/components/yzi-os/yzi-primitives";
 import {
   AgendaIcon,
   BrokerIcon,
-  CampaignIcon,
+  CardIcon,
   ClientIcon,
   CreativeIcon,
   InboxIcon,
-  OperationIcon,
   PropertyIcon,
   RadarIcon,
   ResultsIcon,
   SettingsIcon,
+  ShieldIcon,
   StackIcon,
+  TargetIcon,
   TeamIcon,
 } from "@/components/yzi-imob/yzi-imob-icons-v2";
 
@@ -47,11 +48,14 @@ const GROUPS: Group[] = [
   {
     eyebrow: "Marketing",
     items: [
-      // "Marketing": ciclo semanal da marca (home + revisar semana). A rota
+      // "Marketing": produção, aprovação, programação e publicação de conteúdo.
       // Rotas antigas de Comunicação e Studio ficam fora da navegação e
       // redirecionam para o fluxo governado de publicações.
       { label: "Marketing", icon: CreativeIcon, href: "/cockpit/yzi-imob/marketing" },
-      { label: "Growth OS", icon: CampaignIcon, href: "/cockpit/yzi-imob/marketing/publicacoes" },
+      // "Growth OS": estratégia e decisão. Apontava para a MESMA rota de
+      // Marketing — dois itens de menu para uma tela só. Agora é a leitura
+      // de oportunidade/risco sobre Resultados e Radar.
+      { label: "Growth OS", icon: TargetIcon, href: "/cockpit/yzi-imob/growth" },
       { label: "Agenda", icon: AgendaIcon, href: "/cockpit/yzi-imob/agenda" },
     ],
   },
@@ -67,23 +71,26 @@ const GROUPS: Group[] = [
   {
     eyebrow: "Sistema",
     items: [
+      // Sistema: "isso está funcionando?" — a leitura de saúde da operação que
+      // antes ficava escondida dentro do Radar, misturada com sinais acionáveis.
+      { label: "Sistema", icon: ShieldIcon, href: "/cockpit/yzi-imob/sistema" },
       // Conexões: canais, autorizações e saúde operacional — separado de
       // APIs & Créditos (consumo, limites e governança financeira).
       { label: "Conexões", icon: StackIcon, href: "/cockpit/yzi-imob/conexoes" },
-      { label: "APIs & Créditos", icon: OperationIcon, href: "/cockpit/yzi-imob/apis-creditos" },
+      { label: "APIs & Créditos", icon: CardIcon, href: "/cockpit/yzi-imob/apis-creditos" },
       { label: "Configurações", icon: SettingsIcon, href: "/cockpit/yzi-imob/configuracoes" },
     ],
   },
 ];
 
+// Rotas que só podem casar EXATAMENTE, porque outra entrada do menu vive
+// abaixo delas: `/growth` é Growth OS, mas `/growth/resultados` é Resultados —
+// sem isto, os dois itens acenderiam ao mesmo tempo.
+const EXACT_MATCH_ONLY = new Set(["/cockpit/yzi-imob/growth"]);
+
 function isActive(pathname: string, href?: string) {
   if (!href) return false;
-  if (
-    href === "/cockpit/yzi-imob/marketing" &&
-    pathname.startsWith("/cockpit/yzi-imob/marketing/publicacoes")
-  ) {
-    return false;
-  }
+  if (EXACT_MATCH_ONLY.has(href)) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
