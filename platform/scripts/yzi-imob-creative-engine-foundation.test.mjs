@@ -24,6 +24,7 @@ const TYPES = source("../src/lib/yzi-imob/creative/types.ts");
 const UI = [
   source("../src/app/cockpit/yzi-imob/imoveis/[id]/creative/page.tsx"),
   source("../src/app/cockpit/yzi-imob/imoveis/[id]/creative/actions.ts"),
+  source("../src/components/yzi-imob/creative/yzi-imob-carousel-review.tsx"),
 ].join("\n");
 
 const context = {
@@ -33,8 +34,16 @@ const context = {
     title: "Casa Jardim",
     city: "São Paulo",
     neighborhood: "Jardins",
+    referenceCode: "YZ-101",
+    price: 2500000,
     bedrooms: 3,
+    suites: 2,
+    parkingSpaces: 2,
     privateArea: 180,
+    totalArea: 220,
+    availabilityStatus: "available",
+    shortSummary: "Arquitetura acolhedora em uma localização desejada.",
+    propertyFeatures: ["varanda"],
   },
   request: {
     id: "30000000-0000-4000-8000-000000000001",
@@ -42,8 +51,8 @@ const context = {
     propertyId: "20000000-0000-4000-8000-000000000001",
     status: "generating",
     objective: "Apresentar os principais diferenciais do imóvel",
-    desiredFormats: ["carousel", "video_tour"],
-    intendedChannels: ["social_feed", "social_video"],
+    desiredFormats: ["carousel"],
+    intendedChannels: ["social_feed"],
     context: {},
     idempotencyKey: "creative:test:1",
     createdByUserId: "40000000-0000-4000-8000-000000000001",
@@ -65,19 +74,6 @@ const context = {
       createdAt: "2026-07-29T12:00:00.000Z",
       updatedAt: "2026-07-29T12:00:00.000Z",
     },
-    {
-      id: "50000000-0000-4000-8000-000000000002",
-      tenantId: "10000000-0000-4000-8000-000000000001",
-      propertyId: "20000000-0000-4000-8000-000000000001",
-      requestId: "30000000-0000-4000-8000-000000000001",
-      deliverableType: "video_tour",
-      status: "generating",
-      currentRevisionId: null,
-      approvedRevisionId: null,
-      publicationEligible: false,
-      createdAt: "2026-07-29T12:00:00.000Z",
-      updatedAt: "2026-07-29T12:00:00.000Z",
-    },
   ],
   sourceMedia: [
     {
@@ -85,19 +81,27 @@ const context = {
       mediaType: "image",
       sortOrder: 0,
       isCover: true,
+      isPublicationAllowed: true,
+      processingStatus: "ready",
     },
     {
       id: "60000000-0000-4000-8000-000000000002",
       mediaType: "image",
       sortOrder: 1,
       isCover: false,
+      isPublicationAllowed: true,
+      processingStatus: "ready",
     },
   ],
 };
 
-test("v1 activates only property carousel and video tour contracts", () => {
-  assert.deepEqual(ACTIVE_CREATIVE_DELIVERABLE_TYPES, ["carousel", "video_tour"]);
-  assert.deepEqual(RESERVED_CREATIVE_DELIVERABLE_TYPES, ["story_pack", "static_post"]);
+test("current contract activates only the property carousel", () => {
+  assert.deepEqual(ACTIVE_CREATIVE_DELIVERABLE_TYPES, ["carousel"]);
+  assert.deepEqual(RESERVED_CREATIVE_DELIVERABLE_TYPES, [
+    "video_tour",
+    "story_pack",
+    "static_post",
+  ]);
   assert.match(
     MIGRATION,
     /deliverable_type = any \(array\['carousel', 'video_tour'\]::text\[\]\)/i,
@@ -114,10 +118,10 @@ test("fake generation is deterministic, structured and never rendered", async ()
   const second = await transport.generate(context);
 
   assert.deepEqual(first, second);
-  assert.equal(first.length, 2);
+  assert.equal(first.length, 1);
   assert.deepEqual(
     first.map((output) => output.deliverable_type),
-    ["carousel", "video_tour"],
+    ["carousel"],
   );
   for (const output of first) {
     assert.equal(output.content_snapshot.property_id, context.property.id);
@@ -215,9 +219,9 @@ test("application repository always scopes reads by tenant and property", () => 
 
 test("minimal UI exposes status and approval, not an editor or external engine", () => {
   assert.match(UI, /Pedido/);
-  assert.match(UI, /Entregáveis/);
-  assert.match(UI, /Job de geração/);
-  assert.match(UI, /Aprovar revisão/);
-  assert.match(UI, /sem render/i);
+  assert.match(UI, /Carrossel editorial/);
+  assert.match(UI, /Revisão atual/);
+  assert.match(UI, /Aprovar carrossel/);
+  assert.match(UI, /preview local/i);
   assert.doesNotMatch(UI, /Higgsfield|Metricool|drag-and-drop|contenteditable/i);
 });
