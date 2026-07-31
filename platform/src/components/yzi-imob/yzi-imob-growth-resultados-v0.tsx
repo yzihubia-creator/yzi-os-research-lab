@@ -22,6 +22,11 @@ import {
 } from "@/components/yzi-imob/yzi-imob-surface-kit";
 import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
+import {
+  describeMetric,
+  describeRate,
+  splitByMovement,
+} from "@/lib/yzi-imob/results/presentation";
 import type {
   DataAvailability,
   ResultsAccessState,
@@ -88,42 +93,81 @@ const PERIOD_LABEL: Record<string, string> = {
 };
 
 /**
- * Linha de indicador. `detail` do contrato é uma frase de negócio; `sourceId`
- * é identificador interno e fica de fora da tela por princípio.
+ * Indicadores do período. O que se moveu ocupa a leitura principal; o que ficou
+ * em zero e o que não pôde ser lido continuam visíveis, mas agrupados — sem
+ * isso, uma operação nova vira uma parede de zeros idênticos.
  */
 function MetricRows({ metrics }: { metrics: readonly ResultsMetricValue[] }) {
   if (!metrics.length) {
-    return (
-      <p className={TYPE.meta}>Nenhum indicador disponível para este recorte.</p>
-    );
+    return <p className={TYPE.meta}>Nenhum indicador disponível para este recorte.</p>;
   }
 
+  const { moved, idle, unavailable } = splitByMovement(metrics);
+
   return (
-    <div className="divide-y divide-[color:var(--yzi-border-subtle)]">
-      {metrics.map((metric) => {
-        const availability = AVAILABILITY_COPY[metric.availability];
-        return (
-          <div
-            key={metric.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3.5 first:pt-0 last:pb-0"
-          >
-            <div className="min-w-0">
-              <p className={TYPE.itemTitle}>{metric.label}</p>
-              {metric.detail ? (
-                <p className={cx(TYPE.meta, "mt-1 max-w-xl")}>{metric.detail}</p>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-[1.05rem] font-semibold tabular-nums text-[var(--yzi-text-primary)]">
-                {formatNumber(metric.value)}
-              </span>
-              {metric.availability !== "available" ? (
-                <StateTag tone={availability.tone} label={availability.label} />
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-4">
+      {moved.length ? (
+        <div className="divide-y divide-[color:var(--yzi-border-subtle)]">
+          {moved.map((metric) => {
+            const copy = describeMetric(metric);
+            return (
+              <div
+                key={metric.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3.5 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <p className={TYPE.itemTitle}>{copy.label}</p>
+                  {copy.detail ? (
+                    <p className={cx(TYPE.meta, "mt-1 max-w-xl")}>{copy.detail}</p>
+                  ) : null}
+                </div>
+                <span className="shrink-0 text-[1.05rem] font-semibold tabular-nums text-[var(--yzi-text-primary)]">
+                  {formatNumber(metric.value)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {idle.length ? (
+        <div className="flex flex-col gap-2">
+          <p className={TYPE.label}>Sem movimento no período</p>
+          <ul className="flex flex-wrap gap-x-2 gap-y-1.5">
+            {idle.map((metric) => (
+              <li
+                key={metric.id}
+                title={describeMetric(metric).detail || undefined}
+                className="rounded-full border border-[color:var(--yzi-border-subtle)] px-2.5 py-1 text-[0.7rem] text-[var(--yzi-text-faint)]"
+              >
+                {describeMetric(metric).label}
+                <span className="ml-1.5 tabular-nums">0</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {unavailable.length ? (
+        <div className="flex flex-col gap-2">
+          <p className={TYPE.label}>Não foi possível ler</p>
+          <ul className="flex flex-wrap gap-x-2 gap-y-1.5">
+            {unavailable.map((metric) => (
+              <li
+                key={metric.id}
+                className="rounded-full border border-dashed border-[color:var(--yzi-border-subtle)] px-2.5 py-1 text-[0.7rem] text-[var(--yzi-text-faint)]"
+              >
+                {describeMetric(metric).label}
+                <span className="ml-1.5">—</span>
+              </li>
+            ))}
+          </ul>
+          <p className={TYPE.meta}>
+            Estes números não puderam ser calculados neste recorte. Não saber é
+            diferente de ser zero, então eles não entram na conta acima.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -403,14 +447,21 @@ export function YziImobGrowthResultadosV0({
 
   const availability = AVAILABILITY_COPY[data.availability];
 
-  const metrics: SurfaceMetric[] = data.summary.operation.slice(0, 4).map((metric) => ({
-    label: metric.label,
-    value: formatNumber(metric.value),
-    detail:
-      metric.availability === "available"
-        ? metric.detail
-        : AVAILABILITY_COPY[metric.availability].label,
-  }));
+  // A faixa do topo prioriza o que se moveu: um painel de quatro zeros nao
+  // ajuda ninguem a decidir. Se nada se moveu, ela mostra o panorama honesto.
+  const { moved: movedOperation } = splitByMovement(data.summary.operation);
+  const bandSource = (movedOperation.length ? movedOperation : data.summary.operation).slice(0, 4);
+  const metrics: SurfaceMetric[] = bandSource.map((metric) => {
+    const copy = describeMetric(metric);
+    return {
+      label: copy.label,
+      value: formatNumber(metric.value),
+      detail:
+        metric.availability === "available"
+          ? copy.detail
+          : AVAILABILITY_COPY[metric.availability].label,
+    };
+  });
 
   return (
     <SurfaceCanvas width="wide">
@@ -537,7 +588,10 @@ export function YziImobGrowthResultadosV0({
             }
             evidence={data.rates
               .slice(0, 3)
-              .map((rate) => `${rate.label}: ${formatPercent(rate.value)}`)}
+              .map(
+                (rate) =>
+                  `${describeRate(rate.id, rate.label)}: ${formatPercent(rate.value)}`,
+              )}
             recommendation={
               headline.appointments?.value
                 ? "Compare este período com o anterior antes de mudar a operação: uma queda de leads com visitas estáveis é um problema diferente do inverso."
