@@ -6,7 +6,18 @@ import {
   buildGrowthPanorama,
   buildGrowthReadings,
 } from "../src/lib/yzi-imob/growth/readings.ts";
-import type { ResultsWorkspaceData } from "../src/lib/yzi-imob/results/types.ts";
+import {
+  AREA_BY_CATEGORY,
+  RADAR_SIGNAL_COPY,
+  describeSignal,
+  isAwaitingRelease,
+} from "../src/lib/yzi-imob/radar/presentation.ts";
+import {
+  RESULTS_METRIC_COPY,
+  splitByMovement,
+} from "../src/lib/yzi-imob/results/presentation.ts";
+import type { RadarSignal, RadarSignalType } from "../src/lib/yzi-imob/radar/types.ts";
+import type { ResultsMetricValue, ResultsWorkspaceData } from "../src/lib/yzi-imob/results/types.ts";
 
 // Contratos de frontend das superfícies do YZI IMOB.
 //
@@ -339,4 +350,188 @@ test("toda recomendação do Growth OS tem evidência e destino de ação", () =
     assert.ok(reading.implication.length > 0, `${reading.id} sem implicação`);
     assert.ok(reading.actionHref.startsWith("/cockpit/yzi-imob/"), `${reading.id} sem destino`);
   }
+});
+
+
+/* ------------------------------------------------------------------ */
+/* Verdade unica entre Radar, Sistema, Conexoes e Resultados            */
+/* ------------------------------------------------------------------ */
+
+function signalFixture(overrides: Partial<RadarSignal> = {}): RadarSignal {
+  return {
+    id: "s1",
+    tenantId: "t1",
+    type: "runner_stale",
+    category: "atendimento",
+    severity: "important",
+    title: "Runner sem execução recente",
+    description: "Nenhuma execução registrada nas últimas 6 horas.",
+    entityType: "system",
+    entityId: "inbound-runner",
+    source: "yzi_imob_inbound_runner_executions",
+    detectedAt: "2026-07-29T12:00:00.000Z",
+    dueAt: null,
+    status: "active",
+    actionLabel: "Abrir atendimento",
+    actionHref: "/cockpit/yzi-imob/atendimento",
+    metadata: {},
+    ...overrides,
+  };
+}
+
+test("a tradução do Radar cobre todo tipo de sinal do contrato", async () => {
+  // Se o contrato ganhar um tipo novo, este teste falha antes de o texto de
+  // engenharia chegar à tela.
+  const types = await readFile(
+    new URL("../src/lib/yzi-imob/radar/types.ts", import.meta.url),
+    "utf8",
+  );
+  const union = types.slice(
+    types.indexOf("export type RadarSignalType"),
+    types.indexOf(";", types.indexOf("export type RadarSignalType")),
+  );
+  const declared = [...union.matchAll(/"([a-z_]+)"/g)].map((match) => match[1]);
+
+  assert.ok(declared.length > 20, "não foi possível ler os tipos de sinal");
+  for (const type of declared) {
+    assert.ok(
+      RADAR_SIGNAL_COPY[type as RadarSignalType],
+      `sinal "${type}" ainda não tem tradução para linguagem do gestor`,
+    );
+  }
+});
+
+test("nenhuma tradução de sinal reintroduz vocabulário interno", () => {
+  const forbidden =
+    /runner|metricool|assignment|not_configured|delivery_status|failure_code|token|job |pending|payload/i;
+
+  for (const [type, copy] of Object.entries(RADAR_SIGNAL_COPY)) {
+    assert.equal(
+      forbidden.test(`${copy.title} ${copy.why}`),
+      false,
+      `a tradução de "${type}" ainda carrega vocabulário interno`,
+    );
+  }
+});
+
+test("o texto do contrato nunca substitui a tradução na tela", () => {
+  const described = describeSignal(
+    signalFixture({ title: "Runner sem execução recente" }),
+  );
+  assert.equal(described.title, "Atendimento automático sem atividade recente");
+  assert.equal(/runner/i.test(described.description), false);
+
+  // Estado cru interpolado pelo repositório não vaza.
+  const whatsapp = describeSignal(
+    signalFixture({
+      type: "whatsapp_attention_required",
+      category: "conexao",
+      description: "A conexão registra estado not_configured.",
+    }),
+  );
+  assert.equal(/not_configured/.test(whatsapp.description), false);
+});
+
+test("capacidade aguardando liberação não é tratada como falha", () => {
+  assert.equal(
+    isAwaitingRelease(signalFixture({ type: "metricool_configuration_required" })),
+    true,
+  );
+  assert.equal(isAwaitingRelease(signalFixture({ type: "outbound_failed" })), false);
+
+  const copy = describeSignal(
+    signalFixture({ type: "metricool_configuration_required" }),
+  );
+  assert.equal(/parou|falh|quebr/i.test(`${copy.title} ${copy.description}`), false);
+});
+
+test("Radar e Sistema classificam o mesmo sinal na mesma área", () => {
+  assert.equal(AREA_BY_CATEGORY.conexao, "canais");
+  assert.equal(AREA_BY_CATEGORY.ativo, "imoveis");
+  assert.equal(AREA_BY_CATEGORY.lead, "comercial");
+  assert.equal(AREA_BY_CATEGORY.visita, "comercial");
+  assert.equal(AREA_BY_CATEGORY.atendimento, "atendimento");
+  assert.equal(AREA_BY_CATEGORY.sistema, "rotinas");
+});
+
+test("Sistema deriva o estado dos sinais, não só de a consulta ter respondido", async () => {
+  const system = await read("src/components/yzi-imob/yzi-imob-system-workspace.tsx");
+
+  // A contradição relatada nascia daqui: "Normal" saía de `sources[].availability`,
+  // que é verdadeiro sempre que a query não falhou.
+  assert.ok(
+    system.includes("data.signals.filter"),
+    "Sistema precisa ler os mesmos sinais que o Radar lista",
+  );
+  assert.ok(
+    system.includes("isAwaitingRelease"),
+    "Sistema precisa separar aguardando liberação de falha",
+  );
+});
+
+test("Conexões separa verificação pendente de conexão quebrada", async () => {
+  const connections = await read(
+    "src/components/yzi-imob/yzi-imob-connections-workspace.tsx",
+  );
+
+  assert.ok(connections.includes("aguardandoVerificacaoExterna"));
+  assert.ok(connections.includes("Aguardando verificação"));
+
+  // "parou de funcionar" só pode ser dito sobre itens realmente quebrados.
+  const brokenClause = connections.slice(
+    connections.indexOf("function isBroken"),
+    connections.indexOf("function isPreparing"),
+  );
+  assert.ok(
+    brokenClause.includes("!item.aguardandoVerificacaoExterna"),
+    "verificação externa pendente não pode contar como conexão quebrada",
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* Resultados — sem parede de zeros e sem descrição técnica             */
+/* ------------------------------------------------------------------ */
+
+function metricFixture(
+  id: string,
+  value: number | null,
+  availability: ResultsMetricValue["availability"] = "available",
+): ResultsMetricValue {
+  return { id, label: id, value, availability, sourceId: "s", detail: "detalhe técnico" };
+}
+
+test("zero, ausência de leitura e movimento são coisas diferentes", () => {
+  const { moved, idle, unavailable } = splitByMovement([
+    metricFixture("period-leads", 12),
+    metricFixture("period-visits", 0),
+    metricFixture("period-feedback", null, "unavailable"),
+  ]);
+
+  assert.deepEqual(moved.map((metric) => metric.id), ["period-leads"]);
+  assert.deepEqual(idle.map((metric) => metric.id), ["period-visits"]);
+  assert.deepEqual(unavailable.map((metric) => metric.id), ["period-feedback"]);
+});
+
+test("nenhuma descrição de indicador usa vocabulário de banco", () => {
+  const forbidden =
+    /delivery_status|due_at|assignment|inbound|outbound|status |pending|closed|failed|approved|queued/i;
+
+  for (const [id, copy] of Object.entries(RESULTS_METRIC_COPY)) {
+    assert.equal(
+      forbidden.test(`${copy.label} ${copy.detail}`),
+      false,
+      `a descrição de "${id}" ainda usa vocabulário de banco`,
+    );
+  }
+});
+
+test("Resultados nunca mostra a descrição técnica que vem do contrato", async () => {
+  const results = await read("src/components/yzi-imob/yzi-imob-growth-resultados-v0.tsx");
+  assert.equal(
+    /\{metric\.detail\}/.test(results),
+    false,
+    "a descrição do contrato voltou para a tela",
+  );
+  assert.ok(results.includes("describeMetric"));
+  assert.ok(results.includes("splitByMovement"));
 });
