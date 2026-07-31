@@ -49,6 +49,33 @@ type ConnectionsWorkspaceProps = {
   authorizationCallbackStatus?: AuthorizationCallbackStatus | null;
 };
 
+/**
+ * Estado exibido de um item. Verificacao empresarial externa chega do contrato
+ * como "Precisa de atencao", mas nao e falha: a capacidade nunca chegou a
+ * funcionar, esta esperando liberacao de terceiro. Radar e Sistema aplicam a
+ * mesma distincao — as tres telas nao podem discordar sobre o mesmo fato.
+ */
+function itemState(item: ConnectionViewModelItem): { tone: SurfaceTone; label: string } {
+  if (item.aguardandoVerificacaoExterna) {
+    return { tone: "pending", label: "Aguardando verificação" };
+  }
+  return { tone: STATUS_TONE[item.status], label: item.status };
+}
+
+function isBroken(item: ConnectionViewModelItem): boolean {
+  return (
+    !item.aguardandoVerificacaoExterna &&
+    ["Precisa de atenção", "Autorização expirada"].includes(item.status)
+  );
+}
+
+function isPreparing(item: ConnectionViewModelItem): boolean {
+  return (
+    item.aguardandoVerificacaoExterna ||
+    ["Conectando", "Aguardando autorização"].includes(item.status)
+  );
+}
+
 const STATUS_TONE: Record<ConnectionHumanStatus, SurfaceTone> = {
   "Não conectado": "idle",
   "Aguardando autorização": "pending",
@@ -205,7 +232,7 @@ function ConnectionCommands({ item }: { item: ConnectionViewModelItem }) {
 }
 
 function ConnectionCard({ item }: { item: ConnectionViewModelItem }) {
-  const tone = STATUS_TONE[item.status];
+  const { tone, label } = itemState(item);
 
   return (
     <article
@@ -219,7 +246,7 @@ function ConnectionCard({ item }: { item: ConnectionViewModelItem }) {
           </h3>
           <p className={cx(TYPE.body, "max-w-xl")}>{item.finalidade}</p>
         </div>
-        <StateTag tone={tone} label={item.status} />
+        <StateTag tone={tone} label={label} />
       </div>
 
       <dl className="grid gap-4 sm:grid-cols-2">
@@ -300,18 +327,20 @@ export function YziImobConnectionsWorkspace({
   const counts = useMemo(
     () => ({
       active: items.filter((item) => item.status === "Ativo").length,
-      configuring: items.filter((item) =>
-        ["Conectando", "Aguardando autorização"].includes(item.status),
-      ).length,
-      attention: items.filter((item) =>
-        ["Precisa de atenção", "Autorização expirada"].includes(item.status),
-      ).length,
-      unavailable: items.filter((item) =>
-        ["Indisponível", "Não conectado"].includes(item.status),
+      configuring: items.filter(isPreparing).length,
+      attention: items.filter(isBroken).length,
+      unavailable: items.filter(
+        (item) =>
+          !item.aguardandoVerificacaoExterna &&
+          ["Indisponível", "Não conectado"].includes(item.status),
       ).length,
     }),
     [items],
   );
+
+  const attentionItems = items.filter(isBroken);
+  const pendingItems = items.filter(isPreparing);
+  const awaitingExternal = items.filter((item) => item.aguardandoVerificacaoExterna);
 
   const metrics: SurfaceMetric[] = [
     {
@@ -323,7 +352,9 @@ export function YziImobConnectionsWorkspace({
     {
       label: "Em preparação",
       value: String(counts.configuring),
-      detail: "Falta concluir a autorização",
+      detail: awaitingExternal.length
+        ? "Aguardando verificação empresarial"
+        : "Falta concluir a autorização",
       tone: counts.configuring ? "pending" : undefined,
     },
     {
@@ -345,12 +376,6 @@ export function YziImobConnectionsWorkspace({
     count: items.filter((item) => item.categoria === category).length,
   }));
 
-  const attentionItems = items.filter((item) =>
-    ["Precisa de atenção", "Autorização expirada"].includes(item.status),
-  );
-  const pendingItems = items.filter((item) =>
-    ["Conectando", "Aguardando autorização"].includes(item.status),
-  );
 
   const header = (
     <SurfaceHeader
@@ -394,6 +419,24 @@ export function YziImobConnectionsWorkspace({
 
       <MetricBand metrics={metrics} />
 
+      {awaitingExternal.length ? (
+        <YziInsight
+          context="Conexões da operação"
+          tone="pending"
+          stateLabel="Aguardando verificação"
+          headline={
+            awaitingExternal.length === 1
+              ? `${awaitingExternal[0].nome} está aguardando verificação empresarial.`
+              : `${awaitingExternal.length} conexões estão aguardando verificação empresarial.`
+          }
+          reading="Nada quebrou: essa verificação é feita por terceiros e ainda não foi concluída. Até lá, o que depende dela fica em espera e o resto da operação segue normal."
+          evidence={awaitingExternal.map(
+            (item) => `${item.nome}: ${CATEGORY_IMPACT[item.categoria]}`,
+          )}
+          recommendation="Envie a documentação pedida e acompanhe o retorno. Esse tipo de verificação costuma levar alguns dias e não depende de nova configuração aqui."
+        />
+      ) : null}
+
       {attentionItems.length ? (
         <YziInsight
           context="Conexões da operação"
@@ -406,7 +449,7 @@ export function YziImobConnectionsWorkspace({
           )}
           recommendation="Reconecte a partir do card correspondente abaixo. Nada do que já foi publicado ou atendido é perdido nesse processo."
         />
-      ) : pendingItems.length ? (
+      ) : pendingItems.length > awaitingExternal.length ? (
         <YziInsight
           context="Conexões da operação"
           tone="pending"

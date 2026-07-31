@@ -44,6 +44,13 @@ export type ConnectionViewModelItem = {
   ultimaVerificacao: string | null;
   proximaAcao: string | null;
   incidentesHumanos: string[];
+  /**
+   * A ativacao depende de verificacao empresarial externa e ainda nao foi
+   * concluida. O status humano continua "Precisa de atencao" (o contrato de
+   * estados nao muda), mas a interface precisa separar os dois casos: dizer
+   * "parou de funcionar" sobre algo que nunca chegou a funcionar e falso.
+   */
+  aguardandoVerificacaoExterna: boolean;
   podeConfigurar: boolean;
   podeTestar: boolean;
   podeDesconectar: boolean;

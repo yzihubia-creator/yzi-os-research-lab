@@ -275,6 +275,7 @@ function buildItem(
     ultimaVerificacao: persisted?.lastCheckedAt ?? null,
     proximaAcao: nextAction(definition, status),
     incidentesHumanos,
+    aguardandoVerificacaoExterna: truth.externallyBlocked,
     podeConfigurar:
       !definition.future &&
       !truth.externallyBlocked &&

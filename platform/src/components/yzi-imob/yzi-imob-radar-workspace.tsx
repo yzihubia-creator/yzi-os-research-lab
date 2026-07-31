@@ -19,6 +19,10 @@ import {
   type SurfaceTone,
 } from "@/components/yzi-imob/yzi-imob-surface-kit";
 import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
+import {
+  describeSignal,
+  isAwaitingRelease,
+} from "@/lib/yzi-imob/radar/presentation";
 import type {
   RadarSignal,
   RadarSignalCategory,
@@ -144,7 +148,12 @@ function formatDetected(value: string, now: number): string | null {
 
 function SignalCard({ signal, now }: { signal: RadarSignal; now: number }) {
   const [expanded, setExpanded] = useState(false);
-  const meta = SEVERITY_META[signal.severity];
+  const copy = describeSignal(signal);
+  // Capacidade aguardando liberação nunca e pintada como falha: nao quebrou,
+  // ainda nao foi liberada. Conexoes e Sistema usam a mesma regra.
+  const meta = isAwaitingRelease(signal)
+    ? { label: "Aguardando liberação", tone: "pending" as SurfaceTone, order: 2 }
+    : SEVERITY_META[signal.severity];
   const deadline = formatDeadline(signal.dueAt, now);
   const detected = formatDetected(signal.detectedAt, now);
   const detailId = `radar-signal-detail-${signal.id}`;
@@ -158,9 +167,9 @@ function SignalCard({ signal, now }: { signal: RadarSignal; now: number }) {
             <span className={TYPE.label}>{CATEGORY_LABEL[signal.category]}</span>
           </div>
           <h3 className="text-balance text-[0.95rem] font-medium leading-snug text-[var(--yzi-text-primary)]">
-            {signal.title}
+            {copy.title}
           </h3>
-          <p className={cx(TYPE.body, "max-w-2xl")}>{signal.description}</p>
+          <p className={cx(TYPE.body, "max-w-2xl")}>{copy.description}</p>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
@@ -210,11 +219,11 @@ function SignalCard({ signal, now }: { signal: RadarSignal; now: number }) {
         >
           <div className="flex flex-col gap-1.5">
             <dt className={TYPE.label}>O que aconteceu</dt>
-            <dd className={TYPE.body}>{signal.title}</dd>
+            <dd className={TYPE.body}>{copy.title}</dd>
           </div>
           <div className="flex flex-col gap-1.5">
             <dt className={TYPE.label}>Por que importa</dt>
-            <dd className={TYPE.body}>{signal.description}</dd>
+            <dd className={TYPE.body}>{copy.description}</dd>
           </div>
           <div className="flex flex-col gap-1.5">
             <dt className={TYPE.label}>Onde resolver</dt>
@@ -286,11 +295,12 @@ export function YziImobRadarWorkspace({
     return allSignals
       .filter((signal) => !filters.category || signal.category === filters.category)
       .filter((signal) => !filters.severity || signal.severity === filters.severity)
-      .filter(
-        (signal) =>
-          !normalizedQuery ||
-          `${signal.title} ${signal.description}`.toLowerCase().includes(normalizedQuery),
-      )
+      .filter((signal) => {
+        if (!normalizedQuery) return true;
+        // Busca sobre o texto que o gestor le, nao sobre o do contrato.
+        const copy = describeSignal(signal);
+        return `${copy.title} ${copy.description}`.toLowerCase().includes(normalizedQuery);
+      })
       .sort(
         (a, b) =>
           SEVERITY_META[a.severity].order - SEVERITY_META[b.severity].order ||
@@ -364,10 +374,10 @@ export function YziImobRadarWorkspace({
                   : "Resolver agora evita que virem atraso."
               }
               evidence={[
-                `Prioridade mais alta: ${topSignal.title}`,
+                `Prioridade mais alta: ${describeSignal(topSignal).title}`,
                 `Área afetada: ${CATEGORY_LABEL[topSignal.category]}`,
               ]}
-              recommendation={`Comece por “${topSignal.title}”. É o sinal com maior urgência e já tem destino de ação definido.`}
+              recommendation={`Comece por “${describeSignal(topSignal).title}”. É o sinal com maior urgência e já tem destino de ação definido.`}
               primaryAction={
                 topSignal.actionHref
                   ? { label: topSignal.actionLabel, href: topSignal.actionHref }

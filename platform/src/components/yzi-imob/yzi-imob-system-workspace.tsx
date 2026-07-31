@@ -1,6 +1,7 @@
 import {
   MetricBand,
   StateTag,
+  SurfaceButton,
   SurfaceCanvas,
   SurfaceHeader,
   SurfaceList,
@@ -13,16 +14,28 @@ import {
   type SurfaceTone,
 } from "@/components/yzi-imob/yzi-imob-surface-kit";
 import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
+import {
+  AREA_BY_CATEGORY,
+  AREA_COPY,
+  describeSignal,
+  isAwaitingRelease,
+  type OperationalArea,
+} from "@/lib/yzi-imob/radar/presentation";
 import type { RadarWorkspaceData } from "@/lib/yzi-imob/radar/types";
 
 // Sistema — saúde e funcionamento da operação em linguagem humana.
 //
-// Esta leitura já existia, mas estava dentro do Radar, misturada com sinais
-// acionáveis e escrita em termos de engenharia ("Inbound failed", "Jobs
-// parados", "Recoveries", nomes de fontes internas). Radar responde "o que eu
-// faço agora"; Sistema responde "isso está funcionando?".
+// Radar responde "o que eu faço agora"; Sistema responde "isso está
+// funcionando". As duas telas leem O MESMO objeto, então precisam contar a
+// mesma história: Sistema deriva o estado de cada área dos MESMOS sinais que o
+// Radar lista, e não apenas de a consulta ter respondido.
 //
-// Nenhuma fonte, tabela, fila, provedor ou código técnico é nomeado aqui.
+// A versão anterior olhava só para `sources[].availability` — que é verdadeiro
+// sempre que a consulta não deu erro. Com canais pendentes e sinais abertos no
+// Radar, esta tela dizia "Normal" e "zero atenção". Isso acabou.
+//
+// Distinção que as três telas agora compartilham: capacidade AGUARDANDO
+// LIBERAÇÃO não é falha. Nada quebrou — ainda não foi liberado.
 
 type AccessState =
   | "ready"
@@ -31,62 +44,44 @@ type AccessState =
   | "tenant_error"
   | "read_error";
 
-/** Áreas do produto que dependem de cada leitura, em linguagem do gestor. */
-const AREA_COPY: Record<
-  string,
-  { label: string; description: string; affected: string }
-> = {
-  assets: {
-    label: "Imóveis e publicação",
-    description: "Cadastro, fotos, revisão e envio das páginas de imóvel.",
-    affected: "Imóveis · Marketing",
-  },
-  commercial: {
-    label: "Leads e visitas",
-    description: "Distribuição de leads, próximas ações, agenda e retorno de visita.",
-    affected: "Leads · Agenda · Corretores",
-  },
-  service: {
-    label: "Atendimento",
-    description: "Recebimento e envio de mensagens da operação.",
-    affected: "Atendimento",
-  },
-  connections: {
-    label: "Canais conectados",
-    description: "Autorização e saúde dos canais usados para atender e publicar.",
-    affected: "Conexões",
-  },
-  system: {
-    label: "Rotinas automáticas",
-    description: "Tarefas que a operação executa sozinha em segundo plano.",
-    affected: "Marketing · Atendimento",
-  },
+/** Fontes do contrato → áreas da operação, para cruzar com os sinais. */
+const SOURCE_AREA: Record<string, OperationalArea> = {
+  assets: "imoveis",
+  commercial: "comercial",
+  service: "atendimento",
+  connections: "canais",
+  system: "rotinas",
 };
 
-function availabilityState(available: boolean): { tone: SurfaceTone; stateLabel: string } {
-  return available
-    ? { tone: "ok", stateLabel: "Funcionando normalmente" }
-    : { tone: "attention", stateLabel: "Precisa de atenção" };
-}
+const AREA_ORDER: OperationalArea[] = [
+  "imoveis",
+  "comercial",
+  "atendimento",
+  "canais",
+  "rotinas",
+];
+
+type AreaState = {
+  area: OperationalArea;
+  tone: SurfaceTone;
+  stateLabel: string;
+  /** Sinais abertos que explicam o estado — os mesmos que o Radar mostra. */
+  openItems: string[];
+  /** Quantos itens realmente exigem ação (aguardando liberação não conta). */
+  attentionCount: number;
+  awaitingCount: number;
+  unreadable: boolean;
+};
 
 function formatLastCheck(value: string | null): string {
   if (!value) return "Sem verificação registrada";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Sem verificação registrada";
-
-  const diffMinutes = Math.floor((Date.now() - date.getTime()) / 60_000);
-  const stamp = new Intl.DateTimeFormat("pt-BR", {
+  return `Última verificação: ${new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "America/Sao_Paulo",
-  }).format(date);
-
-  if (diffMinutes < 2) return `Última verificação: agora · ${stamp}`;
-  if (diffMinutes < 60) return `Última verificação: há ${diffMinutes} min · ${stamp}`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24)
-    return `Última verificação: há ${diffHours} ${diffHours === 1 ? "hora" : "horas"} · ${stamp}`;
-  return `Última verificação: ${stamp}`;
+  }).format(date)}`;
 }
 
 function AccessNotice({ accessState }: { accessState: Exclude<AccessState, "ready"> }) {
@@ -120,6 +115,58 @@ function AccessNotice({ accessState }: { accessState: Exclude<AccessState, "read
   return <SurfaceState tone={content.tone} title={content.title} body={content.body} />;
 }
 
+/**
+ * Deriva o estado de cada área a partir dos sinais abertos — a MESMA fonte que
+ * o Radar usa — cruzada com a disponibilidade da leitura.
+ */
+function buildAreaStates(data: RadarWorkspaceData): AreaState[] {
+  const unreadable = new Set<OperationalArea>();
+  for (const source of data.sources) {
+    const area = SOURCE_AREA[source.id];
+    if (area && source.availability !== "available") unreadable.add(area);
+  }
+
+  return AREA_ORDER.map((area) => {
+    const signals = data.signals.filter(
+      (signal) => AREA_BY_CATEGORY[signal.category] === area,
+    );
+
+    const awaiting = signals.filter(isAwaitingRelease);
+    const attention = signals.filter(
+      (signal) => !isAwaitingRelease(signal) && signal.severity !== "info",
+    );
+    const cannotRead = unreadable.has(area);
+
+    const tone: SurfaceTone = cannotRead
+      ? "attention"
+      : attention.length
+        ? "attention"
+        : awaiting.length
+          ? "pending"
+          : "ok";
+
+    const stateLabel = cannotRead
+      ? "Não foi possível verificar"
+      : attention.length
+        ? "Precisa de atenção"
+        : awaiting.length
+          ? "Aguardando liberação"
+          : "Funcionando normalmente";
+
+    return {
+      area,
+      tone,
+      stateLabel,
+      openItems: [...attention, ...awaiting]
+        .slice(0, 4)
+        .map((signal) => describeSignal(signal).title),
+      attentionCount: attention.length,
+      awaitingCount: awaiting.length,
+      unreadable: cannotRead,
+    };
+  });
+}
+
 export function YziImobSystemWorkspace({
   data,
   accessState,
@@ -127,119 +174,125 @@ export function YziImobSystemWorkspace({
   data: RadarWorkspaceData | null;
   accessState: AccessState;
 }) {
+  const header = (
+    <SurfaceHeader
+      kicker="Sistema"
+      title="Funcionamento da operação"
+      lead="Se algo da sua operação parar de funcionar, aparece aqui — em português, com o impacto e o que fazer."
+      secondaryActions={[
+        { label: "Ver o que fazer agora", href: "/cockpit/yzi-imob/radar" },
+        { label: "Ver canais", href: "/cockpit/yzi-imob/conexoes" },
+      ]}
+    />
+  );
+
   if (accessState !== "ready" || !data) {
     return (
       <SurfaceCanvas>
-        <SurfaceHeader
-          kicker="Sistema"
-          title="Funcionamento da operação"
-          lead="Se algo da sua operação parar de funcionar, aparece aqui — em português, com o impacto e o que fazer."
-        />
+        {header}
         <AccessNotice accessState={accessState === "ready" ? "read_error" : accessState} />
       </SurfaceCanvas>
     );
   }
 
+  const areas = buildAreaStates(data);
+  const needingAttention = areas.filter((area) => area.tone === "attention");
+  const awaitingRelease = areas.filter((area) => area.tone === "pending");
+  const unreadable = areas.filter((area) => area.unreadable);
+
+  const totalAttention = areas.reduce((sum, area) => sum + area.attentionCount, 0);
+  const totalAwaiting = areas.reduce((sum, area) => sum + area.awaitingCount, 0);
+
+  const generalTone: SurfaceTone = needingAttention.length
+    ? "attention"
+    : awaitingRelease.length
+      ? "pending"
+      : "ok";
+
+  const generalLabel = needingAttention.length
+    ? "Precisa de atenção"
+    : awaitingRelease.length
+      ? "Aguardando liberação"
+      : "Normal";
+
   const health = data.operationalHealth;
   const healthAvailable = health.availability === "available";
-
-  const areas = data.sources.map((source) => {
-    const copy = AREA_COPY[source.id] ?? {
-      label: source.label,
-      description: "Parte da operação acompanhada automaticamente.",
-      affected: "Operação",
-    };
-    const state = availabilityState(source.availability === "available");
-    return { id: source.id, ...copy, ...state };
-  });
-
-  const degraded = areas.filter((area) => area.tone !== "ok");
-
-  // Contadores traduzidos: cada número vira uma consequência operacional, nunca
-  // o nome interno da fila ou do erro que o gerou.
-  const attentionItems = [
-    {
-      id: "messages",
-      label: "Mensagens não entregues",
-      value: (health.outboundFailed ?? 0) + (health.inboundFailed ?? 0),
-      description:
-        "Mensagens que a operação tentou trocar com clientes e não completaram o caminho.",
-      affected: "Atendimento",
-      href: "/cockpit/yzi-imob/atendimento",
-    },
-    {
-      id: "routines",
-      label: "Rotinas automáticas travadas",
-      value: health.jobsStalled ?? 0,
-      description:
-        "Tarefas que a operação executa sozinha e ficaram paradas antes de terminar.",
-      affected: "Marketing · Atendimento",
-      href: "/cockpit/yzi-imob/conexoes",
-    },
-    {
-      id: "tasks",
-      label: "Tarefas vencidas da equipe",
-      value: health.overdueTasks ?? 0,
-      description: "Próximas ações combinadas com leads que passaram do prazo.",
-      affected: "Leads · Corretores",
-      href: "/cockpit/yzi-imob/radar",
-    },
-  ];
-
-  const totalAttention = attentionItems.reduce((sum, item) => sum + item.value, 0);
 
   const metrics: SurfaceMetric[] = [
     {
       label: "Estado geral",
-      value: degraded.length === 0 ? "Normal" : "Atenção",
-      detail:
-        degraded.length === 0
-          ? "Todas as áreas responderam"
-          : `${degraded.length} ${degraded.length === 1 ? "área precisa" : "áreas precisam"} de revisão`,
-      tone: degraded.length === 0 ? "ok" : "attention",
-    },
-    {
-      label: "Áreas verificadas",
-      value: String(areas.length),
-      detail: "Partes da operação acompanhadas",
+      value: generalLabel,
+      detail: needingAttention.length
+        ? `${needingAttention.length} ${needingAttention.length === 1 ? "área precisa" : "áreas precisam"} de revisão`
+        : awaitingRelease.length
+          ? `${awaitingRelease.length} ${awaitingRelease.length === 1 ? "área aguarda" : "áreas aguardam"} liberação`
+          : "Todas as áreas dentro do combinado",
+      tone: generalTone,
     },
     {
       label: "Itens com atenção",
-      value: healthAvailable ? String(totalAttention) : "—",
-      detail: healthAvailable ? "Somados nas rotinas e mensagens" : "Verificação indisponível",
-      tone: healthAvailable && totalAttention > 0 ? "attention" : undefined,
+      value: String(totalAttention),
+      detail: totalAttention ? "Precisam de alguém olhando" : "Nenhum item pendente",
+      tone: totalAttention ? "attention" : "ok",
+    },
+    {
+      label: "Aguardando liberação",
+      value: String(totalAwaiting),
+      detail: "Capacidades que ainda não foram liberadas",
+      tone: totalAwaiting ? "pending" : undefined,
     },
     {
       label: "Recuperações automáticas",
       value: healthAvailable ? String(health.recoveriesExecuted ?? 0) : "—",
-      detail: "Falhas que o sistema resolveu sozinho",
-      tone: "ok",
+      detail: healthAvailable
+        ? "Falhas que o sistema resolveu sozinho"
+        : "Verificação detalhada indisponível",
+      tone: healthAvailable ? "ok" : undefined,
     },
   ];
 
   return (
     <SurfaceCanvas>
-      <SurfaceHeader
-        kicker="Sistema"
-        title="Funcionamento da operação"
-        lead="Se algo da sua operação parar de funcionar, aparece aqui — em português, com o impacto e o que fazer."
-      />
+      {header}
 
       <MetricBand metrics={metrics} />
 
-      {degraded.length > 0 ? (
+      {needingAttention.length ? (
         <YziInsight
           context="Funcionamento da operação"
           tone="attention"
           stateLabel="Precisa de atenção"
           headline={
-            degraded.length === 1
-              ? `A área “${degraded[0].label}” não respondeu na última verificação.`
-              : `${degraded.length} áreas não responderam na última verificação.`
+            needingAttention.length === 1
+              ? `A área “${AREA_COPY[needingAttention[0].area].label}” tem item aberto precisando de alguém.`
+              : `${needingAttention.length} áreas têm itens abertos precisando de alguém.`
           }
-          reading="Enquanto isso, os dados dessas áreas podem estar incompletos nas telas que dependem delas. Sua operação continua funcionando — o que falha é a leitura."
-          evidence={degraded.map((area) => `${area.label} · afeta ${area.affected}`)}
-          recommendation="Recarregue a página em alguns minutos. Se continuar, verifique os canais conectados antes de abrir chamado."
+          reading={
+            unreadable.length
+              ? "Parte da verificação não respondeu, então esta leitura pode estar incompleta. Sua operação continua rodando — o que falha é a leitura."
+              : "A operação segue rodando, mas esses itens não avançam sozinhos."
+          }
+          evidence={needingAttention.flatMap((area) =>
+            area.openItems.map((item) => `${AREA_COPY[area.area].label}: ${item}`),
+          )}
+          recommendation="Cada item aparece no Radar com o destino da ação. Comece pelos que têm prazo vencido."
+          primaryAction={{ label: "Abrir o Radar", href: "/cockpit/yzi-imob/radar" }}
+        />
+      ) : awaitingRelease.length ? (
+        <YziInsight
+          context="Funcionamento da operação"
+          tone="pending"
+          stateLabel="Aguardando liberação"
+          headline={
+            awaitingRelease.length === 1
+              ? `A área “${AREA_COPY[awaitingRelease[0].area].label}” depende de uma liberação para funcionar por completo.`
+              : `${awaitingRelease.length} áreas dependem de liberação para funcionar por completo.`
+          }
+          reading="Nada quebrou: essas capacidades ainda não foram liberadas. O resto da operação segue normal e o que depende delas fica em espera."
+          evidence={awaitingRelease.flatMap((area) =>
+            area.openItems.map((item) => `${AREA_COPY[area.area].label}: ${item}`),
+          )}
+          recommendation="Acompanhe o andamento em Conexões. Algumas liberações dependem de verificação externa e levam alguns dias."
           primaryAction={{ label: "Ver conexões", href: "/cockpit/yzi-imob/conexoes" }}
         />
       ) : (
@@ -247,79 +300,55 @@ export function YziImobSystemWorkspace({
           context="Funcionamento da operação"
           tone="ok"
           stateLabel="Funcionando normalmente"
-          headline="Todas as áreas da operação responderam na última verificação."
-          reading={
-            healthAvailable && totalAttention > 0
-              ? `Ainda assim, ${totalAttention} ${totalAttention === 1 ? "item precisa" : "itens precisam"} de acompanhamento — nada impede a operação de rodar hoje.`
-              : "Nenhum item pendente de acompanhamento no momento."
-          }
-          recommendation={
-            healthAvailable && totalAttention > 0
-              ? "Vale revisar os itens com atenção abaixo antes do fim do dia."
-              : undefined
-          }
+          headline="Nenhuma área da operação tem item aberto."
+          reading="Imóveis, leads, atendimento, canais e rotinas automáticas responderam e estão dentro do combinado."
         />
       )}
 
       <SurfaceSection
         first
         title="Áreas da operação"
-        description="Cada área é uma parte do produto que depende de leituras automáticas para funcionar."
+        description="Cada área é uma parte do produto. O estado vem dos mesmos itens que aparecem no Radar."
       >
         <SurfaceList>
-          {areas.map((area) => (
-            <SurfaceRow
-              key={area.id}
-              title={area.label}
-              description={area.description}
-              tone={area.tone}
-              stateLabel={area.stateLabel}
-              meta={<span>Afeta: {area.affected}</span>}
-            />
-          ))}
+          {areas.map((area) => {
+            const copy = AREA_COPY[area.area];
+            return (
+              <SurfaceRow
+                key={area.area}
+                title={copy.label}
+                description={
+                  area.unreadable
+                    ? "A verificação desta área não respondeu nesta consulta."
+                    : copy.description
+                }
+                tone={area.tone}
+                stateLabel={area.stateLabel}
+                meta={
+                  <span className="flex flex-wrap gap-x-4 gap-y-1">
+                    <span>Afeta: {copy.affected}</span>
+                    {area.openItems.length ? (
+                      <span>Em aberto: {area.openItems.join(" · ")}</span>
+                    ) : null}
+                  </span>
+                }
+                actions={
+                  area.tone === "ok" ? undefined : (
+                    <SurfaceButton
+                      action={{
+                        label: area.tone === "pending" ? "Ver conexões" : "Abrir",
+                        href:
+                          area.tone === "pending"
+                            ? "/cockpit/yzi-imob/conexoes"
+                            : copy.href,
+                      }}
+                    />
+                  )
+                }
+              />
+            );
+          })}
         </SurfaceList>
-      </SurfaceSection>
-
-      <SurfaceSection
-        title="Itens com atenção"
-        description="Números traduzidos para o efeito que causam na operação, não para o erro que os gerou."
-      >
-        {!healthAvailable ? (
-          <SurfaceState
-            tone="pending"
-            title="Verificação detalhada indisponível"
-            body="A checagem detalhada não respondeu nesta consulta. Preferimos não estimar números a mostrar um valor que não é real."
-          />
-        ) : totalAttention === 0 ? (
-          <SurfaceState
-            tone="ok"
-            title="Nenhum item exige atenção agora"
-            body="Mensagens, rotinas automáticas e tarefas da equipe estão dentro do esperado."
-          />
-        ) : (
-          <SurfaceList>
-            {attentionItems
-              .filter((item) => item.value > 0)
-              .map((item) => (
-                <SurfaceRow
-                  key={item.id}
-                  title={item.label}
-                  description={item.description}
-                  tone="attention"
-                  stateLabel={`${item.value} ${item.value === 1 ? "ocorrência" : "ocorrências"}`}
-                  meta={<span>Afeta: {item.affected}</span>}
-                  actions={
-                    <a
-                      href={item.href}
-                      className="inline-flex items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-3 py-2 text-[0.72rem] text-[var(--yzi-text-secondary)] transition-colors hover:border-[color:var(--yzi-border-strong)] hover:text-[var(--yzi-text-primary)]"
-                    >
-                      Abrir
-                    </a>
-                  }
-                />
-              ))}
-          </SurfaceList>
-        )}
       </SurfaceSection>
 
       <SurfaceSection
@@ -327,14 +356,19 @@ export function YziImobSystemWorkspace({
         description="A operação é verificada continuamente; este é o registro mais recente."
       >
         <div className="flex flex-wrap items-center gap-3">
-          <StateTag
-            tone={degraded.length === 0 ? "ok" : "attention"}
-            label={degraded.length === 0 ? "Funcionando normalmente" : "Precisa de atenção"}
-          />
+          <StateTag tone={generalTone} label={generalLabel} />
           <span className={cx(TYPE.meta)}>
             {formatLastCheck(health.latestRunnerExecutionAt)}
           </span>
         </div>
+        {data.availability === "partial_data" ? (
+          <SurfaceState
+            compact
+            tone="pending"
+            title="Esta leitura está parcial"
+            body="Uma parte da operação não respondeu nesta consulta, então algumas áreas podem estar sem leitura. Nenhum estado exibido foi presumido."
+          />
+        ) : null}
       </SurfaceSection>
     </SurfaceCanvas>
   );
