@@ -963,12 +963,13 @@ begin
     raise exception using errcode='55000',message='creative_job_not_processing';
   end if;
 
-  select * into v_request from public.yzi_imob_creative_requests
-  where id=v_job.request_id and tenant_id=v_job.tenant_id and property_id=v_job.property_id;
-  select * into v_deliverable from public.yzi_imob_creative_deliverables
-  where id=v_job.deliverable_id and tenant_id=v_job.tenant_id
-    and property_id=v_job.property_id and request_id=v_job.request_id
-  for update;
+  select r.* into v_request from public.yzi_imob_creative_requests r
+  where r.id=v_job.request_id and r.tenant_id=v_job.tenant_id
+    and r.property_id=v_job.property_id;
+  select d.* into v_deliverable from public.yzi_imob_creative_deliverables d
+  where d.id=v_job.deliverable_id and d.tenant_id=v_job.tenant_id
+    and d.property_id=v_job.property_id and d.request_id=v_job.request_id
+  for update of d;
   if v_deliverable.id is null then
     raise exception using errcode='55000',message='creative_job_deliverable_missing';
   end if;
@@ -1153,7 +1154,12 @@ begin
 end;
 $function$;
 
-create or replace function public.decide_yzi_imob_creative_revision(
+-- PostgreSQL cannot change the row type declared by OUT parameters with
+-- CREATE OR REPLACE. The foundation signature has no dependent objects, so
+-- replace it explicitly before installing the closure contract.
+drop function public.decide_yzi_imob_creative_revision(uuid, text, text);
+
+create function public.decide_yzi_imob_creative_revision(
   p_revision_id uuid,
   p_decision text,
   p_observation text default null
@@ -1287,12 +1293,11 @@ as $function$
 declare
   v_user_id uuid := auth.uid();
   v_revision public.yzi_imob_creative_revisions%rowtype;
-  v_deliverable public.yzi_imob_creative_deliverables%rowtype;
   v_job public.yzi_imob_creative_generation_jobs%rowtype;
   v_key text := btrim(coalesce(p_idempotency_key,''));
   v_replacement uuid := nullif(p_adjustment->>'replacement_media_id','')::uuid;
 begin
-  select r,d into v_revision,v_deliverable
+  select r.* into v_revision
   from public.yzi_imob_creative_revisions r
   join public.yzi_imob_creative_deliverables d
     on d.id=r.deliverable_id and d.tenant_id=r.tenant_id
@@ -1483,13 +1488,16 @@ begin
   if current_user not in ('service_role','postgres','supabase_admin') then
     raise exception using errcode='42501',message='creative_storage_server_only';
   end if;
-  select r, d into v_revision, v_deliverable
+  select r.* into v_revision
   from public.yzi_imob_creative_revisions r
   join public.yzi_imob_creative_deliverables d
     on d.id=r.deliverable_id and d.tenant_id=r.tenant_id
    and d.property_id=r.property_id and d.request_id=r.request_id
    and d.current_revision_id=r.id
   where r.id=p_revision_id;
+  select d.* into v_deliverable
+  from public.yzi_imob_creative_deliverables d
+  where d.id=v_revision.deliverable_id;
   if v_revision.id is null or p_asset_kind not in ('rendered_preview','thumbnail')
     or p_content_hash !~ '^[a-f0-9]{64}$'
     or jsonb_typeof(coalesce(p_metadata,'{}'::jsonb)) <> 'object'
@@ -1584,7 +1592,7 @@ begin
   if current_user not in ('service_role','postgres','supabase_admin') then
     raise exception using errcode='42501',message='creative_storage_server_only';
   end if;
-  select r,d into v_revision,v_deliverable
+  select r.* into v_revision
   from public.yzi_imob_creative_revisions r
   join public.yzi_imob_creative_deliverables d
     on d.id=r.deliverable_id and d.tenant_id=r.tenant_id
@@ -1592,6 +1600,9 @@ begin
    and d.current_revision_id=r.id and d.approved_revision_id=r.id
   where r.id=p_revision_id and r.status='approved'
   for update of d;
+  select d.* into v_deliverable
+  from public.yzi_imob_creative_deliverables d
+  where d.id=v_revision.deliverable_id;
   if v_revision.id is null then
     raise exception using errcode='55000',message='creative_current_approval_required';
   end if;

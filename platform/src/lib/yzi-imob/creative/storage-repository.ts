@@ -81,14 +81,16 @@ type RevisionScope = {
   revision_number: number;
   yzi_imob_creative_deliverables:
     | {
-        deliverable_type: "carousel" | "video_tour";
-        current_revision_id: string;
-        approved_revision_id: string | null;
-      }
+      deliverable_type: "carousel" | "video_tour";
+      current_revision_id: string;
+      approved_revision_id: string | null;
+      publication_eligible: boolean;
+    }
     | readonly {
         deliverable_type: "carousel" | "video_tour";
         current_revision_id: string;
         approved_revision_id: string | null;
+        publication_eligible: boolean;
       }[];
 };
 
@@ -125,7 +127,7 @@ async function getRevisionScope(
   const result = await supabase
     .from("yzi_imob_creative_revisions")
     .select(
-      "id,tenant_id,property_id,request_id,deliverable_id,revision_number,yzi_imob_creative_deliverables!inner(deliverable_type,current_revision_id,approved_revision_id)",
+      "id,tenant_id,property_id,request_id,deliverable_id,revision_number,yzi_imob_creative_deliverables!inner(deliverable_type,current_revision_id,approved_revision_id,publication_eligible)",
     )
     .eq("id", revisionId)
     .eq("tenant_id", tenantId)
@@ -235,6 +237,19 @@ export async function promoteApprovedCreativeRevision(input: {
   );
   if (deliverable(scope)?.approved_revision_id !== input.revisionId) {
     throw new Error("creative_current_approval_required");
+  }
+  if (deliverable(scope)?.publication_eligible) {
+    const existing = await input.supabase
+      .from("yzi_imob_creative_assets")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", input.tenantId)
+      .eq("property_id", input.propertyId)
+      .eq("revision_id", input.revisionId)
+      .eq("asset_kind", "final_render")
+      .eq("storage_state", "promoted")
+      .eq("publication_state", "eligible");
+    if (existing.error) throw new Error("creative_promoted_set_read_failed");
+    return { promotedAssets: existing.count ?? 0 };
   }
   const assets = await input.supabase
     .from("yzi_imob_creative_assets")
