@@ -284,9 +284,15 @@ test("migration and UI contracts keep secrets server-side and expose honest stat
     migration.indexOf("revoke all on function public.request_yzi_imob_metricool_configuration"),
   );
   assert.doesNotMatch(publicProjection, /api_token|vault_secret|caption|asset_references/);
-  assert.match(connectionUi, /Configuração gerenciada/);
+  assert.match(connectionUi, /O que sua operação consegue fazer hoje/);
   assert.doesNotMatch(connectionUi, /input[^>]+token/i);
-  for (const state of ["Aguardando aprovação", "Agendado", "Publicado", "Falhou", "Cancelado"]) {
+  for (const state of [
+    "Aguardando aprovação",
+    "Programado",
+    "Publicado",
+    "Precisa de ajuste",
+    "Cancelado",
+  ]) {
     assert.match(marketingUi, new RegExp(state));
   }
 });

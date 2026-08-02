@@ -55,6 +55,10 @@ test("RPC payload is narrowed to the public allowlist", () => {
       lastSyncAt: null,
       pendingPublications: 0,
       recentFailures: 0,
+      authorizationExpired: false,
+      governedAuthorizationValidated: false,
+      governedRuntimeValidated: false,
+      humanCapabilities: [],
     },
   ]);
   const serialized = JSON.stringify(parsed);
