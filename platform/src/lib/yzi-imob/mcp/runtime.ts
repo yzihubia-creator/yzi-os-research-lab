@@ -125,12 +125,27 @@ export class McpConnectionRuntime {
 
     const state = base64Url(randomBytes(32));
     const verifier = base64Url(randomBytes(48));
-    const verifierReference = await this.#secretVault.put("pkce_verifier", {
-      verifier,
-    });
     const attemptId = randomUUID();
     const createdAt = this.#clock();
     const expiresAt = new Date(createdAt.getTime() + 10 * 60_000);
+    const adapter = MCP_ADAPTERS[connection.connectionKind];
+    const preparation =
+      await this.#authorizationBrokers[connection.connectionKind].buildAuthorizationUrl({
+        endpoint: MCP_ENDPOINT_CATALOG[adapter.endpointKey].endpoint,
+        state: `${attemptId}.${state}`,
+        codeChallenge: sha256Base64Url(verifier),
+        callbackUrl: input.callbackUrl,
+        scopes: adapter.authorizationScopes,
+      });
+    const authorizationUrl =
+      typeof preparation === "string" ? preparation : preparation.authorizationUrl;
+    assertExternalAuthorizationUrl(authorizationUrl);
+    const verifierReference = await this.#secretVault.put("pkce_verifier", {
+      verifier,
+      ...(typeof preparation === "string"
+        ? {}
+        : { authorizationContext: preparation.exchangeContext }),
+    });
     await this.#repository.saveAuthorizationAttempt({
       id: attemptId,
       connectionId: connection.id,
@@ -143,16 +158,6 @@ export class McpConnectionRuntime {
       consumedAt: null,
     });
 
-    const adapter = MCP_ADAPTERS[connection.connectionKind];
-    const authorizationUrl =
-      await this.#authorizationBrokers[connection.connectionKind].buildAuthorizationUrl({
-        endpoint: MCP_ENDPOINT_CATALOG[adapter.endpointKey].endpoint,
-        state: `${attemptId}.${state}`,
-        codeChallenge: sha256Base64Url(verifier),
-        callbackUrl: input.callbackUrl,
-        scopes: adapter.authorizationScopes,
-      });
-    assertExternalAuthorizationUrl(authorizationUrl);
     await this.#repository.updateConnection(connection.id, {
       authState: "pending",
       connectionState: "awaiting_authorization",
@@ -219,6 +224,11 @@ export class McpConnectionRuntime {
           code: input.code,
           codeVerifier: verifierMaterial.verifier,
           callbackUrl: input.callbackUrl,
+          authorizationContext:
+            typeof verifierMaterial.authorizationContext === "object" &&
+            verifierMaterial.authorizationContext !== null
+              ? (verifierMaterial.authorizationContext as JsonObject)
+              : undefined,
         });
     } catch {
       await this.#repository.updateConnection(connection.id, {
@@ -832,7 +842,7 @@ export class DeterministicFakeAuthorizationBroker implements McpAuthorizationBro
         accessToken: "fake-access-material",
         refreshToken: "fake-refresh-material",
       },
-      grantedScopes: ["read", "analytics", "write", "publish", "generate"],
+      grantedScopes: ["read", "analytics", "write", "publish", "generate", "mcp:read", "mcp:write", "openid", "email", "offline_access"],
       expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
     };
   }
@@ -841,7 +851,7 @@ export class DeterministicFakeAuthorizationBroker implements McpAuthorizationBro
     if (this.refreshFails) throw new Error("refresh_failed");
     return {
       material: { accessToken: "fake-refreshed-material" },
-      grantedScopes: ["read", "analytics", "write", "publish", "generate"],
+      grantedScopes: ["read", "analytics", "write", "publish", "generate", "mcp:read", "mcp:write", "openid", "email", "offline_access"],
       expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
     };
   }

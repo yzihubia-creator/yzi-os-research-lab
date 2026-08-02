@@ -149,6 +149,11 @@ export type McpAuthorizationGrant = {
   expiresAt: string | null;
 };
 
+export type McpAuthorizationPreparation = {
+  authorizationUrl: string;
+  exchangeContext: JsonObject;
+};
+
 export type McpInitializeResult = {
   protocolVersion: string;
   serverInfo?: { name: string; version?: string };
@@ -177,12 +182,13 @@ export type McpAuthorizationBroker = {
     codeChallenge: string;
     callbackUrl: string;
     scopes: readonly string[];
-  }): Promise<string>;
+  }): Promise<string | McpAuthorizationPreparation>;
   exchange(input: {
     endpoint: string;
     code: string;
     codeVerifier: string;
     callbackUrl: string;
+    authorizationContext?: JsonObject;
   }): Promise<McpAuthorizationGrant>;
   refresh?(authorizationMaterial: JsonObject): Promise<McpAuthorizationGrant>;
   revoke?(authorizationMaterial: JsonObject): Promise<void>;

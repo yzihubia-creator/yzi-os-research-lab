@@ -23,25 +23,25 @@ export const MCP_ENDPOINT_CATALOG = {
 >;
 
 const METRICOOL_OPERATIONS: readonly McpOperationDefinition[] = [
-  define("read_social_accounts", "social_accounts_read", "read", ["brands_list", "profiles_list"], ["read"]),
-  define("read_social_calendar", "social_calendar_read", "read", ["calendar_list", "posts_calendar"], ["read"]),
-  define("read_social_content", "social_content_read", "read", ["content_list", "posts_list"], ["read"]),
-  define("read_social_metrics", "social_metrics_read", "read", ["metrics_get", "analytics_read"], ["analytics"]),
-  define("create_social_content", "social_content_create", "write", ["content_create"], ["write"]),
-  define("schedule_social_content", "social_content_schedule", "write", ["content_schedule", "post_schedule"], ["write"]),
-  define("publish_social_content", "social_content_publish", "write", ["content_publish", "post_publish"], ["publish"]),
-  define("read_publication_status", "social_publication_status_read", "read", ["publication_status", "post_status"], ["read"]),
+  define("read_social_accounts", "social_accounts_read", "read", ["brands_list", "profiles_list"], ["mcp:read"]),
+  define("read_social_calendar", "social_calendar_read", "read", ["calendar_list", "posts_calendar"], ["mcp:read"]),
+  define("read_social_content", "social_content_read", "read", ["content_list", "posts_list"], ["mcp:read"]),
+  define("read_social_metrics", "social_metrics_read", "read", ["metrics_get", "analytics_read"], ["mcp:read"]),
+  define("create_social_content", "social_content_create", "write", ["content_create"], ["mcp:write"]),
+  define("schedule_social_content", "social_content_schedule", "write", ["content_schedule", "post_schedule"], ["mcp:write"]),
+  define("publish_social_content", "social_content_publish", "write", ["content_publish", "post_publish"], ["mcp:write"]),
+  define("read_publication_status", "social_publication_status_read", "read", ["publication_status", "post_status"], ["mcp:read"]),
 ];
 
 const HIGGSFIELD_OPERATIONS: readonly McpOperationDefinition[] = [
-  define("read_generation_models", "model_capabilities_read", "read", ["models_list", "capabilities_list"], ["read"]),
-  define("read_usage_limits", "usage_limits_read", "read", ["usage_limits", "limits_get"], ["read"]),
-  define("prepare_image_job", "image_generation", "paid", ["image_generate", "generate_image"], ["generate"], estimateGenerationCost),
-  define("prepare_video_job", "video_generation", "paid", ["video_generate", "generate_video"], ["generate"], estimateGenerationCost),
-  define("submit_generation_job", "generation_job_submit", "paid", ["job_submit", "generation_submit"], ["generate"], estimateGenerationCost),
-  define("read_generation_job", "generation_job_status", "read", ["job_status", "generation_status"], ["read"]),
-  define("read_generation_output", "generation_output_read", "read", ["job_output", "generation_output"], ["read"]),
-  define("cancel_generation_job", "generation_job_status", "write", ["job_cancel", "generation_cancel"], ["write"]),
+  define("read_generation_models", "model_capabilities_read", "read", ["models_list", "capabilities_list"], ["openid"]),
+  define("read_usage_limits", "usage_limits_read", "read", ["usage_limits", "limits_get"], ["openid"]),
+  define("prepare_image_job", "image_generation", "paid", ["image_generate", "generate_image"], ["openid"], estimateGenerationCost),
+  define("prepare_video_job", "video_generation", "paid", ["video_generate", "generate_video"], ["openid"], estimateGenerationCost),
+  define("submit_generation_job", "generation_job_submit", "paid", ["job_submit", "generation_submit"], ["openid"], estimateGenerationCost),
+  define("read_generation_job", "generation_job_status", "read", ["job_status", "generation_status"], ["openid"]),
+  define("read_generation_output", "generation_output_read", "read", ["job_output", "generation_output"], ["openid"]),
+  define("cancel_generation_job", "generation_job_status", "write", ["job_cancel", "generation_cancel"], ["openid"]),
 ];
 
 const METRICOOL_CAPABILITY_ALIASES: Readonly<Record<McpCapabilityKey, readonly string[]>> = {
@@ -134,7 +134,7 @@ abstract class CatalogMcpAdapter implements McpAdapter {
 export class MetricoolMcpAdapter extends CatalogMcpAdapter {
   readonly kind = "metricool" as const;
   readonly endpointKey = "metricool" as const;
-  readonly authorizationScopes = ["read", "analytics", "write", "publish"] as const;
+  readonly authorizationScopes = ["mcp:read", "mcp:write"] as const;
   protected readonly operations = METRICOOL_OPERATIONS;
   protected readonly aliases = METRICOOL_CAPABILITY_ALIASES;
 }
@@ -142,7 +142,7 @@ export class MetricoolMcpAdapter extends CatalogMcpAdapter {
 export class HiggsfieldMcpAdapter extends CatalogMcpAdapter {
   readonly kind = "higgsfield" as const;
   readonly endpointKey = "higgsfield" as const;
-  readonly authorizationScopes = ["read", "generate", "write"] as const;
+  readonly authorizationScopes = ["openid", "email", "offline_access"] as const;
   protected readonly operations = HIGGSFIELD_OPERATIONS;
   protected readonly aliases = HIGGSFIELD_CAPABILITY_ALIASES;
 
