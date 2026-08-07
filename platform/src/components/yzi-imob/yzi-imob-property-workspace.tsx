@@ -354,7 +354,7 @@ export function YziImobPropertyWorkspace({
 
               <WorkspaceSection
                 title="Corretor responsavel"
-                description="O vinculo formal de captador ainda nao existe no schema real."
+                description="O corretor responsável ainda não foi definido neste cadastro."
               >
                 <ReadOnlyField
                   label="Criado por"
@@ -528,7 +528,7 @@ export function YziImobPropertyWorkspace({
 
             <WorkspaceSection
               title="Endereco privado"
-              description="Endereco exato separado do payload publico. Acesso ocorre somente pelas RPCs governadas."
+              description="O endereço exato é protegido e não aparece na divulgação pública do imóvel."
             >
               <form action={privateAction} className="flex flex-col gap-4">
                 <input type="hidden" name="propertyId" value={property.id} />
@@ -744,7 +744,7 @@ export function YziImobPropertyWorkspace({
                 )}
                 {proposedRevisions.length > 0 ? (
                   <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
-                    O aceite atualiza a descricao otimizada por RPC governada.
+                    Ao aceitar, a descrição otimizada passa a valer para este imóvel.
                   </p>
                 ) : null}
               </div>
@@ -762,8 +762,7 @@ export function YziImobPropertyWorkspace({
         )}
 
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          Dados reais desta operacao, com tenant boundary aplicado no servidor. Endereco exato nao entra em
-          selects comuns nem em payload publico.
+          Dados confirmados desta operação. O endereço exato permanece protegido e fora da divulgação pública.
         </p>
       </section>
     </div>

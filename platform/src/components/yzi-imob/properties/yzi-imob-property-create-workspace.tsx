@@ -822,7 +822,7 @@ export function YziImobPropertyCreateWorkspace() {
                 </button>
               </div>
               <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
-                Após o cadastro, aceitar e rejeitar usam as RPCs editoriais governadas no Property
+                Após o cadastro, as decisões editoriais ficam registradas no histórico do imóvel.
                 Workspace.
               </p>
             </WorkspaceSection>
@@ -995,7 +995,7 @@ export function YziImobPropertyCreateWorkspace() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--yzi-border-subtle)] pt-6">
           <p className="max-w-xl text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-            O imóvel será criado no tenant ativo. Endereço confidencial usa somente RPC governada;
+            O imóvel será criado nesta operação. O endereço confidencial permanece protegido;
             nenhuma publicação ou ação externa acontece neste salvamento.
           </p>
           <button

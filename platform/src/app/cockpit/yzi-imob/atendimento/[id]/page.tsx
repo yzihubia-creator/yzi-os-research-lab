@@ -59,7 +59,7 @@ export default async function YziImobConversationWorkspacePage({
   if (tenantContext.status === "error") {
     return (
       <section className="mx-auto flex max-w-2xl flex-col gap-4 px-8 py-10">
-        <YziAlert tone="blocked" title="Esta conversation não pôde ser carregada">
+        <YziAlert tone="blocked" title="Esta conversa não pôde ser carregada">
           Tente novamente em alguns instantes. Se o problema continuar, verifique o acesso com o
           administrador.
         </YziAlert>
@@ -81,7 +81,7 @@ export default async function YziImobConversationWorkspacePage({
           Conversation não encontrada.
         </p>
         <p className="text-[0.86rem] text-[var(--yzi-text-secondary)]">
-          Esta conversation não existe neste tenant ou não pôde ser lida.
+          Esta conversa não existe nesta operação ou não está disponível para sua conta.
         </p>
         <Link
           href="/cockpit/yzi-imob/atendimento"

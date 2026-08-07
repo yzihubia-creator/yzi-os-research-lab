@@ -436,9 +436,8 @@ function OverviewTab({
             </button>
           ) : null}
           <HonestNote>
-            A lista de pessoas vem da RPC governada de equipe. Quem administra
-            vê todos os vínculos do tenant; operação e acompanhamento veem
-            apenas o próprio vínculo.
+            Quem administra vê toda a equipe; operação e acompanhamento veem
+            apenas o próprio acesso.
           </HonestNote>
         </div>
       </WorkspaceSection>
@@ -731,7 +730,7 @@ function PeopleTab({ team }: { team: TeamAccessViewModel }) {
       <WorkspaceSection
         first
         title="Pessoas visíveis hoje"
-        description="Listagem governada pelo papel: gestão vê a equipe do tenant; operação e acompanhamento veem o próprio vínculo."
+        description="A gestão vê toda a equipe; operação e acompanhamento veem o próprio acesso."
       >
         <div className="flex flex-col gap-2">
           {team.members.map((member) => (
@@ -1028,8 +1027,8 @@ function RolesTab({ team }: { team: TeamAccessViewModel }) {
           ))}
         </div>
         <HonestNote>
-          Alterar função, suspender acesso e disponibilidade já usam RPCs
-          governadas. O reenvio de e-mail continua pendente de provedor real.
+          Alterações de função, acesso e disponibilidade ficam registradas.
+          O reenvio de convite por e-mail ainda não está disponível.
         </HonestNote>
       </WorkspaceSection>
     </div>

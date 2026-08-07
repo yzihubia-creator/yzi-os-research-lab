@@ -64,10 +64,10 @@ export default async function YziImobClientesPage() {
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 py-10">
       <header className="flex flex-col gap-1.5">
         <h1 className="text-[1.5rem] font-semibold tracking-[-0.01em] text-[var(--yzi-text-primary)]">
-          Clientes
+          Leads
         </h1>
         <p className="text-[0.82rem] text-[var(--yzi-text-secondary)]">
-          Selecione um cliente para abrir o Client Workspace.
+          Selecione um lead para consultar seu histórico e próximos passos.
         </p>
       </header>
 
@@ -111,7 +111,7 @@ async function LeadsList({ tenantId }: { tenantId: string }) {
   if (result.value.items.length === 0) {
     return (
       <p className="rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-6 text-center text-[0.8rem] text-[var(--yzi-text-faint)]">
-        Nenhum lead real encontrado neste tenant.
+        Nenhum lead cadastrado nesta operação ainda.
       </p>
     );
   }

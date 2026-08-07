@@ -42,7 +42,7 @@ export default async function YziImobCorretorWorkspacePage({
         action={respondToAssignmentAction}
         notFoundMessage={
           result.code === "not_found"
-            ? "Este corretor nao existe neste tenant ou nao esta visivel para sua conta."
+            ? "Este corretor não existe nesta operação ou não está visível para sua conta."
             : "O workspace do corretor nao pode ser lido agora."
         }
       />

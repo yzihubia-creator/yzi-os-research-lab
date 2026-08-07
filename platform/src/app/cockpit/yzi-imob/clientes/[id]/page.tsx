@@ -71,7 +71,7 @@ export default async function YziImobClienteWorkspacePage({
         data={null}
         notFoundMessage={
           result.status === "error" && result.code === "not_found"
-            ? "Este lead nao existe neste tenant."
+            ? "Este lead não existe nesta operação."
             : "Este lead nao pode ser lido agora."
         }
       />

@@ -60,11 +60,54 @@ const LEAD_STATUS_LABEL: Record<string, string> = {
   inativo: "Inativo",
 };
 
+const CONVERSATION_STATUS_LABEL: Record<string, string> = {
+  open: "Em aberto",
+  paused: "Pausada",
+  closed: "Encerrada",
+};
+
+const ASSIGNMENT_STATUS_LABEL: Record<string, string> = {
+  assigned: "Aguardando resposta",
+  accepted: "Aceito",
+  declined: "Recusado",
+  expired: "Expirado",
+  reassigned: "Reatribuído",
+};
+
+const FOLLOW_UP_STATUS_LABEL: Record<string, string> = {
+  pending: "Pendente",
+  processing: "Em andamento",
+  completed: "Concluído",
+  failed: "Precisa de atenção",
+  cancelled: "Cancelado",
+};
+
+const APPOINTMENT_STATUS_LABEL: Record<string, string> = {
+  scheduled: "Agendada",
+  completed: "Concluída",
+  cancelled: "Cancelada",
+  no_show: "Cliente não compareceu",
+};
+
+const ATTENDANCE_LABEL: Record<string, string> = {
+  attended: "Cliente compareceu",
+  no_show: "Cliente não compareceu",
+  unknown: "Comparecimento não informado",
+};
+
+const OUTCOME_LABEL: Record<string, string> = {
+  interested: "Demonstrou interesse",
+  not_interested: "Não demonstrou interesse",
+  proposal_requested: "Solicitou proposta",
+  follow_up_required: "Precisa de acompanhamento",
+  undisclosed: "Resultado não informado",
+};
+
 const HERO_BY_STATUS: Record<string, string> = {
-  lead: "Lead real carregado. Acompanhe somente os dados confirmados neste tenant.",
-  qualificado: "Lead qualificado real. Interesses e conversas abaixo vem das tabelas operacionais.",
-  cliente: "Cliente real carregado. Esta tela exibe somente fontes confirmadas.",
-  inativo: "Lead real inativo. Nenhuma acao automatica esta em andamento nesta tela.",
+  lead: "Lead carregado. Acompanhe somente os dados confirmados nesta operação.",
+  qualificado: "Lead qualificado. Interesses e conversas estão reunidos nesta tela.",
+  cliente: "Cliente carregado com informações confirmadas.",
+  inativo: "Lead inativo. Nenhuma ação automática está em andamento nesta tela.",
 };
 
 function emptyLabel(value: string | number | null | undefined): string {
@@ -137,7 +180,7 @@ function leadCounters(data: YziImobLeadWorkspaceData): CounterItem[] {
     {
       label: "Ultima interacao",
       value: latest ? formatDateTime(latest) : "-",
-      detail: latest ? "Registrada em conversation" : "Ainda sem dados",
+      detail: latest ? "Registrada em conversa" : "Ainda sem dados",
     },
     {
       label: "Conversas",
@@ -152,8 +195,8 @@ function toLeadInspection(data: YziImobLeadWorkspaceData): YziInspection {
     { label: "Lead carregado", done: true },
     { label: "Contato disponivel", done: Boolean(data.lead.phone || data.lead.email) },
     { label: "Interesse registrado", done: data.interests.length > 0 },
-    { label: "Conversation registrada", done: data.conversations.length > 0 },
-    { label: "Notes preenchido", done: Boolean(data.lead.notes) },
+    { label: "Conversa registrada", done: data.conversations.length > 0 },
+    { label: "Observações preenchidas", done: Boolean(data.lead.notes) },
   ];
   const doneCount = checklist.filter((item) => item.done).length;
 
@@ -162,15 +205,15 @@ function toLeadInspection(data: YziImobLeadWorkspaceData): YziInspection {
     subtitle: `${emptyLabel(data.lead.source)} - ${contactSummary(data)}`,
     statusLabel: statusLabel(data.lead.status),
     situation: data.conversations.length
-      ? "Lead real com conversation relacionada neste tenant."
-      : "Lead real sem conversation relacionada.",
+      ? "Lead com conversa relacionada nesta operação."
+      : "Lead ainda sem conversa relacionada.",
     pendencies: [
       data.interests.length ? "Interesses reais carregados." : "Ainda sem interesse registrado.",
-      data.conversations.length ? "Conversas reais carregadas." : "Ainda sem conversation registrada.",
+      data.conversations.length ? "Conversas carregadas." : "Ainda sem conversa registrada.",
     ],
     checklist,
     score: Math.round((doneCount / checklist.length) * 100),
-    scoreLabel: "Lead Readiness",
+    scoreLabel: "Completude do lead",
     nextAction: "Usar somente dados confirmados antes de qualquer acao.",
     suggestions: data.interests.length
       ? [`Interesses registrados: ${data.interests.length}.`]
@@ -308,7 +351,7 @@ function ConversationList({
                 color: imobRgba("lilac", 0.95),
               }}
             >
-              {emptyLabel(conversation.status)}
+              {CONVERSATION_STATUS_LABEL[conversation.status ?? ""] ?? "Estado não informado"}
             </span>
           </div>
           <span className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
@@ -378,7 +421,10 @@ function LeadOperationalTab({
               {activeAssignment?.brokerName ?? "Ainda sem corretor"}
             </p>
             <p className="mt-1 text-[0.7rem] text-[var(--yzi-text-secondary)]">
-              Estado: {activeAssignment?.status ?? "sem assignment ativo"}
+              Estado:{" "}
+              {activeAssignment
+                ? ASSIGNMENT_STATUS_LABEL[activeAssignment.status] ?? "Em análise"
+                : "Sem corretor responsável"}
             </p>
           </div>
           <form action={assignmentAction} className="flex flex-col gap-2">
@@ -423,7 +469,8 @@ function LeadOperationalTab({
             {operations.assignments.map((assignment) => (
               <div key={assignment.id} className="flex flex-wrap justify-between gap-2 border-b border-[color:var(--yzi-border-subtle)] py-2 text-[0.72rem] last:border-b-0">
                 <span className="text-[var(--yzi-text-secondary)]">
-                  {assignment.brokerName ?? "Ainda sem dados"} · {assignment.status}
+                  {assignment.brokerName ?? "Ainda sem dados"} ·{" "}
+                  {ASSIGNMENT_STATUS_LABEL[assignment.status] ?? "Em análise"}
                 </span>
                 <span className="text-[var(--yzi-text-faint)]">
                   {formatDateTime(assignment.assignedAt)}
@@ -440,7 +487,13 @@ function LeadOperationalTab({
       >
         <WorkspaceGrid>
           <WorkspaceField label="Corretor" value={emptyLabel(activeAssignment?.brokerName)} readOnly />
-          <WorkspaceField label="Aceite" value={emptyLabel(activeAssignment?.status)} readOnly />
+          <WorkspaceField
+            label="Aceite"
+            value={activeAssignment
+              ? ASSIGNMENT_STATUS_LABEL[activeAssignment.status] ?? "Em análise"
+              : "Ainda sem dados"}
+            readOnly
+          />
           <WorkspaceField label="Imovel" value={emptyLabel(operations.packet.propertyTitle)} readOnly />
           <WorkspaceField
             label="Proxima visita"
@@ -529,7 +582,8 @@ function LeadOperationalTab({
                   {appointment.title} · {appointment.propertyTitle ?? "Sem imovel"}
                 </span>
                 <span className="text-[var(--yzi-text-faint)]">
-                  {formatDateTime(appointment.startsAt)} · {appointment.status}
+                  {formatDateTime(appointment.startsAt)} ·{" "}
+                  {APPOINTMENT_STATUS_LABEL[appointment.status] ?? "Estado não informado"}
                 </span>
               </Link>
             ))}
@@ -545,7 +599,8 @@ function LeadOperationalTab({
             {operations.feedback.map((feedback) => (
               <div key={feedback.id} className="border-b border-[color:var(--yzi-border-subtle)] py-3 text-[0.74rem] last:border-b-0">
                 <p className="text-[var(--yzi-text-primary)]">
-                  {feedback.clientAttendance} · {feedback.outcome}
+                  {ATTENDANCE_LABEL[feedback.clientAttendance] ?? "Comparecimento não informado"} ·{" "}
+                  {OUTCOME_LABEL[feedback.outcome] ?? "Resultado não informado"}
                 </p>
                 <p className="mt-1 text-[var(--yzi-text-secondary)]">
                   {feedback.observation ?? "Sem observacao"}
@@ -563,7 +618,7 @@ function LeadOperationalTab({
 
       <WorkspaceSection
         title="Follow-up"
-        description="Tarefas relacionadas, sem payload bruto ou dados sensiveis."
+        description="Próximas ações relacionadas a este lead."
       >
         <ActionMessage state={followUpState} />
         {operations.followUps.length === 0 ? (
@@ -575,10 +630,13 @@ function LeadOperationalTab({
                 <div className="min-w-0 flex-1">
                   <p className="text-[0.76rem] text-[var(--yzi-text-primary)]">{task.kind}</p>
                   <p className="mt-1 text-[0.7rem] text-[var(--yzi-text-secondary)]">
-                    {task.status} · vence {formatDateTime(task.dueAt)} · tentativas {task.attemptCount}/{task.maxAttempts}
+                    {FOLLOW_UP_STATUS_LABEL[task.status] ?? "Estado não informado"} · vence{" "}
+                    {formatDateTime(task.dueAt)} · tentativas {task.attemptCount}/{task.maxAttempts}
                   </p>
                   {task.lastErrorCode ? (
-                    <p className="mt-1 text-[0.68rem] text-rose-300">Ultimo erro: {task.lastErrorCode}</p>
+                    <p className="mt-1 text-[0.68rem] text-rose-300">
+                      Não foi possível concluir esta tentativa.
+                    </p>
                   ) : null}
                 </div>
                 {["pending", "processing", "failed"].includes(task.status) ? (
@@ -613,7 +671,7 @@ export function YziImobClientWorkspace({
   operations,
   canOperate = false,
   actions,
-  notFoundMessage = "Este lead nao existe neste tenant ou nao pode ser lido.",
+  notFoundMessage = "Este lead não existe nesta operação ou não está disponível para sua conta.",
 }: {
   data: YziImobLeadWorkspaceData | null;
   operations?: LeadOperationsWorkspace;
@@ -658,10 +716,10 @@ export function YziImobClientWorkspace({
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 pt-10">
         <EntityHero
           backHref="/cockpit/yzi-imob/clientes"
-          backLabel="Clientes"
-          kicker="Client Workspace"
+          backLabel="Leads"
+          kicker="Gestão de leads"
           title={data.lead.fullName}
-          subtitle={HERO_BY_STATUS[data.lead.status ?? ""] ?? "Lead real carregado neste tenant."}
+          subtitle={HERO_BY_STATUS[data.lead.status ?? ""] ?? "Lead carregado nesta operação."}
           statusLabel={leadStatusLabel}
           composerPlaceholder="Pergunte a YZI sobre este lead, interesses e conversas reais..."
           quickActions={[
@@ -720,11 +778,10 @@ export function YziImobClientWorkspace({
             <WorkspaceSection
               first
               title="Identidade"
-              description="Dados reais do lead dentro deste tenant."
+              description="Dados confirmados deste lead."
             >
               <WorkspaceGrid>
                 <WorkspaceField label="Nome" value={data.lead.fullName} readOnly />
-                <WorkspaceField label="ID do lead" value={data.lead.id} readOnly />
                 <WorkspaceField label="Origem" value={emptyLabel(data.lead.source)} readOnly />
                 <WorkspaceField label="Status" value={leadStatusLabel} readOnly />
                 <WorkspaceField
@@ -742,9 +799,9 @@ export function YziImobClientWorkspace({
               </WorkspaceGrid>
             </WorkspaceSection>
 
-            <WorkspaceSection title="Notes">
+            <WorkspaceSection title="Observações">
               <WorkspaceGrid>
-                <ReadOnlyTextBlock label="Notes" value={data.lead.notes} span2 />
+                <ReadOnlyTextBlock label="Observações" value={data.lead.notes} span2 />
               </WorkspaceGrid>
             </WorkspaceSection>
           </div>
@@ -752,7 +809,7 @@ export function YziImobClientWorkspace({
           <WorkspaceSection
             first
             title="Interesses em imoveis"
-            description="Registros reais de yzi_imob_property_interests para este lead."
+            description="Imóveis que despertaram interesse deste lead."
           >
             <InterestList interests={data.interests} />
           </WorkspaceSection>
@@ -775,8 +832,8 @@ export function YziImobClientWorkspace({
         )}
 
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-          Dados reais lidos no tenant atual. Campos sem fonte confirmada ficam ocultos ou marcados
-          como Ainda sem dados.
+          Informações confirmadas desta operação. Campos ainda não preenchidos aparecem como
+          “Ainda sem dados”.
         </p>
       </section>
     </div>

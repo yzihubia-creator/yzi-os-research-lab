@@ -26,6 +26,20 @@ import type { ResultsMetricValue, ResultsWorkspaceData } from "../src/lib/yzi-im
 // inventar a própria gramática visual, e a redundância Marketing/Growth OS.
 // Não são snapshots de pixel — são invariantes de produto.
 
+const CORE_COPY_FILES = [
+  "src/app/cockpit/yzi-imob/corretores/page.tsx",
+  "src/app/cockpit/yzi-imob/clientes/page.tsx",
+  "src/app/cockpit/yzi-imob/atendimento/page.tsx",
+  "src/components/yzi-imob/properties/yzi-imob-properties-overview.tsx",
+  "src/components/yzi-imob/yzi-imob-property-catalog-v2.tsx",
+  "src/components/yzi-imob/properties/yzi-imob-property-create-workspace.tsx",
+  "src/components/yzi-imob/yzi-imob-property-workspace.tsx",
+  "src/components/yzi-imob/yzi-imob-broker-workspace.tsx",
+  "src/components/yzi-imob/yzi-imob-team-access-workspace.tsx",
+  "src/components/yzi-imob/yzi-imob-client-workspace.tsx",
+  "src/components/yzi-imob/yzi-imob-conversation-workspace.tsx",
+] as const;
+
 const SURFACE_FILES = [
   "src/components/yzi-imob/yzi-imob-social-publications-workspace.tsx",
   "src/components/yzi-imob/yzi-imob-growth-os-workspace.tsx",
@@ -56,7 +70,7 @@ function renderedText(source: string): string {
   const withoutImports = withoutComments.replace(/^import[\s\S]*?from\s+["'].*?["'];?$/gm, " ");
 
   const literals = (withoutImports.match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
-    .map((literal) => literal.slice(1, -1))
+    .map((literal) => literal.slice(1, -1).replace(/\$\{[\s\S]*?\}/g, " "))
     // Só prosa: precisa ter espaço entre palavras e nenhuma marca de código.
     // Isso descarta chaves (`tenant-error`), classes utilitárias e rotas.
     .filter(
@@ -83,6 +97,12 @@ test("nenhuma superfície expõe fornecedor, infraestrutura ou identificador int
     /yzi_imob_[a-z_]+/i,
     /tenant_connections/i,
     /\bmcp\b/i,
+    /\bprovider\b/i,
+    /\btransport\b/i,
+    /\brunner\b/i,
+    /\bmembership\b/i,
+    /\bassignment\b/i,
+    /\bconversation\b/i,
     /\bwebhook/i,
     /\boauth\b/i,
     /\bendpoint/i,
@@ -92,7 +112,7 @@ test("nenhuma superfície expõe fornecedor, infraestrutura ou identificador int
     /\btenant\b/i,
   ];
 
-  for (const file of SURFACE_FILES) {
+  for (const file of [...CORE_COPY_FILES, ...SURFACE_FILES]) {
     const text = renderedText(await read(file));
     for (const pattern of forbidden) {
       assert.equal(
@@ -127,7 +147,7 @@ test("estados operacionais crus nunca chegam à tela sem tradução", async () =
     "workspace.connection.status",
   ];
 
-  for (const file of SURFACE_FILES) {
+  for (const file of [...CORE_COPY_FILES, ...SURFACE_FILES]) {
     const source = await read(file);
     for (const field of rawFields) {
       const escaped = field.replace(/\./g, "\\.");

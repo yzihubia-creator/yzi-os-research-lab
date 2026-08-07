@@ -71,7 +71,7 @@ export function YziImobConversationWorkspace({
     .filter((message) => message.direction === "inbound" || message.direction === "outbound")
     .reverse();
   const isExternalContact = conversation.isExternalContact;
-  const title = isExternalContact ? "Contato externo" : lead?.full_name ?? "Lead não encontrado neste tenant";
+  const title = isExternalContact ? "Contato externo" : lead?.full_name ?? "Lead não encontrado";
   const channelLabel = CHANNEL_LABEL[conversation.channel] ?? conversation.channelLabel;
   const identitySubtitle = isExternalContact
     ? `${channelLabel} · ${conversation.externalIdentityMasked ?? "identidade indisponível"}`
@@ -91,7 +91,7 @@ export function YziImobConversationWorkspace({
             /
           </span>
           <span className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[var(--yzi-text-secondary)]">
-            Conversation Workspace
+            Histórico da conversa
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -129,7 +129,7 @@ export function YziImobConversationWorkspace({
               <p className="text-[0.8rem] text-[var(--yzi-text-secondary)]">{messagesError}</p>
             ) : chronologicalMessages.length === 0 ? (
               <p className="rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] px-3 py-4 text-center text-[0.76rem] text-[var(--yzi-text-faint)]">
-                Nenhuma mensagem registrada nesta conversation ainda.
+                Nenhuma mensagem registrada nesta conversa ainda.
               </p>
             ) : (
               chronologicalMessages.map((message) => (
@@ -179,8 +179,8 @@ export function YziImobConversationWorkspace({
 
           <div className="flex flex-col gap-2 rounded-[var(--yzi-radius-lg)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-3">
             <p className="text-[0.76rem] leading-relaxed text-[var(--yzi-text-faint)]">
-              Envio de mensagem está fora do escopo desta entrega. Nenhum composer ativo nesta tela —
-              nenhuma mensagem é enviada por aqui.
+              As respostas por esta tela ainda não estão disponíveis. O histórico permanece acessível
+              para consulta.
             </p>
           </div>
         </div>
@@ -205,23 +205,21 @@ export function YziImobConversationWorkspace({
             ) : lead ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <WorkspaceField label="Nome" value={lead.full_name} readOnly />
-                <WorkspaceField label="ID do lead" value={lead.id} readOnly />
                 <WorkspaceField label="Telefone" value={lead.phone || "Não informado"} readOnly />
                 <WorkspaceField label="Email" value={lead.email || "Não informado"} readOnly />
               </div>
             ) : (
               <p className="text-[0.8rem] text-[var(--yzi-text-secondary)]">
-                O lead vinculado a esta conversation não foi encontrado neste tenant.
+                O lead vinculado a esta conversa não foi encontrado na operação.
               </p>
             )}
           </div>
 
           <div className="flex flex-col gap-3 rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
             <h2 className="text-[0.9rem] font-semibold text-[var(--yzi-text-primary)]">
-              Dados da conversation
+              Dados da conversa
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <WorkspaceField label="ID" value={conversation.id} readOnly />
               <WorkspaceField
                 label="Canal"
                 value={channelLabel}
@@ -243,8 +241,8 @@ export function YziImobConversationWorkspace({
 
           <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
             {isExternalContact
-              ? "Dados reais, tenant-scoped. Este contato externo não é tratado como lead: ficha, score, temperatura, imóvel, corretor, pipeline, proposta e visita permanecem indisponíveis nesta unidade."
-              : "Dados reais, tenant-scoped. Estágio de qualificação, agenda, corretor vinculado e ações manuais não estão disponíveis nesta tela: dependem de campos que ainda não existem no schema atual e não foram inventados aqui."}
+              ? "Este contato ainda não foi qualificado como lead. Ficha, imóvel, corretor, proposta e visita permanecem indisponíveis até a qualificação."
+              : "Esta conversa apresenta somente informações confirmadas. Qualificação, agenda e corretor responsável aparecem quando estiverem disponíveis."}
           </p>
         </div>
       </section>

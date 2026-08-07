@@ -75,8 +75,8 @@ export default async function YziImobAtendimentoPage() {
           Atendimento
         </h1>
         <p className="max-w-2xl text-[0.82rem] text-[var(--yzi-text-secondary)]">
-          Conversations reais do tenant, agrupadas por estado. Selecione uma conversation para abrir
-          o histórico real de mensagens.
+          Conversas da operação agrupadas por estado. Selecione uma conversa para consultar
+          o histórico de mensagens.
         </p>
       </header>
 
@@ -111,7 +111,7 @@ async function ConversationBoard({ tenantId }: { tenantId: string }) {
 
   if (result.status === "error") {
     return (
-      <YziAlert tone="blocked" title="Não foi possível carregar as conversations">
+      <YziAlert tone="blocked" title="Não foi possível carregar as conversas">
         {result.message}
       </YziAlert>
     );
@@ -122,7 +122,7 @@ async function ConversationBoard({ tenantId }: { tenantId: string }) {
   if (conversations.length === 0) {
     return (
       <p className="rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] px-4 py-6 text-center text-[0.8rem] text-[var(--yzi-text-faint)]">
-        Nenhuma conversation ainda.
+        Nenhuma conversa registrada ainda.
       </p>
     );
   }
@@ -168,7 +168,7 @@ async function ConversationBoard({ tenantId }: { tenantId: string }) {
             <div className="flex flex-col gap-1.5">
               {columnConversations.length === 0 ? (
                 <p className="rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] px-2.5 py-3 text-center text-[0.68rem] text-[var(--yzi-text-faint)]">
-                  Nenhuma conversation neste estado.
+                  Nenhuma conversa neste estado.
                 </p>
               ) : (
                 columnConversations.map((conversation) => {

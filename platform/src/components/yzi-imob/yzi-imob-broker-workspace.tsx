@@ -39,6 +39,20 @@ const AVAILABILITY_LABEL: Record<string, string> = {
   no_new_leads: "Sem novos leads",
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Proprietário",
+  admin: "Administrador",
+  operator: "Operador",
+  broker: "Corretor",
+};
+
+const ACCESS_LABEL: Record<string, string> = {
+  active: "Acesso ativo",
+  invited: "Convite pendente",
+  inactive: "Acesso inativo",
+  suspended: "Acesso suspenso",
+};
+
 const ASSIGNMENT_LABEL: Record<string, string> = {
   assigned: "Aguardando resposta",
   accepted: "Aceita",
@@ -53,6 +67,14 @@ const FOLLOW_UP_LABEL: Record<string, string> = {
   assignment_response_due: "Responder atribuicao",
   next_action_due: "Proxima acao",
   conversation_waiting_reply: "Responder conversa",
+};
+
+const FOLLOW_UP_STATUS_LABEL: Record<string, string> = {
+  pending: "Pendente",
+  processing: "Em andamento",
+  completed: "Concluído",
+  failed: "Precisa de atenção",
+  cancelled: "Cancelado",
 };
 
 type AssignmentAction = (
@@ -241,7 +263,9 @@ function FollowUpRows({ tasks }: { tasks: readonly FollowUpTask[] }) {
           <p className="text-[0.78rem] text-[var(--yzi-text-primary)]">
             {FOLLOW_UP_LABEL[task.kind] ?? task.kind}
           </p>
-          <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">{task.status}</p>
+          <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">
+            {FOLLOW_UP_STATUS_LABEL[task.status] ?? "Estado não informado"}
+          </p>
           <p className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
             Vencimento: {formatDateTime(task.dueAt)} · Tentativas {task.attemptCount}/
             {task.maxAttempts}
@@ -251,7 +275,7 @@ function FollowUpRows({ tasks }: { tasks: readonly FollowUpTask[] }) {
           </p>
           {task.lastErrorCode ? (
             <p className="text-[0.7rem] text-rose-300 sm:col-span-2">
-              Ultimo erro: {task.lastErrorCode}
+              Não foi possível concluir esta tentativa.
             </p>
           ) : null}
         </div>
@@ -263,7 +287,7 @@ function FollowUpRows({ tasks }: { tasks: readonly FollowUpTask[] }) {
 function toInspection(data: BrokerWorkspaceData): YziInspection {
   return {
     name: data.broker.name,
-    subtitle: `${data.broker.role} · ${data.broker.membershipStatus}`,
+    subtitle: `${ROLE_LABEL[data.broker.role] ?? "Perfil operacional"} · ${ACCESS_LABEL[data.broker.membershipStatus] ?? "Acesso em análise"}`,
     statusLabel:
       AVAILABILITY_LABEL[data.broker.operationalAvailability] ??
       data.broker.operationalAvailability,
@@ -273,7 +297,7 @@ function toInspection(data: BrokerWorkspaceData): YziInspection {
       `${data.broker.missingFeedbackCount} visitas sem feedback.`,
     ],
     checklist: [
-      { label: "Membership ativa", done: data.broker.membershipStatus === "active" },
+      { label: "Acesso ativo", done: data.broker.membershipStatus === "active" },
       { label: "Disponivel para novos leads", done: data.broker.operationalAvailability === "available" },
       { label: "Atribuicoes respondidas", done: data.broker.pendingAssignmentCount === 0 },
       { label: "Feedbacks em dia", done: data.broker.missingFeedbackCount === 0 },
@@ -317,9 +341,9 @@ export function YziImobBrokerWorkspace({
     () =>
       data
         ? [
-            { label: "Leads ativos", value: String(data.broker.activeLeadCount), detail: "Assignments ativos reais" },
-            { label: "Aguardando resposta", value: String(data.broker.pendingAssignmentCount), detail: "Assignments pendentes" },
-            { label: "Visitas futuras", value: String(data.broker.futureVisitCount), detail: "Agenda do tenant" },
+            { label: "Leads ativos", value: String(data.broker.activeLeadCount), detail: "Leads sob responsabilidade" },
+            { label: "Aguardando resposta", value: String(data.broker.pendingAssignmentCount), detail: "Encaminhamentos pendentes" },
+            { label: "Visitas futuras", value: String(data.broker.futureVisitCount), detail: "Agenda da operação" },
             { label: "Feedback pendente", value: String(data.broker.missingFeedbackCount), detail: "Visitas concluidas" },
           ]
         : [],
@@ -349,9 +373,9 @@ export function YziImobBrokerWorkspace({
         <EntityHero
           backHref="/cockpit/yzi-imob/corretores"
           backLabel="Corretores"
-          kicker="Broker Workspace"
+          kicker="Gestão de corretores"
           title={data.broker.name}
-          subtitle="Membership real conectada a assignments, visitas, feedbacks e follow-ups."
+          subtitle="Responsabilidades, visitas, retornos e próximos acompanhamentos."
           statusLabel={
             AVAILABILITY_LABEL[data.broker.operationalAvailability] ??
             data.broker.operationalAvailability
@@ -380,7 +404,7 @@ export function YziImobBrokerWorkspace({
             </WorkspaceSection>
           </div>
         ) : tab === "leads" ? (
-          <WorkspaceSection first title="Leads aceitos" description="Assignments ativos aceitos por este corretor.">
+          <WorkspaceSection first title="Leads aceitos" description="Leads sob responsabilidade deste corretor.">
             <AssignmentRows assignments={accepted} brokerUserId={data.broker.userId} canRespond={false} action={action} />
           </WorkspaceSection>
         ) : tab === "visitas" ? (
@@ -410,7 +434,7 @@ export function YziImobBrokerWorkspace({
             <WorkspaceSection title="Feedback registrado"><FeedbackRows feedback={data.feedback} /></WorkspaceSection>
           </div>
         ) : (
-          <WorkspaceSection first title="Follow-up relacionado" description="Tarefas reais, sem payload tecnico ou dados sensiveis.">
+          <WorkspaceSection first title="Acompanhamentos relacionados" description="Próximas ações vinculadas a este corretor.">
             <FollowUpRows tasks={data.followUps} />
           </WorkspaceSection>
         )}

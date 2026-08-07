@@ -15,6 +15,20 @@ const AVAILABILITY_LABEL: Record<string, string> = {
   no_new_leads: "Sem novos leads",
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Proprietário",
+  admin: "Administrador",
+  operator: "Operador",
+  broker: "Corretor",
+};
+
+const ACCESS_LABEL: Record<string, string> = {
+  active: "Acesso ativo",
+  invited: "Convite pendente",
+  inactive: "Acesso inativo",
+  suspended: "Acesso suspenso",
+};
+
 function Notice({ title, body }: { title: string; body: string }) {
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-8 py-10">
@@ -54,7 +68,8 @@ function BrokerRow({ broker }: { broker: BrokerOperationalSummary }) {
           ) : null}
         </p>
         <p className="mt-1 text-[0.7rem] text-[var(--yzi-text-faint)]">
-          {broker.role} · membership {broker.membershipStatus}
+          {ROLE_LABEL[broker.role] ?? "Perfil operacional"} ·{" "}
+          {ACCESS_LABEL[broker.membershipStatus] ?? "Acesso em análise"}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -65,7 +80,7 @@ function BrokerRow({ broker }: { broker: BrokerOperationalSummary }) {
       </div>
       <span className="self-center text-[0.7rem] text-[var(--yzi-text-secondary)]">
         {AVAILABILITY_LABEL[broker.operationalAvailability] ??
-          broker.operationalAvailability}
+          "Disponibilidade não informada"}
       </span>
     </Link>
   );
@@ -114,7 +129,7 @@ export default async function YziImobCorretoresPage() {
             Corretores
           </h1>
           <p className="mt-1 text-[0.82rem] text-[var(--yzi-text-secondary)]">
-            Memberships reais e carga operacional do tenant atual.
+            Equipe comercial e carga de trabalho da operação.
           </p>
         </div>
         <Link
@@ -128,7 +143,7 @@ export default async function YziImobCorretoresPage() {
       {result.value.length === 0 ? (
         <div className="border-y border-[color:var(--yzi-border-subtle)] py-8 text-center">
           <p className="text-[0.82rem] text-[var(--yzi-text-secondary)]">
-            Nenhuma membership operacional visivel para esta conta.
+            Nenhum corretor está disponível para esta operação.
           </p>
         </div>
       ) : (
