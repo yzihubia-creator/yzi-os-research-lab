@@ -10,6 +10,7 @@ import {
   type CreativeGenerationContext,
   type SyntheticCreativeOutput,
 } from "./types.ts";
+import { PROPERTY_ASSET_PROVIDER_CONTRACT } from "./property-assets.ts";
 
 export type CreativeGenerationTransport = {
   generate(context: CreativeGenerationContext): Promise<readonly SyntheticCreativeOutput[]>;
@@ -48,6 +49,16 @@ export class DeterministicCreativeFakeTransport implements CreativeGenerationTra
           property_id: context.property.id,
           creative_revision_required: true as const,
           external_publication_allowed: false as const,
+        },
+        property_asset_contract: {
+          property_id: context.property.id,
+          static_template_provider: PROPERTY_ASSET_PROVIDER_CONTRACT.staticTemplateProvider,
+          video_tour_provider: PROPERTY_ASSET_PROVIDER_CONTRACT.videoTourProvider,
+          generative_optional: PROPERTY_ASSET_PROVIDER_CONTRACT.generativeOptional,
+          integration_mode: PROPERTY_ASSET_PROVIDER_CONTRACT.integrationMode,
+          paid_generation_allowed: PROPERTY_ASSET_PROVIDER_CONTRACT.paidGenerationAllowed,
+          mcp_connected: PROPERTY_ASSET_PROVIDER_CONTRACT.mcpConnected,
+          usage_requires_approved_asset: true as const,
         },
       };
       const snapshot: CreativeContentSnapshot =

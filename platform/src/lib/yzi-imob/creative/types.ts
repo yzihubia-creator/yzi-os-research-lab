@@ -188,6 +188,16 @@ type CreativeContentSnapshotBase = {
     creative_revision_required: true;
     external_publication_allowed: false;
   };
+  property_asset_contract: {
+    property_id: string;
+    static_template_provider: "canva";
+    video_tour_provider: "higgsfield";
+    generative_optional: true;
+    integration_mode: "local_mock";
+    paid_generation_allowed: false;
+    mcp_connected: false;
+    usage_requires_approved_asset: true;
+  };
 };
 
 export type CreativeContentSnapshot =

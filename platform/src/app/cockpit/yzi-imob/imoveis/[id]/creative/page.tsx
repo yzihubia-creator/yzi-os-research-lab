@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { YziImobCarouselReview } from "@/components/yzi-imob/creative/yzi-imob-carousel-review";
+import { YziImobPropertyAssetsReview } from "@/components/yzi-imob/creative/yzi-imob-property-assets-review";
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { YziAlert, YziPanel, YziStatusBadge } from "@/components/yzi-os/yzi-primitives";
 import { createServerSupabaseClient } from "@/lib/auth/session";
@@ -8,6 +9,7 @@ import { getTenantContext } from "@/lib/tenant/tenant-context";
 import type { CarouselEditorialPlan } from "@/lib/yzi-imob/creative/carousel/types";
 import { evaluateCreativeMediaReadiness } from "@/lib/yzi-imob/creative/media/readiness";
 import { deriveCreativePackageState } from "@/lib/yzi-imob/creative/package-state";
+import { derivePropertyAssets } from "@/lib/yzi-imob/creative/property-assets";
 import { getCreativeWorkspace } from "@/lib/yzi-imob/creative/repository";
 import type { CreativeRevision } from "@/lib/yzi-imob/creative/types";
 import type { VideoTourPlan } from "@/lib/yzi-imob/creative/video-tour/types";
@@ -183,6 +185,10 @@ export default async function CreativeEnginePropertyPage({
           ? "A operação não foi concluída. O estado anterior foi preservado."
           : null;
   const canDecide = ["owner", "admin"].includes(tenantContext.role);
+  const propertyAssets = derivePropertyAssets(workspace);
+  const currentRevisionIds = workspace.deliverables.flatMap((deliverable) =>
+    deliverable.currentRevisionId ? [deliverable.currentRevisionId] : [],
+  );
 
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 lg:px-8">
@@ -213,6 +219,22 @@ export default async function CreativeEnginePropertyPage({
           A seleção canônica não pôde ser verificada; uma nova geração permanece bloqueada.
         </YziAlert>
       ) : null}
+
+      <YziPanel variant="authorization">
+        <p className="text-xs uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
+          Assets do imóvel
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
+          Cada peça pertence a este imóvel. Somente assets aprovados podem seguir para
+          WhatsApp, site ou redes sociais; esta tela não publica nem envia conteúdo.
+        </p>
+      </YziPanel>
+
+      <YziImobPropertyAssetsReview
+        assets={propertyAssets}
+        canDecide={canDecide}
+        currentRevisionIds={currentRevisionIds}
+      />
 
       <div className="grid gap-3 sm:grid-cols-4">
         <YziPanel>
