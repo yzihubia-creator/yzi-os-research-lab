@@ -303,7 +303,7 @@ export function YziImobPropertyWorkspace({
             href={`/cockpit/yzi-imob/imoveis/${encodeURIComponent(property.id)}/creative`}
             className="rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.32)] bg-[rgba(var(--imob-ice),0.08)] px-3 py-2 text-[0.74rem] text-[rgb(var(--imob-ice))]"
           >
-            Creative Engine
+            Artes e vídeos
           </Link>
         </div>
 
@@ -691,14 +691,6 @@ export function YziImobPropertyWorkspace({
                   <FormField label="Texto sugerido">
                     <textarea name="suggestedText" rows={5} className={inputClass} />
                   </FormField>
-                  <WorkspaceGrid>
-                    <FormField label="Provider">
-                      <input name="provider" defaultValue="manual" className={inputClass} />
-                    </FormField>
-                    <FormField label="Modelo">
-                      <input name="model" className={inputClass} />
-                    </FormField>
-                  </WorkspaceGrid>
                   <ActionMessage state={revisionState} />
                   <SubmitButton label="Registrar proposta" pending={revisionPending} />
                 </form>

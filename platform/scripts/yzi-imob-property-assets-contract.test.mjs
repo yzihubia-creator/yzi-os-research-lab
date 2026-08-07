@@ -125,6 +125,31 @@ test("tenant-facing review separates static art and video without exposing provi
   assert.doesNotMatch(ui, /Canva|Higgsfield|MCP|provider/i);
 });
 
+test("property workspace offers a direct, product-language path to property assets", () => {
+  const propertyWorkspace = source(
+    "../src/components/yzi-imob/yzi-imob-property-workspace.tsx",
+  );
+  assert.match(
+    propertyWorkspace,
+    /href={`\/cockpit\/yzi-imob\/imoveis\/\$\{encodeURIComponent\(property\.id\)\}\/creative`}/,
+  );
+  assert.match(propertyWorkspace, /Artes e vídeos/);
+  assert.doesNotMatch(propertyWorkspace, /Creative Engine|FormField label="Provider"|FormField label="Modelo"/);
+});
+
+test("approval is visually explicit and no asset action suggests publishing or sending", () => {
+  const ui = source(
+    "../src/components/yzi-imob/creative/yzi-imob-property-assets-review.tsx",
+  );
+  assert.match(ui, /approved: "Aprovado"/);
+  assert.match(ui, /status === "approved" \|\| status === "published"/);
+  assert.match(ui, /Aprovado para uso nos canais habilitados do imóvel/);
+  const buttonLabels = [...ui.matchAll(/<button[\s\S]*?>([\s\S]*?)<\/button>/g)]
+    .map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+    .join(" ");
+  assert.doesNotMatch(buttonLabels, /publicar|enviar|WhatsApp|site|social/i);
+});
+
 test("local generation snapshot declares no MCP, paid generation or external publication", () => {
   const fake = source("../src/lib/yzi-imob/creative/fake-transport.ts");
   assert.match(fake, /property_asset_contract/);
