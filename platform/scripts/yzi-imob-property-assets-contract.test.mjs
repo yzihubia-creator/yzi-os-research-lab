@@ -120,7 +120,7 @@ test("tenant-facing review separates static art and video without exposing provi
   assert.match(ui, /Video tour/);
   assert.match(ui, />\s*Aprovar\s*</);
   assert.match(ui, /Pedir ajuste/);
-  assert.match(ui, />\s*Rejeitar\s*</);
+  assert.match(ui, />\s*Reprovar\s*</);
   assert.match(ui, /WhatsApp, site e redes sociais permanecem bloqueados até a aprovação/);
   assert.doesNotMatch(ui, /Canva|Higgsfield|MCP|provider/i);
 });
@@ -141,9 +141,9 @@ test("approval is visually explicit and no asset action suggests publishing or s
   const ui = source(
     "../src/components/yzi-imob/creative/yzi-imob-property-assets-review.tsx",
   );
-  assert.match(ui, /approved: "Aprovado"/);
+  assert.match(ui, /approved: "Aprovada"/);
   assert.match(ui, /status === "approved" \|\| status === "published"/);
-  assert.match(ui, /Aprovado para uso nos canais habilitados do imóvel/);
+  assert.match(ui, /Pronta para publicação em WhatsApp, site e redes sociais quando você decidir/);
   const buttonLabels = [...ui.matchAll(/<button[\s\S]*?>([\s\S]*?)<\/button>/g)]
     .map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
     .join(" ");

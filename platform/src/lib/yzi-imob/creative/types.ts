@@ -58,6 +58,15 @@ export type CreativeJobStatus = (typeof CREATIVE_JOB_STATUS_VALUES)[number];
 
 export type CreativeRevisionDecision = "approved" | "changes_requested" | "rejected";
 
+export type CreativePendingApproval = {
+  revisionId: string;
+  revisionNumber: number;
+  propertyId: string;
+  propertyTitle: string;
+  deliverableType: CreativeDeliverableType;
+  updatedAt: string;
+};
+
 export type CreativeAssetKind =
   | "structured_preview"
   | "rendered_preview"

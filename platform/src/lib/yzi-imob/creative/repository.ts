@@ -9,6 +9,7 @@ import {
   type CreativeDeliverable,
   type CreativeGenerationEvent,
   type CreativeGenerationJob,
+  type CreativePendingApproval,
   type CreativeRequest,
   type CreativeRevision,
   type CreativeRevisionDecision,
@@ -301,6 +302,92 @@ export async function getCreativeWorkspace(
   };
 }
 
+/**
+ * Lista somente revisões atuais que aguardam decisão humana no tenant ativo.
+ * A fila é interna: esta leitura não agenda nem publica conteúdo.
+ */
+export async function listPendingCreativeApprovals(
+  supabase: SupabaseClient,
+  tenantId: string,
+  limit = 50,
+): Promise<CreativeRepositoryResult<readonly CreativePendingApproval[]>> {
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+  const deliverablesResult = await supabase
+    .from("yzi_imob_creative_deliverables")
+    .select("id, property_id, deliverable_type, current_revision_id, updated_at")
+    .eq("tenant_id", tenantId)
+    .eq("status", "in_review")
+    .not("current_revision_id", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (deliverablesResult.error) {
+    return { status: "error", code: "read_failed", detail: deliverablesResult.error.message };
+  }
+
+  const deliverables = (deliverablesResult.data as unknown as Row[] | null) ?? [];
+  const revisionIds = deliverables.map((row) => text(row, "current_revision_id"));
+  const propertyIds = [...new Set(deliverables.map((row) => text(row, "property_id")))];
+  if (!revisionIds.length) return { status: "ok", value: [] };
+
+  const [revisionsResult, propertiesResult] = await Promise.all([
+    supabase
+      .from("yzi_imob_creative_revisions")
+      .select("id, tenant_id, property_id, deliverable_id, revision_number, status, updated_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "in_review")
+      .in("id", revisionIds),
+    supabase
+      .from("yzi_imob_properties")
+      .select("id, title")
+      .eq("tenant_id", tenantId)
+      .in("id", propertyIds),
+  ]);
+
+  const error = revisionsResult.error ?? propertiesResult.error;
+  if (error) return { status: "error", code: "read_failed", detail: error.message };
+
+  const revisionsById = new Map(
+    ((revisionsResult.data as unknown as Row[] | null) ?? []).map((row) => [
+      text(row, "id"),
+      row,
+    ]),
+  );
+  const propertyTitles = new Map(
+    ((propertiesResult.data as unknown as Row[] | null) ?? []).map((row) => [
+      text(row, "id"),
+      text(row, "title"),
+    ]),
+  );
+
+  return {
+    status: "ok",
+    value: deliverables.flatMap((deliverable) => {
+      const revisionId = text(deliverable, "current_revision_id");
+      const revision = revisionsById.get(revisionId);
+      const propertyId = text(deliverable, "property_id");
+      if (
+        !revision ||
+        text(revision, "property_id") !== propertyId ||
+        text(revision, "deliverable_id") !== text(deliverable, "id")
+      ) {
+        return [];
+      }
+      return [{
+        revisionId,
+        revisionNumber: Number(revision.revision_number),
+        propertyId,
+        propertyTitle: propertyTitles.get(propertyId) || "Imóvel",
+        deliverableType: text(
+          deliverable,
+          "deliverable_type",
+        ) as CreativePendingApproval["deliverableType"],
+        updatedAt: text(revision, "updated_at"),
+      }];
+    }),
+  };
+}
+
 export async function createCreativeRequestAndGenerate(
   supabase: SupabaseClient,
   tenantId: string,
@@ -535,6 +622,18 @@ export async function decideCreativeRevision(
   ) {
     return { status: "error", code: "invalid_input" };
   }
+
+  const scopeResult = await supabase
+    .from("yzi_imob_creative_revisions")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("property_id", propertyId)
+    .eq("id", revisionId)
+    .maybeSingle();
+  if (scopeResult.error) {
+    return { status: "error", code: "read_failed", detail: scopeResult.error.message };
+  }
+  if (!scopeResult.data) return { status: "error", code: "not_found" };
 
   const { data, error } = await supabase.rpc("decide_yzi_imob_creative_revision", {
     p_revision_id: revisionId,

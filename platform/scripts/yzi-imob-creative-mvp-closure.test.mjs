@@ -324,7 +324,7 @@ test("browser cannot provide tenant, bucket, object path or external URL", () =>
 });
 
 test("frontend stays supplier-neutral and does not expose storage details", () => {
-  assert.match(FRONTEND, /Prontidão das mídias/);
+  assert.match(FRONTEND, /Fotos para novas artes/);
   assert.match(FRONTEND, /Pacote completo/);
   assert.doesNotMatch(
     FRONTEND,

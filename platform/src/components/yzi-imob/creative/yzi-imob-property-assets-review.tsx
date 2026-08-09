@@ -7,13 +7,13 @@ import type {
 } from "@/lib/yzi-imob/creative/property-assets";
 
 const STATUS_LABELS: Record<PropertyAssetStatus, string> = {
-  draft: "Rascunho",
-  in_review: "Em revisão",
+  draft: "Em preparo",
+  in_review: "Aguardando aprovação",
   adjustment_requested: "Ajuste solicitado",
-  approved: "Aprovado",
-  rejected: "Reprovado",
-  archived: "Arquivado",
-  published: "Publicado",
+  approved: "Aprovada",
+  rejected: "Reprovada",
+  archived: "Substituída",
+  published: "Publicada",
 };
 
 function statusTone(status: PropertyAssetStatus) {
@@ -77,7 +77,11 @@ function AssetCard({
 
         {asset.status === "approved" ? (
           <p className="mt-4 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
-            Aprovado para uso nos canais habilitados do imóvel.
+            Pronta para publicação em WhatsApp, site e redes sociais quando você decidir.
+          </p>
+        ) : asset.status === "published" ? (
+          <p className="mt-4 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
+            Já publicada em um dos canais do imóvel.
           </p>
         ) : (
           <p className="mt-4 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
@@ -139,12 +143,12 @@ function AssetCard({
               <input type="hidden" name="revisionId" value={asset.revisionId ?? ""} />
               <input type="hidden" name="deliverableType" value={asset.format} />
               <input type="hidden" name="decision" value="rejected" />
-              <input type="hidden" name="observation" value="Asset reprovado na revisão humana." />
+              <input type="hidden" name="observation" value="Arte reprovada na revisão humana." />
               <button
                 type="submit"
                 className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-xs text-[var(--yzi-status-danger)]"
               >
-                Rejeitar
+                Reprovar
               </button>
             </form>
           </div>
@@ -195,7 +199,7 @@ function AssetSection({
       ) : (
         <YziPanel className="mt-4">
           <p className="text-sm text-[var(--yzi-text-secondary)]">
-            Nenhum asset deste tipo foi preparado para o imóvel.
+            Nenhuma arte deste tipo foi preparada para este imóvel ainda.
           </p>
         </YziPanel>
       )}
@@ -216,7 +220,7 @@ export function YziImobPropertyAssetsReview({
     <div className="flex flex-col gap-8">
       <AssetSection
         title="Artes estáticas"
-        description="Carrosséis e peças simples organizados por imóvel para revisão humana."
+        description="Carrosséis e peças deste imóvel, prontos para você revisar e aprovar."
         category="static_art"
         assets={assets}
         canDecide={canDecide}
@@ -224,7 +228,7 @@ export function YziImobPropertyAssetsReview({
       />
       <AssetSection
         title="Video tour"
-        description="Prévia cinematográfica reservada para apresentações especiais do imóvel."
+        description="Vídeo deste imóvel, pronto para você revisar e aprovar."
         category="video_tour"
         assets={assets}
         canDecide={canDecide}

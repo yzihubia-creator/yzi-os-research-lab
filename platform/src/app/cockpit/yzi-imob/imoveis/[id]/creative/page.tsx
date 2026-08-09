@@ -12,6 +12,7 @@ import { deriveCreativePackageState } from "@/lib/yzi-imob/creative/package-stat
 import { derivePropertyAssets } from "@/lib/yzi-imob/creative/property-assets";
 import { getCreativeWorkspace } from "@/lib/yzi-imob/creative/repository";
 import type { CreativeRevision } from "@/lib/yzi-imob/creative/types";
+import type { CreativePackageState } from "@/lib/yzi-imob/creative/package-state";
 import type { VideoTourPlan } from "@/lib/yzi-imob/creative/video-tour/types";
 import { listPropertyPublicationMedia } from "@/lib/yzi-imob/publication/repository";
 import { getPropertyById } from "@/lib/yzi-imob/properties/repository";
@@ -22,19 +23,28 @@ import {
   updateCreativeMediaGovernanceAction,
 } from "./actions";
 
+// Vocabulário único de estado para todo o estúdio de artes. Cobre os valores
+// de pedido, entregável e revisão para que nenhum status cru do contrato
+// chegue ao gestor — inclusive os que não tinham tradução antes (ex.:
+// "planned", "cancelled") e apareciam sem tratamento na tela.
 const STATUS_LABELS: Record<string, string> = {
-  queued: "Na fila",
-  generating: "Geração pendente",
+  planned: "Em preparo",
+  queued: "Em preparo",
+  processing: "Em preparo",
+  generating: "Em preparo",
+  preparing: "Em preparo",
+  partially_ready: "Parcialmente pronta",
   in_review: "Aguardando aprovação",
-  changes_requested: "Ajustes solicitados",
-  approved: "Aprovado",
-  failed: "Geração falhou",
-  rejected: "Reprovado",
-  succeeded: "Geração concluída",
-  preparing: "Em preparação",
-  partially_ready: "Parte disponível",
   awaiting_approval: "Aguardando aprovação",
-  partially_failed: "Falha parcial",
+  changes_requested: "Ajuste solicitado",
+  approved: "Aprovada",
+  succeeded: "Concluída",
+  completed: "Concluída",
+  rejected: "Reprovada",
+  superseded: "Substituída",
+  partially_failed: "Parte não concluída",
+  failed: "Não foi possível preparar",
+  cancelled: "Cancelada",
 };
 
 const ENVIRONMENT_OPTIONS = [
@@ -81,6 +91,48 @@ function statusLabel(value: string): string {
   return STATUS_LABELS[value] ?? value;
 }
 
+/** Leitura de uma frase só: o estado do pacote de artes deste imóvel. */
+const PACKAGE_SUMMARY: Record<
+  CreativePackageState,
+  { tone: "trust" | "authorization" | "risk" | "opportunity" | "blocked"; label: string; body: string }
+> = {
+  preparing: {
+    tone: "trust",
+    label: "Em preparo",
+    body: "As artes deste imóvel ainda estão sendo preparadas.",
+  },
+  partially_ready: {
+    tone: "trust",
+    label: "Parcialmente pronta",
+    body: "Parte das artes deste imóvel já pode ser revisada.",
+  },
+  awaiting_approval: {
+    tone: "authorization",
+    label: "Aguardando aprovação",
+    body: "Há arte esperando sua decisão. Nada foi publicado ainda.",
+  },
+  changes_requested: {
+    tone: "risk",
+    label: "Ajuste solicitado",
+    body: "Uma arte deste imóvel está com ajuste pendente antes de seguir.",
+  },
+  approved: {
+    tone: "opportunity",
+    label: "Aprovada",
+    body: "Todas as artes deste imóvel estão aprovadas e prontas para publicação.",
+  },
+  partially_failed: {
+    tone: "risk",
+    label: "Precisa de atenção",
+    body: "Uma arte não pôde ser preparada. As demais seguem normalmente.",
+  },
+  failed: {
+    tone: "blocked",
+    label: "Não foi possível preparar",
+    body: "Nenhuma arte deste imóvel pôde ser preparada agora.",
+  },
+};
+
 export default async function CreativeEnginePropertyPage({
   params,
   searchParams,
@@ -97,7 +149,7 @@ export default async function CreativeEnginePropertyPage({
   if (tenantContext.status !== "tenant_found") {
     return (
       <YziImobPropertyAccessState
-        title="Estúdio criativo indisponível"
+        title="Aprovação de artes indisponível"
         message="Não foi possível validar seu acesso a este imóvel."
       />
     );
@@ -114,15 +166,15 @@ export default async function CreativeEnginePropertyPage({
     return (
       <YziImobPropertyAccessState
         title="Imóvel não encontrado"
-        message="Este ativo não existe ou não pertence à sua operação."
+        message="Este imóvel não existe ou não pertence à sua operação."
       />
     );
   }
   if (workspaceResult.status === "error") {
     return (
       <YziImobPropertyAccessState
-        title="Erro de leitura do estúdio criativo"
-        message="Não foi possível carregar o pedido, as revisões e os arquivos. Nenhum estado vazio foi presumido e nenhuma operação foi iniciada."
+        title="Não foi possível abrir a aprovação de artes"
+        message="Não conseguimos carregar as artes deste imóvel agora. Nada foi alterado — tente novamente em instantes."
       />
     );
   }
@@ -176,13 +228,13 @@ export default async function CreativeEnginePropertyPage({
   const packageState = deriveCreativePackageState(workspace.deliverables);
   const feedback =
     query.result === "created"
-      ? "Carrossel preparado em uma revisão nova e preservada no histórico."
+      ? "Carrossel preparado em uma versão nova, preservada no histórico."
       : query.result === "media_updated"
-        ? "Classificação da mídia atualizada e readiness recalculado."
+        ? "Classificação das fotos atualizada. A preparação das próximas artes foi ajustada de acordo."
       : query.result === "approved"
-        ? "Decisão humana registrada."
+        ? "Sua decisão foi registrada."
         : query.result === "error"
-          ? "A operação não foi concluída. O estado anterior foi preservado."
+          ? "A ação não foi concluída. Nada mudou em relação ao estado anterior."
           : null;
   const canDecide = ["owner", "admin"].includes(tenantContext.role);
   const propertyAssets = derivePropertyAssets(workspace);
@@ -195,14 +247,15 @@ export default async function CreativeEnginePropertyPage({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[0.66rem] uppercase tracking-[0.18em] text-[var(--yzi-text-faint)]">
-            Estúdio criativo · Imóvel
+            Artes e vídeos · Imóvel
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-[var(--yzi-text-primary)]">
             {propertyResult.value.title}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-            Carrossel e vídeo organizados somente a partir do imóvel e de suas mídias
-            aprovadas. Nenhum conteúdo foi publicado.
+            Revise as artes deste imóvel e decida o que segue pronto para publicação.
+            Aprovar não publica nada — a publicação em si continua sendo uma ação
+            separada, feita por você.
           </p>
         </div>
         <Link
@@ -215,19 +268,26 @@ export default async function CreativeEnginePropertyPage({
 
       {feedback ? <YziAlert tone={query.result === "error" ? "blocked" : "success"}>{feedback}</YziAlert> : null}
       {mediaResult.status === "error" ? (
-        <YziAlert tone="blocked" title="Erro de leitura das mídias">
-          A seleção canônica não pôde ser verificada; uma nova geração permanece bloqueada.
+        <YziAlert tone="blocked" title="Não foi possível carregar as fotos">
+          Não conseguimos confirmar quais fotos estão aprovadas agora. A preparação de
+          novas artes fica bloqueada até isso ser resolvido.
         </YziAlert>
       ) : null}
 
-      <YziPanel variant="authorization">
-        <p className="text-xs uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
-          Assets do imóvel
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
-          Cada peça pertence a este imóvel. Somente assets aprovados podem seguir para
-          WhatsApp, site ou redes sociais; esta tela não publica nem envia conteúdo.
-        </p>
+      <YziPanel variant="authorization" className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
+            Artes deste imóvel
+          </p>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
+            {["changes_requested", "partially_failed", "failed"].includes(packageState)
+              ? PACKAGE_SUMMARY[packageState].body
+              : "Cada arte abaixo pertence a este imóvel. Aprovar deixa a peça pronta para publicação — a publicação em WhatsApp, site ou redes sociais continua sendo uma decisão separada, feita por você."}
+          </p>
+        </div>
+        <YziStatusBadge tone={PACKAGE_SUMMARY[packageState].tone}>
+          {PACKAGE_SUMMARY[packageState].label}
+        </YziStatusBadge>
       </YziPanel>
 
       <YziImobPropertyAssetsReview
@@ -236,79 +296,46 @@ export default async function CreativeEnginePropertyPage({
         currentRevisionIds={currentRevisionIds}
       />
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      {readiness.carousel.state !== "ready" || readiness.videoTour.state !== "ready" ? (
         <YziPanel>
-          <p className="text-xs text-[var(--yzi-text-faint)]">Pedido</p>
-          <p className="mt-2 text-sm text-[var(--yzi-text-primary)]">
-            {workspace.request ? statusLabel(workspace.request.status) : "Nenhum pedido criativo"}
+          <h2 className="text-sm font-semibold">Fotos para novas artes</h2>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
+            O que falta para preparar cada formato a partir das fotos aprovadas.
           </p>
-        </YziPanel>
-        <YziPanel>
-          <p className="text-xs text-[var(--yzi-text-faint)]">Revisão atual</p>
-          <p className="mt-2 text-sm text-[var(--yzi-text-primary)]">
-            {currentRevision ? `#${currentRevision.revisionNumber}` : "Ainda não criada"}
-          </p>
-        </YziPanel>
-        <YziPanel>
-          <p className="text-xs text-[var(--yzi-text-faint)]">Estado</p>
-          <div className="mt-2">
-            <YziStatusBadge tone={carousel?.publicationEligible ? "opportunity" : "neutral"}>
-              {carousel ? statusLabel(carousel.status) : "Sem carrossel"}
-            </YziStatusBadge>
-          </div>
-        </YziPanel>
-        <YziPanel>
-          <p className="text-xs text-[var(--yzi-text-faint)]">Pacote</p>
-          <p className="mt-2 text-sm text-[var(--yzi-text-primary)]">
-            {statusLabel(packageState)}
-          </p>
-        </YziPanel>
-      </div>
-
-      <YziPanel>
-        <h2 className="text-sm font-semibold">Prontidão das mídias</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {[
-            ["Carrossel", readiness.carousel],
-            ["Video Tour", readiness.videoTour],
-          ].map(([label, item]) => {
-            const result = item as typeof readiness.carousel;
-            return (
-              <div key={String(label)}>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm">{String(label)}</p>
-                  <YziStatusBadge
-                    tone={
-                      result.state === "ready"
-                        ? "opportunity"
-                        : result.state === "incomplete" || result.state === "blocked"
-                          ? "blocked"
-                          : "neutral"
-                    }
-                  >
-                    {result.state === "ready"
-                      ? "Pronto"
-                      : result.state === "ready_with_warnings"
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {[
+              ["Carrossel", readiness.carousel],
+              ["Video Tour", readiness.videoTour],
+            ].map(([label, item]) => {
+              const result = item as typeof readiness.carousel;
+              if (result.state === "ready") return null;
+              return (
+                <div key={String(label)}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm">{String(label)}</p>
+                    <YziStatusBadge tone={result.state === "ready_with_warnings" ? "preview" : "blocked"}>
+                      {result.state === "ready_with_warnings"
                         ? "Pronto com alertas"
                         : result.state === "incomplete"
-                          ? "Incompleto"
+                          ? "Faltam fotos"
                           : "Bloqueado"}
-                  </YziStatusBadge>
+                    </YziStatusBadge>
+                  </div>
+                  {result.diagnostics.length ? (
+                    <ul className="mt-3 space-y-1 text-xs text-[var(--yzi-text-secondary)]">
+                      {result.diagnostics.map((diagnostic) => (
+                        <li key={`${diagnostic.code}-${diagnostic.mediaId ?? ""}`}>
+                          {diagnostic.message}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
-                {result.diagnostics.length ? (
-                  <ul className="mt-3 space-y-1 text-xs text-[var(--yzi-text-secondary)]">
-                    {result.diagnostics.map((diagnostic) => (
-                      <li key={`${diagnostic.code}-${diagnostic.mediaId ?? ""}`}>
-                        {diagnostic.message}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </YziPanel>
+              );
+            })}
+          </div>
+        </YziPanel>
+      ) : null}
 
       {mediaResult.status === "ok" ? (
         <YziPanel>
@@ -426,26 +453,26 @@ export default async function CreativeEnginePropertyPage({
           </form>
         </YziPanel>
       ) : !carousel ? (
-        <YziAlert tone="info" title={videoTour ? "Video Tour solicitado" : "Pedido sem entrega"}>
+        <YziAlert tone="info" title={videoTour ? "Vídeo solicitado" : "Nenhuma arte pronta ainda"}>
           {videoTour
             ? "O vídeo será preparado sem criar ou alterar um carrossel."
-            : "O pedido existente ainda não contém uma entrega válida."}
+            : "Ainda não há uma arte válida preparada para este imóvel."}
         </YziAlert>
       ) : carousel.status === "generating" || carouselJob?.status === "processing" ? (
-        <YziAlert tone="info" title="Geração pendente">
-          A preparação ainda não concluiu a revisão. Nenhum resultado parcial foi tratado como pronto.
+        <YziAlert tone="info" title="Em preparo">
+          Esta arte ainda está sendo preparada. Nada parcial é mostrado como pronto para revisão.
         </YziAlert>
       ) : carousel.status === "failed" || carouselJob?.status === "failed" ? (
-        <YziAlert tone="blocked" title="Geração falhou">
-          A última preparação falhou. A revisão anterior permanece preservada.
+        <YziAlert tone="blocked" title="Não foi possível preparar esta arte">
+          A última tentativa não foi concluída. A versão anterior continua preservada e disponível.
         </YziAlert>
       ) : !currentRevision ? (
-        <YziAlert tone="warning" title="Revisão indisponível">
-          O entregável ainda não possui uma revisão atual.
+        <YziAlert tone="warning" title="Preview ainda não disponível">
+          Esta arte ainda não tem uma versão para revisar.
         </YziAlert>
       ) : !plan ? (
-        <YziAlert tone="blocked" title="Plano inválido">
-          A revisão atual não atende ao formato de sete cards.
+        <YziAlert tone="blocked" title="Preview com problema">
+          A versão atual desta arte não pôde ser exibida corretamente.
         </YziAlert>
       ) : (
         <YziImobCarouselReview
@@ -525,7 +552,7 @@ export default async function CreativeEnginePropertyPage({
                       </select>
                       <input name="observation" required maxLength={80} placeholder="Descreva o ajuste" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm sm:col-span-2" />
                       <button type="submit" className="w-fit rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-sm sm:col-span-3">
-                        Solicitar nova revisão
+                        Pedir ajuste
                       </button>
                     </div>
                   </form>
@@ -545,8 +572,8 @@ export default async function CreativeEnginePropertyPage({
           ) : (
             <YziAlert className="mt-4" tone={videoTour.status === "failed" ? "blocked" : "info"}>
               {videoTour.status === "failed"
-                ? "O vídeo não foi concluído. Outras entregas permanecem preservadas."
-                : "O plano do vídeo ainda está sendo preparado."}
+                ? "O vídeo não foi concluído. As demais artes deste imóvel continuam preservadas."
+                : "O vídeo ainda está sendo preparado."}
             </YziAlert>
           )}
         </YziPanel>
@@ -554,14 +581,17 @@ export default async function CreativeEnginePropertyPage({
 
       {workspace.revisions.length ? (
         <YziPanel>
-          <h2 className="text-sm font-semibold">Histórico de revisões</h2>
+          <h2 className="text-sm font-semibold">Histórico</h2>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
+            Todas as versões desta arte, da mais recente à primeira.
+          </p>
           <ol className="mt-4 divide-y divide-[color:var(--yzi-border-subtle)]">
             {workspace.revisions.map((revision) => (
               <li key={revision.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm text-[var(--yzi-text-primary)]">Revisão #{revision.revisionNumber}</p>
+                  <p className="text-sm text-[var(--yzi-text-primary)]">Versão {revision.revisionNumber}</p>
                   <p className="mt-1 text-xs text-[var(--yzi-text-faint)]">
-                    {revision.sourceRevisionId ? "Derivada da revisão anterior" : "Versão inicial"} · {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(revision.createdAt))}
+                    {revision.sourceRevisionId ? "Ajustada a partir da versão anterior" : "Primeira versão"} · {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(revision.createdAt))}
                   </p>
                 </div>
                 <YziStatusBadge tone={revision.status === "approved" ? "opportunity" : revision.status === "rejected" ? "blocked" : "neutral"}>
@@ -572,14 +602,6 @@ export default async function CreativeEnginePropertyPage({
           </ol>
         </YziPanel>
       ) : null}
-
-      <p className="text-xs leading-relaxed text-[var(--yzi-text-faint)]">
-        Evidência: imóvel {id}
-        {workspace.request ? ` · pedido ${workspace.request.id}` : ""}
-        {carousel ? ` · entregável ${carousel.id}` : ""}
-        {currentRevision ? ` · revisão ${currentRevision.id}` : ""}. Fonte factual:
-        cadastro canônico do imóvel; seleção visual: mídias governadas do mesmo tenant e imóvel.
-      </p>
     </section>
   );
 }

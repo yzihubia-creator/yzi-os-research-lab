@@ -28,6 +28,7 @@ import type {
   SocialPublicationCandidate,
   MetricoolMarketingWorkspace,
 } from "@/lib/yzi-imob/metricool/repository";
+import type { CreativePendingApproval } from "@/lib/yzi-imob/creative/types";
 
 // Marketing — a operação de conteúdo e distribuição da imobiliária.
 //
@@ -43,6 +44,8 @@ import type {
 type Props = {
   workspace: MetricoolMarketingWorkspace | null;
   accessState?: "ready" | "no_session" | "no_membership" | "tenant-error" | "read-error";
+  creativeApprovals?: readonly CreativePendingApproval[];
+  creativeApprovalsReadFailed?: boolean;
 };
 
 /** Etapas do ciclo — a linguagem do gestor, nunca o status cru do contrato. */
@@ -117,9 +120,21 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
+/** Sinal de urgência para a fila: peça parada há mais tempo pesa mais. */
+function waitingSince(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Aguardando decisão";
+  const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000));
+  if (days === 0) return "Aguardando decisão desde hoje";
+  if (days === 1) return "Aguardando decisão há 1 dia";
+  return `Aguardando decisão há ${days} dias`;
+}
+
 export function YziImobSocialPublicationsWorkspace({
   workspace,
   accessState = "ready",
+  creativeApprovals = [],
+  creativeApprovalsReadFailed = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -252,9 +267,9 @@ export function YziImobSocialPublicationsWorkspace({
   const metrics: SurfaceMetric[] = [
     {
       label: "Aguardando aprovação",
-      value: String(awaitingApproval.length),
+      value: String(awaitingApproval.length + creativeApprovals.length),
       detail: "Peças prontas para sua decisão",
-      tone: awaitingApproval.length ? "pending" : undefined,
+      tone: awaitingApproval.length + creativeApprovals.length ? "pending" : undefined,
     },
     {
       label: "Programadas",
@@ -276,7 +291,11 @@ export function YziImobSocialPublicationsWorkspace({
   ];
 
   const stageOptions: Array<{ id: Stage; label: string; count: number }> = [
-    { id: "aprovacao", label: "Aguardando aprovação", count: awaitingApproval.length },
+    {
+      id: "aprovacao",
+      label: "Aguardando aprovação",
+      count: awaitingApproval.length + creativeApprovals.length,
+    },
     { id: "programado", label: "Programadas", count: byStage.programado.length },
     { id: "publicado", label: "Publicadas", count: byStage.publicado.length },
     { id: "ajuste", label: "Precisa de ajuste", count: needsAdjustment.length },
@@ -440,34 +459,70 @@ export function YziImobSocialPublicationsWorkspace({
         }
       >
         {stage === "aprovacao" ? (
-          awaitingApproval.length ? (
-            <SurfaceList>
-              {awaitingApproval.map((candidate) => (
-                <SurfaceRow
-                  key={candidate.revisionId}
-                  title={candidate.propertyTitle}
-                  description={candidate.previewCaption}
-                  tone="pending"
-                  stateLabel="Aguardando aprovação"
-                  meta={
-                    <span>
-                      {candidate.mediaCount}{" "}
-                      {candidate.mediaCount === 1 ? "imagem" : "imagens"} · versão{" "}
-                      {candidate.revisionNumber}
-                    </span>
-                  }
-                  actions={
-                    <SurfaceButton
-                      kind="primary"
-                      action={{
-                        label: "Abrir para aprovar",
-                        href: `/cockpit/yzi-imob/imoveis/${candidate.propertyId}`,
-                      }}
-                    />
-                  }
+          creativeApprovalsReadFailed || awaitingApproval.length || creativeApprovals.length ? (
+            <>
+              {creativeApprovalsReadFailed ? (
+                <SurfaceState
+                  tone="blocked"
+                  title="Fila de artes indisponível"
+                  body="Não foi possível confirmar todas as artes pendentes. Nenhuma decisão foi executada."
                 />
-              ))}
-            </SurfaceList>
+              ) : null}
+              {awaitingApproval.length || creativeApprovals.length ? (
+                <>
+                  <p className={TYPE.meta}>
+                    Aprovar deixa a peça pronta para publicação. A publicação em si continua
+                    sendo uma ação separada, feita por você.
+                  </p>
+                  <SurfaceList>
+                    {creativeApprovals.map((approval) => (
+                      <SurfaceRow
+                        key={`creative:${approval.revisionId}`}
+                        title={approval.propertyTitle}
+                        description={`Arte ${approval.deliverableType === "video_tour" ? "em vídeo" : "estática"} · versão ${approval.revisionNumber}`}
+                        tone="pending"
+                        stateLabel="Aguardando aprovação"
+                        meta={waitingSince(approval.updatedAt)}
+                        actions={
+                          <SurfaceButton
+                            kind="primary"
+                            action={{
+                              label: "Revisar arte",
+                              href: `/cockpit/yzi-imob/imoveis/${encodeURIComponent(approval.propertyId)}/creative`,
+                            }}
+                          />
+                        }
+                      />
+                    ))}
+                    {awaitingApproval.map((candidate) => (
+                      <SurfaceRow
+                        key={candidate.revisionId}
+                        title={candidate.propertyTitle}
+                        description={candidate.previewCaption}
+                        tone="pending"
+                        stateLabel="Aguardando aprovação"
+                        meta={
+                          <span>
+                            {candidate.mediaCount}{" "}
+                            {candidate.mediaCount === 1 ? "imagem" : "imagens"} · versão{" "}
+                            {candidate.revisionNumber}
+                          </span>
+                        }
+                        actions={
+                          <SurfaceButton
+                            kind="primary"
+                            action={{
+                              label: "Revisar arte",
+                              href: `/cockpit/yzi-imob/imoveis/${candidate.propertyId}`,
+                            }}
+                          />
+                        }
+                      />
+                    ))}
+                  </SurfaceList>
+                </>
+              ) : null}
+            </>
           ) : (
             <SurfaceState
               tone="ok"

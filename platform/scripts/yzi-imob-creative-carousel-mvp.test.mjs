@@ -266,9 +266,9 @@ test("fake renderer remains independent from real buckets", () => {
 test("frontend is editorial, honest and supplier-neutral", () => {
   assert.match(FRONTEND, /Card \{selected \+ 1\} de 7/);
   assert.match(FRONTEND, /Caption preparada/);
-  assert.match(FRONTEND, /Histórico de revisões/);
-  assert.match(FRONTEND, /Erro de leitura do estúdio criativo/);
-  assert.match(FRONTEND, /Nenhum pedido criativo/);
+  assert.match(FRONTEND, /Histórico/);
+  assert.match(FRONTEND, /Não foi possível abrir a aprovação de artes/);
+  assert.match(FRONTEND, /Nenhuma arte pronta ainda/);
   assert.doesNotMatch(
     FRONTEND,
     /Higgsfield|Metricool|OpenAI|Anthropic|Gemini|Docker|drag-and-drop|contenteditable/i,

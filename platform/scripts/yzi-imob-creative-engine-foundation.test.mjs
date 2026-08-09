@@ -217,9 +217,9 @@ test("application repository always scopes reads by tenant and property", () => 
 });
 
 test("minimal UI exposes status and approval, not an editor or external engine", () => {
-  assert.match(UI, /Pedido/);
-  assert.match(UI, /Estúdio criativo/);
-  assert.match(UI, /Revisão atual/);
+  assert.match(UI, /Artes deste imóvel/);
+  assert.match(UI, /Artes e vídeos · Imóvel/);
+  assert.match(UI, /Histórico/);
   assert.match(UI, /Aprovar carrossel/);
   assert.match(UI, /Preparar conteúdo/i);
   assert.doesNotMatch(UI, /Higgsfield|Metricool|drag-and-drop|contenteditable/i);

@@ -9,6 +9,14 @@ import type { CreativeRevision } from "@/lib/yzi-imob/creative/types";
 
 type MediaPreview = { id: string; url: string | null; altText: string | null };
 
+const REVISION_STATUS_LABEL: Record<CreativeRevision["status"], string> = {
+  in_review: "Aguardando aprovação",
+  approved: "Aprovada",
+  changes_requested: "Ajuste solicitado",
+  rejected: "Reprovada",
+  superseded: "Substituída",
+};
+
 const ROLE_LABELS: Record<CarouselCard["role"], string> = {
   cover: "Capa",
   core_experience: "Experiência",
@@ -140,7 +148,7 @@ export function YziImobCarouselReview({
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">Decisão humana</p>
             <YziStatusBadge tone={revision.status === "approved" ? "opportunity" : plan.approvalBlocked ? "blocked" : "authorization"}>
-              {revision.status === "in_review" ? "Aguardando" : revision.status}
+              {REVISION_STATUS_LABEL[revision.status]}
             </YziStatusBadge>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
@@ -198,7 +206,7 @@ export function YziImobCarouselReview({
                   </select>
                 </label>
                 <textarea name="observation" required maxLength={500} rows={3} placeholder="Descreva o ajuste editorial" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm" />
-                <YziButton type="submit" variant="secondary">Solicitar nova revisão</YziButton>
+                <YziButton type="submit" variant="secondary">Pedir ajuste</YziButton>
               </form>
               {revision.status === "in_review" ? (
                 <form action={decideCreativeRevisionAction}>
