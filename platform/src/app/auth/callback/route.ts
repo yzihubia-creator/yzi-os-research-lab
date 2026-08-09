@@ -9,7 +9,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const next =
     nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
       ? nextParam
-      : "/cockpit";
+      : "/cockpit/yzi-imob";
 
   if (!code) {
     return NextResponse.redirect(

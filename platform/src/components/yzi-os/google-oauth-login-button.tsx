@@ -18,7 +18,7 @@ export function GoogleOAuthLoginButton() {
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/cockpit`,
+          redirectTo: `${window.location.origin}/auth/callback?next=/cockpit/yzi-imob`,
         },
       });
 

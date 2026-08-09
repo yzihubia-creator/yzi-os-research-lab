@@ -18,7 +18,7 @@ export default async function LoginPage({
 }) {
   const user = await getSessionUser();
   if (user) {
-    redirect("/cockpit");
+    redirect("/cockpit/yzi-imob");
   }
 
   const { error } = await searchParams;
