@@ -2,6 +2,7 @@ import { YziImobPropertyWorkspace } from "@/components/yzi-imob/yzi-imob-propert
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
+import { listPropertyPublicationMedia } from "@/lib/yzi-imob/publication/repository";
 import { getPropertyWorkspaceData } from "@/lib/yzi-imob/properties/repository";
 
 // Workspace de um imóvel — busca real, tenant-scoped, server-side.
@@ -30,7 +31,7 @@ export default async function YziImobImovelWorkspacePage({
   // resolver, mas a estrutura do Workspace (header, navegação) continua
   // visível através do próprio estado "não encontrado" do componente.
   if (tenantContext.status === "no_membership") {
-    return <YziImobPropertyWorkspace property={null} />;
+    return <YziImobPropertyWorkspace tenantId="" property={null} />;
   }
 
   if (tenantContext.status === "error") {
@@ -43,23 +44,25 @@ export default async function YziImobImovelWorkspacePage({
   }
 
   const supabase = await createServerSupabaseClient();
-  const result = await getPropertyWorkspaceData(
-    supabase,
-    tenantContext.tenant.id,
-    id,
-  );
+  const [result, mediaResult] = await Promise.all([
+    getPropertyWorkspaceData(supabase, tenantContext.tenant.id, id),
+    listPropertyPublicationMedia(supabase, tenantContext.tenant.id, id),
+  ]);
 
   if (result.status === "error") {
-    return <YziImobPropertyWorkspace property={null} />;
+    return <YziImobPropertyWorkspace tenantId={tenantContext.tenant.id} property={null} />;
   }
 
   return (
     <YziImobPropertyWorkspace
+      tenantId={tenantContext.tenant.id}
       property={result.value.property}
       proximities={result.value.proximities}
       privateLocation={result.value.privateLocation}
       privateLocationError={result.value.privateLocationError}
       descriptionRevisions={result.value.descriptionRevisions}
+      media={mediaResult.status === "ok" ? mediaResult.value : []}
+      mediaUnavailable={mediaResult.status === "error"}
     />
   );
 }

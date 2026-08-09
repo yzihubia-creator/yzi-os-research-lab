@@ -444,7 +444,7 @@ export default async function CreativeEnginePropertyPage({
       ) : null}
 
       {mediaResult.status === "ok" ? (
-        <YziPanel>
+        <YziPanel id="organizacao-midias" className="scroll-mt-6">
           <h2 className="text-sm font-semibold">Organização das mídias</h2>
           <p className="mt-2 text-xs leading-relaxed text-[var(--yzi-text-secondary)]">
             Confirme ambiente, ordem, imagem principal e uso em cada entrega.
@@ -525,7 +525,7 @@ export default async function CreativeEnginePropertyPage({
       ) : null}
 
       {!workspace.request ? (
-        <YziPanel variant="yzi" className="max-w-2xl">
+        <YziPanel id="preparar-criativos" variant="yzi" className="max-w-2xl scroll-mt-6">
           <h2 className="text-base font-semibold">Preparar conteúdo do imóvel</h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--yzi-text-secondary)]">
             A seleção é feita entre as mídias aprovadas deste imóvel. Os dados factuais

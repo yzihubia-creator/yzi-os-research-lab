@@ -16,6 +16,7 @@ import {
 import { useYziImobWorkspace } from "@/components/yzi-imob/yzi-imob-workspace-context";
 import { imobRgba } from "@/components/yzi-imob/yzi-imob-status-colors";
 import { YziImobPropertyPublicationWorkspaceSlot } from "@/components/yzi-imob/yzi-imob-property-publication-workspace-adapter";
+import { YziImobPropertyMediaGuidance } from "@/components/yzi-imob/properties/yzi-imob-property-media-guidance";
 import {
   formatPropertyLocation,
   formatPropertyPrice,
@@ -34,6 +35,7 @@ import {
 } from "@/app/cockpit/yzi-imob/imoveis/[id]/actions";
 import { computePropertyCompleteness } from "@/lib/yzi-imob/properties/completeness";
 import { computePropertyQuality } from "@/lib/yzi-imob/properties/quality";
+import type { PropertyPublicationMedia } from "@/lib/yzi-imob/publication/types";
 import {
   PROPERTY_AVAILABILITY_STATUS_VALUES,
   PROPERTY_EDITORIAL_STATUS_VALUES,
@@ -52,7 +54,7 @@ import {
 
 const TABS = [
   { id: "informacoes", label: "Informacoes" },
-  { id: "arquivos", label: "Arquivos", soon: true },
+  { id: "midias", label: "Mídias" },
   { id: "publicacao", label: "Publicacao" },
   { id: "ia", label: "IA", soon: true },
 ];
@@ -160,19 +162,25 @@ function SelectField({
 }
 
 type Props = {
+  tenantId: string;
   property: Property | null;
   proximities?: readonly PropertyProximity[];
   privateLocation?: PropertyPrivateLocation | null;
   privateLocationError?: string | null;
   descriptionRevisions?: readonly PropertyDescriptionRevision[];
+  media?: readonly PropertyPublicationMedia[];
+  mediaUnavailable?: boolean;
 };
 
 export function YziImobPropertyWorkspace({
+  tenantId,
   property,
   proximities = [],
   privateLocation = null,
   privateLocationError = null,
   descriptionRevisions = [],
+  media = [],
+  mediaUnavailable = false,
 }: Props) {
   const router = useRouter();
   const { select, clear } = useYziImobWorkspace();
@@ -750,10 +758,15 @@ export function YziImobPropertyWorkspace({
               </div>
             </WorkspaceSection>
           </div>
-        ) : tab === "arquivos" ? (
-          <ComingSoonPanel
-            label="Arquivos - em breve"
-            note="Upload e organizacao de midia ainda nao estao conectados a dados reais."
+        ) : tab === "midias" ? (
+          <YziImobPropertyMediaGuidance
+            tenantId={tenantId}
+            propertyId={property.id}
+            propertyTitle={property.title}
+            propertyType={property.propertyType}
+            propertyFactsComplete={Boolean(property.title && property.city)}
+            media={media}
+            mediaUnavailable={mediaUnavailable}
           />
         ) : tab === "publicacao" ? (
           <YziImobPropertyPublicationWorkspaceSlot />

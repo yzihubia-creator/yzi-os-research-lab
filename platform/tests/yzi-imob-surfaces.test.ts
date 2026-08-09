@@ -16,6 +16,7 @@ import {
   RESULTS_METRIC_COPY,
   splitByMovement,
 } from "../src/lib/yzi-imob/results/presentation.ts";
+import { buildGuidedMediaJourney } from "../src/lib/yzi-imob/creative/media/guided-journey.ts";
 import type { RadarSignal, RadarSignalType } from "../src/lib/yzi-imob/radar/types.ts";
 import type { ResultsMetricValue, ResultsWorkspaceData } from "../src/lib/yzi-imob/results/types.ts";
 
@@ -34,6 +35,7 @@ const CORE_COPY_FILES = [
   "src/components/yzi-imob/yzi-imob-property-catalog-v2.tsx",
   "src/components/yzi-imob/properties/yzi-imob-property-create-workspace.tsx",
   "src/components/yzi-imob/yzi-imob-property-workspace.tsx",
+  "src/components/yzi-imob/properties/yzi-imob-property-media-guidance.tsx",
   "src/components/yzi-imob/yzi-imob-broker-workspace.tsx",
   "src/components/yzi-imob/yzi-imob-team-access-workspace.tsx",
   "src/components/yzi-imob/yzi-imob-client-workspace.tsx",
@@ -227,6 +229,61 @@ test("Sistema é navegável e separado do Radar", async () => {
   // respondem perguntas diferentes.
   const radar = await read("src/components/yzi-imob/yzi-imob-radar-workspace.tsx");
   assert.equal(radar.includes("operationalHealth"), false);
+});
+
+test("jornada de midias orienta slots e libera formatos sem IA", () => {
+  const tenantId = "10000000-0000-4000-8000-000000000001";
+  const propertyId = "20000000-0000-4000-8000-000000000001";
+  const environments = ["facade", "entrance", "living_room", "view", "leisure"] as const;
+  const media = environments.map((environmentType, index) => ({
+    id: `30000000-0000-4000-8000-00000000000${index + 1}`,
+    tenantId,
+    propertyId,
+    mediaType: "image" as const,
+    environmentType,
+    displayOrder: index,
+    isPrimary: index === 0,
+    eligibleForCarousel: true,
+    eligibleForVideo: true,
+    mediaStatus: "approved" as const,
+    orientation: "landscape" as const,
+    width: 1600,
+    height: 1200,
+    humanNote: null,
+    exclusionReason: null,
+  }));
+
+  const ready = buildGuidedMediaJourney({
+    tenantId,
+    propertyId,
+    media,
+    propertyFactsComplete: true,
+    floorPlanApplicable: true,
+  });
+  assert.equal(ready.carouselReady, true);
+  assert.equal(ready.videoTourReady, true);
+  assert.equal(ready.missingFloorPlan, true);
+  assert.equal(ready.slots.length, 10);
+  assert.equal(
+    ready.slots.find((slot) => slot.key === "common_area")?.status,
+    "contract_pending",
+  );
+  assert.equal(
+    ready.slots.find((slot) => slot.key === "closing_cta")?.status,
+    "contract_pending",
+  );
+
+  const empty = buildGuidedMediaJourney({
+    tenantId,
+    propertyId,
+    media: [],
+    propertyFactsComplete: true,
+    floorPlanApplicable: false,
+  });
+  assert.equal(empty.carouselReady, false);
+  assert.equal(empty.videoTourReady, false);
+  assert.equal(empty.missingCover, true);
+  assert.match(empty.recommendation, /upload real ainda/i);
 });
 
 /* ------------------------------------------------------------------ */
