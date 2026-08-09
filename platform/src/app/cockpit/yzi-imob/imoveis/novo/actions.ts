@@ -369,5 +369,5 @@ export async function createPropertyAction(
 
   revalidatePath("/cockpit/yzi-imob/imoveis");
   revalidatePath("/cockpit/yzi-imob/imoveis/catalogo");
-  redirect(`/cockpit/yzi-imob/imoveis/${propertyId}`);
+  redirect(`/cockpit/yzi-imob/imoveis/${propertyId}#midias`);
 }

@@ -48,7 +48,7 @@ export type GuidedMediaSlot = {
   status: "ready" | "pending" | "missing" | "optional" | "contract_pending";
 };
 
-type SlotDefinition = Omit<
+export type GuidedMediaSlotDefinition = Omit<
   GuidedMediaSlot,
   "linkedCount" | "approvedCount" | "status"
 > & {
@@ -56,7 +56,7 @@ type SlotDefinition = Omit<
   primary?: true;
 };
 
-const SLOT_DEFINITIONS: readonly SlotDefinition[] = [
+export const GUIDED_MEDIA_SLOT_DEFINITIONS: readonly GuidedMediaSlotDefinition[] = [
   {
     key: "primary",
     label: "Imagem principal",
@@ -150,7 +150,7 @@ function isFormatReady(readiness: CreativeMediaReadiness["carousel"]): boolean {
 }
 
 function slotMedia(
-  definition: SlotDefinition,
+  definition: GuidedMediaSlotDefinition,
   media: readonly GuidedMediaInput[],
 ): readonly GuidedMediaInput[] {
   if (definition.primary) {
@@ -161,7 +161,7 @@ function slotMedia(
 }
 
 function slotStatus(
-  definition: SlotDefinition,
+  definition: GuidedMediaSlotDefinition,
   linkedCount: number,
   approvedCount: number,
 ): GuidedMediaSlot["status"] {
@@ -234,7 +234,7 @@ export function buildGuidedMediaJourney(input: {
   );
   const hasFloorPlan = approvedImages.some((item) => item.environmentType === "floor_plan");
   const missingFloorPlan = input.floorPlanApplicable && !hasFloorPlan;
-  const slots = SLOT_DEFINITIONS.map((definition) => {
+  const slots = GUIDED_MEDIA_SLOT_DEFINITIONS.map((definition) => {
     const linked = slotMedia(definition, scopedMedia);
     const approvedCount = linked.filter((item) => item.mediaStatus === "approved").length;
     return {

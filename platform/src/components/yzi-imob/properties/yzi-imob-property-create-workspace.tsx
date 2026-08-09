@@ -19,7 +19,8 @@ import {
   WorkspaceTextarea,
   WorkspaceToggle,
 } from "@/components/yzi-imob/yzi-imob-workspace-fields";
-import { PlusIcon, ShieldIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
+import { PlusIcon, ShieldIcon, StackIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
+import { GUIDED_MEDIA_SLOT_DEFINITIONS } from "@/lib/yzi-imob/creative/media/guided-journey";
 import {
   PROPERTY_AVAILABILITY_STATUS_VALUES,
   PROPERTY_FURNISHED_STATUS_VALUES,
@@ -35,6 +36,7 @@ const TABS = [
   { id: "localizacao", label: "Localização" },
   { id: "caracteristicas", label: "Características" },
   { id: "conhecimento", label: "Conhecimento da YZI" },
+  { id: "midias", label: "Mídias" },
 ];
 
 const QUICK_ACTIONS = [
@@ -339,6 +341,96 @@ function HiddenDraftFields({ draft }: { draft: PropertyDraft }) {
         <input key={`surrounding-${value}`} type="hidden" name="surroundings" value={value} />
       ))}
     </>
+  );
+}
+
+function MediaPreparationTab() {
+  return (
+    <div className="flex flex-col gap-7">
+      <WorkspaceSection
+        first
+        title="Mídias do imóvel"
+        description="Antecipe os materiais que serão organizados assim que este imóvel tiver um cadastro próprio."
+      >
+        <div className="flex items-start gap-3 border-y border-[color:var(--yzi-border-subtle)] py-4">
+          <span
+            aria-hidden
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)]"
+          >
+            <StackIcon className="h-4 w-4" />
+          </span>
+          <div className="max-w-2xl">
+            <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">
+              Separe as mídias pelo papel que cumprem na apresentação
+            </p>
+            <p className="mt-1 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+              Essa organização fornece contexto estruturado ao runtime e reduz a dependência de
+              classificação automática por IA. Nenhuma mídia é enviada ou registrada antes de o
+              imóvel ser salvo.
+            </p>
+          </div>
+        </div>
+
+        <ol className="divide-y divide-[color:var(--yzi-border-subtle)]">
+          {GUIDED_MEDIA_SLOT_DEFINITIONS.map((slot, index) => (
+            <li
+              key={slot.key}
+              className="grid gap-2 py-3.5 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:items-start"
+            >
+              <span className="text-[0.68rem] font-medium tabular-nums text-[var(--yzi-text-faint)]">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
+                  {slot.label}
+                </p>
+                <p className="mt-1 max-w-2xl text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                  {slot.description}
+                </p>
+              </div>
+              <span className="text-[0.68rem] text-[var(--yzi-text-faint)] sm:pt-0.5">
+                {slot.support === "pending"
+                  ? "Contrato pendente"
+                  : slot.support === "partial"
+                    ? "Suporte parcial"
+                    : "Organizar depois"}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        title="O que esta preparação libera"
+        description="A liberação é calculada depois do salvamento, usando dados e mídias reais do imóvel."
+      >
+        <div className="grid border-y border-[color:var(--yzi-border-subtle)] sm:grid-cols-3 sm:divide-x sm:divide-[color:var(--yzi-border-subtle)]">
+          {[
+            ["Carrossel", "Capa e seleção mínima de imagens aprovadas."],
+            ["Vídeo tour", "Capa, volume mínimo e variedade de ambientes."],
+            ["Anúncios", "Dados do imóvel e materiais suficientes para a peça."],
+          ].map(([title, detail]) => (
+            <div key={title} className="py-4 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+              <p className="text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">{title}</p>
+              <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                {detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      </WorkspaceSection>
+
+      <WorkspaceSection title="Depois de salvar">
+        <div className="flex items-start gap-2.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+          <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--imob-ice))]" />
+          <p className="max-w-2xl">
+            Você será levado à aba Mídias do imóvel para organizar o que já estiver vinculado. O
+            upload real só será conectado quando existir um identificador seguro para o imóvel. A
+            YZI prepara criativos apenas quando o runtime confirmar dados e mídias suficientes.
+          </p>
+        </div>
+      </WorkspaceSection>
+    </div>
   );
 }
 
@@ -766,7 +858,7 @@ export function YziImobPropertyCreateWorkspace() {
               />
             </WorkspaceSection>
           </div>
-        ) : (
+        ) : tab === "conhecimento" ? (
           <div className="flex flex-col gap-7">
             <WorkspaceSection
               first
@@ -973,6 +1065,8 @@ export function YziImobPropertyCreateWorkspace() {
               </button>
             </WorkspaceSection>
           </div>
+        ) : (
+          <MediaPreparationTab />
         )}
 
         {state.message ? (
@@ -995,8 +1089,8 @@ export function YziImobPropertyCreateWorkspace() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--yzi-border-subtle)] pt-6">
           <p className="max-w-xl text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
-            O imóvel será criado nesta operação. O endereço confidencial permanece protegido;
-            nenhuma publicação ou ação externa acontece neste salvamento.
+            O imóvel será criado nesta operação. Depois, você poderá organizar as mídias vinculadas
+            por papel; nenhuma publicação ou ação externa acontece neste salvamento.
           </p>
           <button
             type="submit"
@@ -1007,7 +1101,7 @@ export function YziImobPropertyCreateWorkspace() {
               ? "Salvando..."
               : state.status === "partial"
                 ? "Retomar salvamento"
-                : "Salvar imóvel"}
+                : "Salvar e organizar mídias"}
           </button>
         </div>
       </form>

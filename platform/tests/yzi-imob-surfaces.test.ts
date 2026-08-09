@@ -16,7 +16,10 @@ import {
   RESULTS_METRIC_COPY,
   splitByMovement,
 } from "../src/lib/yzi-imob/results/presentation.ts";
-import { buildGuidedMediaJourney } from "../src/lib/yzi-imob/creative/media/guided-journey.ts";
+import {
+  buildGuidedMediaJourney,
+  GUIDED_MEDIA_SLOT_DEFINITIONS,
+} from "../src/lib/yzi-imob/creative/media/guided-journey.ts";
 import type { RadarSignal, RadarSignalType } from "../src/lib/yzi-imob/radar/types.ts";
 import type { ResultsMetricValue, ResultsWorkspaceData } from "../src/lib/yzi-imob/results/types.ts";
 
@@ -284,6 +287,20 @@ test("jornada de midias orienta slots e libera formatos sem IA", () => {
   assert.equal(empty.videoTourReady, false);
   assert.equal(empty.missingCover, true);
   assert.match(empty.recommendation, /upload real ainda/i);
+});
+
+test("novo imóvel antecipa a jornada de mídias sem criar upload falso", async () => {
+  const createWorkspace = await read(
+    "src/components/yzi-imob/properties/yzi-imob-property-create-workspace.tsx",
+  );
+  const createAction = await read("src/app/cockpit/yzi-imob/imoveis/novo/actions.ts");
+
+  assert.equal(GUIDED_MEDIA_SLOT_DEFINITIONS.length, 10);
+  assert.match(createWorkspace, /id: "conhecimento"[\s\S]*id: "midias"/);
+  assert.match(createWorkspace, /Nenhuma mídia é enviada ou registrada antes/);
+  assert.match(createWorkspace, /Salvar e organizar mídias/);
+  assert.doesNotMatch(createWorkspace, /type="file"/);
+  assert.match(createAction, /imoveis\/\$\{propertyId\}#midias/);
 });
 
 /* ------------------------------------------------------------------ */

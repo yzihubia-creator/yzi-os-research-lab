@@ -203,6 +203,12 @@ export function YziImobPropertyWorkspace({
   );
 
   useEffect(() => {
+    if (window.location.hash !== "#midias") return;
+    const frame = window.requestAnimationFrame(() => setTab("midias"));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     if (!property) {
       clear();
       return;
