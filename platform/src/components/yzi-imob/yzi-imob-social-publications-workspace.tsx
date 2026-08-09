@@ -512,7 +512,7 @@ export function YziImobSocialPublicationsWorkspace({
                           <SurfaceButton
                             kind="primary"
                             action={{
-                              label: "Revisar arte",
+                              label: "Revisar publicação",
                               href: `/cockpit/yzi-imob/imoveis/${candidate.propertyId}`,
                             }}
                           />

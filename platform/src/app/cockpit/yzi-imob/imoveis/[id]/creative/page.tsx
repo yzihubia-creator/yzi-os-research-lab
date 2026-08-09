@@ -1,7 +1,14 @@
 import Link from "next/link";
 
 import { YziImobCarouselReview } from "@/components/yzi-imob/creative/yzi-imob-carousel-review";
-import { YziImobPropertyAssetsReview } from "@/components/yzi-imob/creative/yzi-imob-property-assets-review";
+import {
+  YziImobPropertyAssetsReview,
+  type PropertyAssetVisualPreview,
+} from "@/components/yzi-imob/creative/yzi-imob-property-assets-review";
+import {
+  YziImobVideoTourReview,
+  type VideoTourVisualPreview,
+} from "@/components/yzi-imob/creative/yzi-imob-video-tour-review";
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { YziAlert, YziPanel, YziStatusBadge } from "@/components/yzi-os/yzi-primitives";
 import { createServerSupabaseClient } from "@/lib/auth/session";
@@ -9,6 +16,7 @@ import { getTenantContext } from "@/lib/tenant/tenant-context";
 import type { CarouselEditorialPlan } from "@/lib/yzi-imob/creative/carousel/types";
 import { evaluateCreativeMediaReadiness } from "@/lib/yzi-imob/creative/media/readiness";
 import { deriveCreativePackageState } from "@/lib/yzi-imob/creative/package-state";
+import { loadCreativePreviewUrls } from "@/lib/yzi-imob/creative/preview-access";
 import { derivePropertyAssets } from "@/lib/yzi-imob/creative/property-assets";
 import { getCreativeWorkspace } from "@/lib/yzi-imob/creative/repository";
 import type { CreativeRevision } from "@/lib/yzi-imob/creative/types";
@@ -19,7 +27,6 @@ import { getPropertyById } from "@/lib/yzi-imob/properties/repository";
 
 import {
   createCreativeRequestAction,
-  decideCreativeRevisionAction,
   updateCreativeMediaGovernanceAction,
 } from "./actions";
 
@@ -180,6 +187,12 @@ export default async function CreativeEnginePropertyPage({
   }
 
   const workspace = workspaceResult.value;
+  const temporaryAssetUrls = await loadCreativePreviewUrls(
+    supabase,
+    tenantContext.tenant.id,
+    id,
+    workspace.assets,
+  );
   const carousel = workspace.deliverables.find((item) => item.deliverableType === "carousel") ?? null;
   const videoTour = workspace.deliverables.find((item) => item.deliverableType === "video_tour") ?? null;
   const currentRevision =
@@ -202,6 +215,7 @@ export default async function CreativeEnginePropertyPage({
         )
       : [];
   const allMedia = mediaResult.status === "ok" ? mediaResult.value : [];
+  const approvedMediaById = new Map(approvedMedia.map((item) => [item.id, item]));
   const readiness = evaluateCreativeMediaReadiness({
     tenantId: tenantContext.tenant.id,
     propertyId: id,
@@ -238,6 +252,97 @@ export default async function CreativeEnginePropertyPage({
           : null;
   const canDecide = ["owner", "admin"].includes(tenantContext.role);
   const propertyAssets = derivePropertyAssets(workspace);
+  const accessibleCreativeAssets = workspace.assets.filter(
+    (asset) => Boolean(temporaryAssetUrls[asset.id]),
+  );
+  const carouselRenderedCards = Object.fromEntries(
+    accessibleCreativeAssets.flatMap((asset) =>
+      asset.revisionId === currentRevision?.id &&
+      asset.assetKind === "rendered_preview" &&
+      asset.mediaType === "image" &&
+      asset.assetPosition !== null
+        ? [[asset.assetPosition, temporaryAssetUrls[asset.id]]]
+        : [],
+    ),
+  ) as Record<number, string>;
+  const videoRenderAsset = accessibleCreativeAssets.find(
+    (asset) =>
+      asset.revisionId === videoRevision?.id &&
+      asset.assetKind === "rendered_preview" &&
+      asset.mediaType === "video",
+  );
+  const videoThumbnailAsset = accessibleCreativeAssets.find(
+    (asset) =>
+      asset.revisionId === videoRevision?.id &&
+      asset.assetKind === "thumbnail" &&
+      asset.mediaType === "image",
+  );
+  const videoReferenceMedia = videoPlan?.scenes
+    .map((scene) => approvedMediaById.get(scene.mediaId) ?? null)
+    .find((item) => Boolean(item?.url)) ?? null;
+  const videoVisualPreview: VideoTourVisualPreview = {
+    videoUrl: videoRenderAsset ? temporaryAssetUrls[videoRenderAsset.id] : null,
+    posterUrl: videoThumbnailAsset ? temporaryAssetUrls[videoThumbnailAsset.id] : null,
+    referenceImageUrl: videoReferenceMedia?.url ?? null,
+    referenceAltText: videoReferenceMedia?.altText ?? null,
+  };
+  const propertyAssetPreviews = Object.fromEntries(
+    propertyAssets.flatMap((asset) => {
+      if (!asset.revisionId) return [];
+      const revision = workspace.revisions.find((item) => item.id === asset.revisionId) ?? null;
+      const rendered = accessibleCreativeAssets.find(
+        (item) =>
+          item.revisionId === asset.revisionId &&
+          item.assetKind === "rendered_preview" &&
+          (asset.format === "video_tour" ? item.mediaType === "video" : item.mediaType === "image"),
+      );
+      const thumbnail = accessibleCreativeAssets.find(
+        (item) =>
+          item.revisionId === asset.revisionId &&
+          item.assetKind === "thumbnail" &&
+          item.mediaType === "image",
+      );
+      const blueprint = revision?.contentSnapshot.blueprint;
+      const sourceMediaId = isCarouselPlan(blueprint)
+        ? blueprint.cards.find((card) => card.mediaId)?.mediaId ?? null
+        : isVideoTourPlan(blueprint)
+          ? blueprint.scenes[0]?.mediaId ?? null
+          : null;
+      const sourceMedia = sourceMediaId ? approvedMediaById.get(sourceMediaId) ?? null : null;
+      let preview: PropertyAssetVisualPreview | null = null;
+      if (rendered) {
+        preview = {
+          url: temporaryAssetUrls[rendered.id]!,
+          mediaType: rendered.mediaType as "image" | "video",
+          posterUrl: thumbnail
+            ? temporaryAssetUrls[thumbnail.id]!
+            : sourceMedia?.url ?? null,
+          altText: sourceMedia?.altText ?? `Preview de ${asset.title}`,
+          kind: "rendered",
+          decisionReady: true,
+        };
+      } else if (thumbnail) {
+        preview = {
+          url: temporaryAssetUrls[thumbnail.id]!,
+          mediaType: "image",
+          posterUrl: null,
+          altText: sourceMedia?.altText ?? `Thumbnail de ${asset.title}`,
+          kind: "rendered",
+          decisionReady: asset.format !== "video_tour",
+        };
+      } else if (sourceMedia?.url) {
+        preview = {
+          url: sourceMedia.url,
+          mediaType: "image",
+          posterUrl: null,
+          altText: sourceMedia.altText ?? `Imagem de referência de ${asset.title}`,
+          kind: "reference",
+          decisionReady: false,
+        };
+      }
+      return preview ? [[asset.id, preview]] : [];
+    }),
+  ) as Record<string, PropertyAssetVisualPreview>;
   const currentRevisionIds = workspace.deliverables.flatMap((deliverable) =>
     deliverable.currentRevisionId ? [deliverable.currentRevisionId] : [],
   );
@@ -292,6 +397,7 @@ export default async function CreativeEnginePropertyPage({
 
       <YziImobPropertyAssetsReview
         assets={propertyAssets}
+        previews={propertyAssetPreviews}
         canDecide={canDecide}
         currentRevisionIds={currentRevisionIds}
       />
@@ -481,102 +587,31 @@ export default async function CreativeEnginePropertyPage({
           plan={plan}
           media={approvedMedia.map((item) => ({
             id: item.id,
-            url: null,
+            url: item.url,
             altText: item.altText,
           }))}
+          renderedCards={carouselRenderedCards}
           canDecide={canDecide}
         />
       )}
 
-      {videoTour ? (
-        <YziPanel>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold">Video Tour</h2>
-            <YziStatusBadge tone={videoTour.publicationEligible ? "opportunity" : "neutral"}>
-              {statusLabel(videoTour.status)}
-            </YziStatusBadge>
-          </div>
-          {videoPlan ? (
-            <div className="mt-4">
-              <p className="text-sm text-[var(--yzi-text-secondary)]">
-                {videoPlan.scenes.length} cenas · {videoPlan.duration} segundos · formato vertical
-              </p>
-              <ol className="mt-3 space-y-2 text-xs text-[var(--yzi-text-secondary)]">
-                {videoPlan.scenes.map((scene) => (
-                  <li key={scene.position}>
-                    Cena {scene.position}: {scene.environmentType.replaceAll("_", " ")} ·{" "}
-                    {scene.duration}s
-                  </li>
-                ))}
-              </ol>
-              {videoRevision?.status === "in_review" && canDecide ? (
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <form action={decideCreativeRevisionAction}>
-                    <input type="hidden" name="propertyId" value={id} />
-                    <input type="hidden" name="revisionId" value={videoRevision.id} />
-                    <input type="hidden" name="deliverableType" value="video_tour" />
-                    <input type="hidden" name="decision" value="approved" />
-                    <button type="submit" className="w-full rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-sm">
-                      Aprovar vídeo
-                    </button>
-                  </form>
-                  <form action={decideCreativeRevisionAction} className="sm:col-span-2">
-                    <input type="hidden" name="propertyId" value={id} />
-                    <input type="hidden" name="revisionId" value={videoRevision.id} />
-                    <input type="hidden" name="deliverableType" value="video_tour" />
-                    <input type="hidden" name="decision" value="changes_requested" />
-                    <input type="hidden" name="idempotencyKey" value={`video-revision:${videoRevision.id}:${videoRevision.contentHash.slice(0, 16)}`} />
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <select name="adjustmentKind" defaultValue="slow_motion" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm">
-                        <option value="swap_scene_media">Trocar imagem</option>
-                        <option value="slow_motion">Usar movimento mais lento</option>
-                        <option value="remove_overlay">Retirar texto</option>
-                        <option value="reduce_duration">Reduzir duração</option>
-                        <option value="correct_cta">Corrigir chamada</option>
-                      </select>
-                      <select name="scenePosition" defaultValue={1} className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm">
-                        {videoPlan.scenes.map((scene) => (
-                          <option key={scene.position} value={scene.position}>Cena {scene.position}</option>
-                        ))}
-                      </select>
-                      <select name="duration" defaultValue={15} className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm">
-                        <option value={15}>15 segundos</option>
-                        <option value={20}>20 segundos</option>
-                        <option value={30}>30 segundos</option>
-                      </select>
-                      <select name="replacementMediaId" defaultValue="" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm">
-                        <option value="">Manter imagem</option>
-                        {approvedMedia.filter((item) => item.eligibleForVideo).map((item, index) => (
-                          <option key={item.id} value={item.id}>Imagem {index + 1}</option>
-                        ))}
-                      </select>
-                      <input name="observation" required maxLength={80} placeholder="Descreva o ajuste" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] bg-[var(--yzi-surface-base)] px-3 py-2 text-sm sm:col-span-2" />
-                      <button type="submit" className="w-fit rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-sm sm:col-span-3">
-                        Pedir ajuste
-                      </button>
-                    </div>
-                  </form>
-                  <form action={decideCreativeRevisionAction} className="sm:col-span-3">
-                    <input type="hidden" name="propertyId" value={id} />
-                    <input type="hidden" name="revisionId" value={videoRevision.id} />
-                    <input type="hidden" name="deliverableType" value="video_tour" />
-                    <input type="hidden" name="decision" value="rejected" />
-                    <input type="hidden" name="observation" value="Revisão reprovada na análise humana." />
-                    <button type="submit" className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-sm">
-                      Reprovar vídeo
-                    </button>
-                  </form>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <YziAlert className="mt-4" tone={videoTour.status === "failed" ? "blocked" : "info"}>
-              {videoTour.status === "failed"
-                ? "O vídeo não foi concluído. As demais artes deste imóvel continuam preservadas."
-                : "O vídeo ainda está sendo preparado."}
-            </YziAlert>
-          )}
-        </YziPanel>
+      {videoTour && videoRevision && videoPlan ? (
+        <YziImobVideoTourReview
+          propertyId={id}
+          deliverable={videoTour}
+          revision={videoRevision}
+          plan={videoPlan}
+          preview={videoVisualPreview}
+          approvedMedia={approvedMedia}
+          canDecide={canDecide}
+          statusLabel={statusLabel(videoTour.status)}
+        />
+      ) : videoTour ? (
+        <YziAlert tone={videoTour.status === "failed" ? "blocked" : "info"}>
+          {videoTour.status === "failed"
+            ? "O vídeo não foi concluído. As demais artes deste imóvel continuam preservadas."
+            : "O vídeo ainda está sendo preparado. O preview visual aparecerá quando estiver disponível."}
+        </YziAlert>
       ) : null}
 
       {workspace.revisions.length ? (

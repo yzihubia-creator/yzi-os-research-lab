@@ -30,28 +30,50 @@ const ROLE_LABELS: Record<CarouselCard["role"], string> = {
 function Artwork({
   card,
   media,
+  renderedUrl,
+  failedUrls,
+  onVisualError,
   compact = false,
 }: {
   card: CarouselCard;
   media: MediaPreview | null;
+  renderedUrl: string | null;
+  failedUrls: readonly string[];
+  onVisualError: (url: string) => void;
   compact?: boolean;
 }) {
+  const visualUrl = [renderedUrl, media?.url ?? null].find(
+    (url): url is string => Boolean(url && !failedUrls.includes(url)),
+  ) ?? null;
+  const usingRenderedPreview = Boolean(renderedUrl && visualUrl === renderedUrl);
+  const missingRequiredMedia = Boolean(card.mediaId && !visualUrl);
+
   return (
     <div
       className="relative isolate aspect-[4/5] w-full overflow-hidden rounded-[var(--yzi-radius-md)] bg-[#101924] text-white"
       aria-label={`Card ${card.position}: ${ROLE_LABELS[card.role]}`}
     >
-      {media?.url ? (
+      {visualUrl ? (
         // Canonical, tenant/property-scoped URL from yzi_imob_property_media.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={media.url}
-          alt={media.altText ?? ""}
+          src={visualUrl}
+          alt={renderedUrl ? `Card ${card.position} renderizado` : media?.altText ?? ""}
+          onError={() => onVisualError(visualUrl)}
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,18,0.08),rgba(7,12,18,0.9))]" />
-      <div className={compact ? "absolute inset-x-3 bottom-3" : "absolute inset-x-[8%] bottom-[8%]"}>
+      {usingRenderedPreview ? null : (
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,18,0.08),rgba(7,12,18,0.9))]" />
+      )}
+      {missingRequiredMedia ? (
+        <div className="absolute inset-x-[10%] top-[12%] rounded-[var(--yzi-radius-sm)] border border-dashed border-white/25 bg-black/30 px-4 py-3 text-center">
+          <p className={compact ? "text-[0.5rem] text-white/75" : "text-xs leading-relaxed text-white/75"}>
+            Imagem desta arte ainda não disponível
+          </p>
+        </div>
+      ) : null}
+      {usingRenderedPreview ? null : <div className={compact ? "absolute inset-x-3 bottom-3" : "absolute inset-x-[8%] bottom-[8%]"}>
         <p className={compact ? "text-[0.5rem] uppercase tracking-[0.14em] text-white/70" : "text-xs uppercase tracking-[0.18em] text-white/70"}>
           {String(card.position).padStart(2, "0")} · {ROLE_LABELS[card.role]}
         </p>
@@ -75,7 +97,7 @@ function Artwork({
             YZI IMOB
           </p>
         ) : null}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -85,18 +107,35 @@ export function YziImobCarouselReview({
   revision,
   plan,
   media,
+  renderedCards,
   canDecide,
 }: {
   propertyId: string;
   revision: CreativeRevision;
   plan: CarouselEditorialPlan;
   media: readonly MediaPreview[];
+  renderedCards: Readonly<Record<number, string>>;
   canDecide: boolean;
 }) {
   const [selected, setSelected] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [failedUrls, setFailedUrls] = useState<readonly string[]>([]);
   const mediaById = useMemo(() => new Map(media.map((item) => [item.id, item])), [media]);
   const card = plan.cards[selected] ?? plan.cards[0];
+  const visualPreviewReady = plan.cards.every(
+    (item) => {
+      const visualUrls = [
+        renderedCards[item.position],
+        item.mediaId ? mediaById.get(item.mediaId)?.url : null,
+      ];
+      return !item.mediaId || visualUrls.some(
+        (url) => Boolean(url && !failedUrls.includes(url)),
+      );
+    },
+  );
+  const handleVisualError = (url: string) => {
+    setFailedUrls((current) => current.includes(url) ? current : [...current, url]);
+  };
 
   useEffect(() => {
     if (!expanded) return;
@@ -119,7 +158,13 @@ export function YziImobCarouselReview({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <YziPanel className="p-3 sm:p-5">
           <div className="mx-auto max-w-[31rem]">
-            <Artwork card={card} media={card.mediaId ? mediaById.get(card.mediaId) ?? null : null} />
+            <Artwork
+              card={card}
+              media={card.mediaId ? mediaById.get(card.mediaId) ?? null : null}
+              renderedUrl={renderedCards[card.position] ?? null}
+              failedUrls={failedUrls}
+              onVisualError={handleVisualError}
+            />
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">
             <p className="text-xs text-[var(--yzi-text-secondary)]">
@@ -138,7 +183,14 @@ export function YziImobCarouselReview({
                 aria-current={selected === index}
                 className={selected === index ? "rounded-[var(--yzi-radius-sm)] ring-2 ring-[var(--yzi-accent-action)]" : "rounded-[var(--yzi-radius-sm)] opacity-65 hover:opacity-100"}
               >
-                <Artwork card={item} media={item.mediaId ? mediaById.get(item.mediaId) ?? null : null} compact />
+                <Artwork
+                  card={item}
+                  media={item.mediaId ? mediaById.get(item.mediaId) ?? null : null}
+                  renderedUrl={renderedCards[item.position] ?? null}
+                  failedUrls={failedUrls}
+                  onVisualError={handleVisualError}
+                  compact
+                />
               </button>
             ))}
           </div>
@@ -159,6 +211,11 @@ export function YziImobCarouselReview({
               {blocking.map((item) => item.message).join(" ")}
             </YziAlert>
           ) : null}
+          {!visualPreviewReady ? (
+            <YziAlert className="mt-4" tone="info" title="Preview visual incompleto">
+              Uma ou mais imagens ainda não podem ser exibidas. A aprovação fica bloqueada até a prévia estar completa.
+            </YziAlert>
+          ) : null}
           {["in_review", "changes_requested"].includes(revision.status) && canDecide ? (
             <div className="mt-5 flex flex-col gap-4">
               {revision.status === "in_review" ? (
@@ -167,7 +224,7 @@ export function YziImobCarouselReview({
                   <input type="hidden" name="revisionId" value={revision.id} />
                   <input type="hidden" name="deliverableType" value="carousel" />
                   <input type="hidden" name="decision" value="approved" />
-                  <YziButton type="submit" variant="authorization" className="w-full" disabled={plan.approvalBlocked}>
+                  <YziButton type="submit" variant="authorization" className="w-full" disabled={plan.approvalBlocked || !visualPreviewReady}>
                     Aprovar carrossel
                   </YziButton>
                 </form>
@@ -234,7 +291,13 @@ export function YziImobCarouselReview({
       {expanded ? (
         <div role="dialog" aria-modal="true" aria-label="Preview ampliado do carrossel" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-5">
           <div className="w-full max-w-[36rem]">
-            <Artwork card={card} media={card.mediaId ? mediaById.get(card.mediaId) ?? null : null} />
+            <Artwork
+              card={card}
+              media={card.mediaId ? mediaById.get(card.mediaId) ?? null : null}
+              renderedUrl={renderedCards[card.position] ?? null}
+              failedUrls={failedUrls}
+              onVisualError={handleVisualError}
+            />
             <div className="mt-3 flex items-center justify-between">
               <YziButton size="sm" variant="ghost" disabled={selected === 0} onClick={() => setSelected((value) => value - 1)}>Anterior</YziButton>
               <p className="text-sm text-white">{selected + 1} de 7</p>

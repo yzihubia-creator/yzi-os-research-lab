@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import { decideCreativeRevisionAction } from "@/app/cockpit/yzi-imob/imoveis/[id]/creative/actions";
 import { YziPanel, YziStatusBadge } from "@/components/yzi-os/yzi-primitives";
 import type {
@@ -5,6 +9,15 @@ import type {
   PropertyAssetCategory,
   PropertyAssetStatus,
 } from "@/lib/yzi-imob/creative/property-assets";
+
+export type PropertyAssetVisualPreview = {
+  url: string;
+  mediaType: "image" | "video";
+  posterUrl: string | null;
+  altText: string;
+  kind: "rendered" | "reference";
+  decisionReady: boolean;
+};
 
 const STATUS_LABELS: Record<PropertyAssetStatus, string> = {
   draft: "Em preparo",
@@ -27,10 +40,12 @@ function statusTone(status: PropertyAssetStatus) {
 
 function AssetCard({
   asset,
+  preview,
   canDecide,
   isCurrentRevision,
 }: {
   asset: PropertyAsset;
+  preview: PropertyAssetVisualPreview | null;
   canDecide: boolean;
   isCurrentRevision: boolean;
 }) {
@@ -40,23 +55,9 @@ function AssetCard({
 
   return (
     <YziPanel className="overflow-hidden p-0">
-      <div
-        className={
-          isVideo
-            ? "relative aspect-video bg-[linear-gradient(135deg,#101924,#23354a)] p-5 text-white"
-            : "relative aspect-[4/3] bg-[linear-gradient(145deg,#142337,#536c80)] p-5 text-white"
-        }
-        aria-label={`Preview de ${asset.title}`}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(255,255,255,0.18),transparent_38%)]" />
-        <div className="relative flex h-full flex-col justify-end">
-          <p className="text-[0.6rem] uppercase tracking-[0.18em] text-white/60">
-            {isVideo ? "Prévia em movimento" : "Prévia da arte"}
-          </p>
-          <p className="mt-2 line-clamp-2 text-lg font-semibold leading-tight">
-            {asset.previewLabel}
-          </p>
-          <p className="mt-2 text-xs text-white/70">{asset.previewDetail}</p>
+      <div className={isVideo ? "bg-[#0d151f] p-4" : "bg-[#0d151f]"}>
+        <div className={isVideo ? "mx-auto w-full max-w-[14rem]" : "w-full"}>
+          <AssetVisualPreview asset={asset} preview={preview} />
         </div>
       </div>
 
@@ -98,7 +99,9 @@ function AssetCard({
               <input type="hidden" name="decision" value="approved" />
               <button
                 type="submit"
-                className="w-full rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.4)] bg-[rgba(var(--imob-ice),0.1)] px-3 py-2 text-xs text-[rgb(var(--imob-ice))]"
+                disabled={!preview?.decisionReady}
+                title={!preview?.decisionReady ? "Aguarde uma prévia visual completa para aprovar" : undefined}
+                className="w-full rounded-[var(--yzi-radius-sm)] border border-[rgba(var(--imob-ice),0.4)] bg-[rgba(var(--imob-ice),0.1)] px-3 py-2 text-xs text-[rgb(var(--imob-ice))] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Aprovar
               </button>
@@ -158,11 +161,72 @@ function AssetCard({
   );
 }
 
+function AssetVisualPreview({
+  asset,
+  preview,
+}: {
+  asset: PropertyAsset;
+  preview: PropertyAssetVisualPreview | null;
+}) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const isVideo = asset.category === "video_tour";
+  const failed = preview?.url === failedUrl;
+
+  return (
+    <div
+      className={`relative isolate w-full overflow-hidden rounded-[var(--yzi-radius-md)] bg-[#101924] text-white ${isVideo ? "aspect-[9/16]" : "aspect-[4/5]"}`}
+      aria-label={`Preview de ${asset.title}`}
+    >
+      {preview && !failed ? (
+        preview.mediaType === "video" ? (
+          <video
+            src={preview.url}
+            poster={preview.posterUrl ?? undefined}
+            controls
+            playsInline
+            preload="metadata"
+            onError={() => setFailedUrl(preview.url)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            {/* URL canônica ou temporária resolvida no servidor para o tenant ativo. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview.url}
+              alt={preview.altText}
+              onError={() => setFailedUrl(preview.url)}
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_55%,rgba(5,10,16,0.9))]" />
+            <div className="absolute inset-x-4 bottom-4">
+              <p className="text-[0.62rem] uppercase tracking-[0.14em] text-white/65">
+                {preview.kind === "rendered" ? "Preview renderizado" : "Imagem de referência"}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm font-medium">{asset.previewLabel}</p>
+            </div>
+          </>
+        )
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-2 border border-dashed border-white/20 px-6 text-center">
+          <p className="text-sm font-medium">Preview visual pendente</p>
+          <p className="text-xs leading-relaxed text-white/60">
+            {asset.revisionId
+              ? "Ainda não há uma imagem ou vídeo disponível para esta versão."
+              : "Esta arte ainda não tem uma versão preparada."}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AssetSection({
   title,
   description,
   category,
   assets,
+  previews,
   canDecide,
   currentRevisionIds,
 }: {
@@ -170,6 +234,7 @@ function AssetSection({
   description: string;
   category: PropertyAssetCategory;
   assets: readonly PropertyAsset[];
+  previews: Readonly<Record<string, PropertyAssetVisualPreview>>;
   canDecide: boolean;
   currentRevisionIds: readonly string[];
 }) {
@@ -189,6 +254,7 @@ function AssetSection({
             <AssetCard
               key={asset.id}
               asset={asset}
+              preview={previews[asset.id] ?? null}
               canDecide={canDecide}
               isCurrentRevision={Boolean(
                 asset.revisionId && currentRevisionIds.includes(asset.revisionId),
@@ -209,10 +275,12 @@ function AssetSection({
 
 export function YziImobPropertyAssetsReview({
   assets,
+  previews,
   canDecide,
   currentRevisionIds,
 }: {
   assets: readonly PropertyAsset[];
+  previews: Readonly<Record<string, PropertyAssetVisualPreview>>;
   canDecide: boolean;
   currentRevisionIds: readonly string[];
 }) {
@@ -223,6 +291,7 @@ export function YziImobPropertyAssetsReview({
         description="Carrosséis e peças deste imóvel, prontos para você revisar e aprovar."
         category="static_art"
         assets={assets}
+        previews={previews}
         canDecide={canDecide}
         currentRevisionIds={currentRevisionIds}
       />
@@ -231,6 +300,7 @@ export function YziImobPropertyAssetsReview({
         description="Vídeo deste imóvel, pronto para você revisar e aprovar."
         category="video_tour"
         assets={assets}
+        previews={previews}
         canDecide={canDecide}
         currentRevisionIds={currentRevisionIds}
       />
