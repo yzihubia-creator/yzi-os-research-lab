@@ -1,4 +1,11 @@
 import { createServerSupabaseClient, getSessionUser } from "@/lib/auth/session";
+import { cookies } from "next/headers";
+
+import {
+  ACTIVE_TENANT_COOKIE,
+  selectActiveTenantMembership,
+  type ActiveTenantMembership,
+} from "@/lib/tenant/active-tenant";
 
 // Resolução read-only do contexto de tenant (Lane 4, Step 5, gate L4-G3).
 // Exercita as policies RLS da Lane 3 (`memberships_select_own` →
@@ -28,6 +35,8 @@ export type TenantContext =
 const TENANT_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$/;
 
 const NO_MEMBERSHIP_MESSAGE = "Você ainda não pertence a um tenant.";
+const TENANT_SELECTION_REQUIRED_MESSAGE =
+  "Selecione explicitamente a organização que deseja acessar.";
 
 /**
  * Obtém o contexto de tenant do usuário autenticado via RLS, somente leitura.
@@ -47,34 +56,42 @@ export async function getTenantContext(): Promise<TenantContext> {
   try {
     const supabase = await createServerSupabaseClient();
 
-    // RLS (`memberships_select_own`) já restringe ao próprio user_id. Lê também
-    // `role` — coberto pela MESMA policy SELECT; sem schema novo, sem policy
-    // nova, sem escrita. O papel alimenta a fronteira de permissão honesta
-    // exibida no cockpit (Lane 8).
-    const { data: membership, error: membershipError } = await supabase
+    // RLS (`memberships_select_own`) restringe ao próprio user_id. A consulta
+    // deliberadamente lê todas as memberships ativas: ordem do banco nunca é
+    // usada como regra de tenant atual.
+    const { data: memberships, error: membershipError } = await supabase
       .from("tenant_memberships")
       .select("tenant_id, role")
-      .limit(1)
-      .maybeSingle();
+      .eq("user_id", user.id)
+      .eq("status", "active");
 
     if (membershipError) {
       return { status: "error", error: "Falha ao resolver a membership do tenant." };
     }
 
-    if (!membership) {
+    const selectedTenantId =
+      (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value ?? null;
+    const selection = selectActiveTenantMembership(
+      (memberships ?? []) as ActiveTenantMembership[],
+      selectedTenantId,
+    );
+
+    if (selection.status === "no_membership") {
       return { status: "no_membership", userId: user.id, message: NO_MEMBERSHIP_MESSAGE };
     }
 
-    const { tenant_id: tenantId, role } = membership as {
-      tenant_id: string;
-      role: string;
-    };
+    if (selection.status === "selection_required") {
+      return { status: "error", error: TENANT_SELECTION_REQUIRED_MESSAGE };
+    }
+
+    const { tenant_id: tenantId, role } = selection.membership;
 
     // RLS (`tenants_select_member`) só permite ver o tenant se houver membership.
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .select("id, slug, name")
       .eq("id", tenantId)
+      .eq("status", "active")
       .maybeSingle();
 
     if (tenantError) {
