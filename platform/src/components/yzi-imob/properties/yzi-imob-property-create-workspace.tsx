@@ -19,8 +19,22 @@ import {
   WorkspaceTextarea,
   WorkspaceToggle,
 } from "@/components/yzi-imob/yzi-imob-workspace-fields";
-import { PlusIcon, ShieldIcon, StackIcon } from "@/components/yzi-imob/yzi-imob-icons-v2";
-import { GUIDED_MEDIA_SLOT_DEFINITIONS } from "@/lib/yzi-imob/creative/media/guided-journey";
+import {
+  CampaignIcon,
+  CardIcon,
+  CreativeIcon,
+  PlusIcon,
+  PropertyIcon,
+  ShieldIcon,
+  StackIcon,
+  TargetIcon,
+} from "@/components/yzi-imob/yzi-imob-icons-v2";
+import { StateTag, type SurfaceTone } from "@/components/yzi-imob/yzi-imob-surface-kit";
+import {
+  GUIDED_MEDIA_SLOT_DEFINITIONS,
+  type GuidedMediaSlotDefinition,
+  type GuidedMediaSlotKey,
+} from "@/lib/yzi-imob/creative/media/guided-journey";
 import {
   PROPERTY_AVAILABILITY_STATUS_VALUES,
   PROPERTY_FURNISHED_STATUS_VALUES,
@@ -344,76 +358,170 @@ function HiddenDraftFields({ draft }: { draft: PropertyDraft }) {
   );
 }
 
+type MediaGroupIcon = typeof PropertyIcon;
+
+const MEDIA_GROUPS: {
+  title: string;
+  hint: string;
+  icon: MediaGroupIcon;
+  slotKeys: readonly GuidedMediaSlotKey[];
+}[] = [
+  {
+    title: "Base do imóvel",
+    hint: "O que apresenta o imóvel de primeira.",
+    icon: PropertyIcon,
+    slotKeys: ["primary", "facade", "location_view"],
+  },
+  {
+    title: "Experiência",
+    hint: "O que mostra como é viver ali.",
+    icon: StackIcon,
+    slotKeys: ["entrance", "common_area", "leisure", "interior"],
+  },
+  {
+    title: "Decisão",
+    hint: "O que ajuda a fechar a visita.",
+    icon: TargetIcon,
+    slotKeys: ["floor_plan", "commercial_material", "closing_cta"],
+  },
+];
+
+const MEDIA_SLOT_PHRASES: Record<GuidedMediaSlotKey, string> = {
+  primary: "A capa que abre a apresentação.",
+  facade: "A fachada ou identidade externa.",
+  location_view: "Entorno, acesso ou vista confirmada.",
+  entrance: "A chegada até os ambientes internos.",
+  common_area: "Por enquanto, organizada junto com Lazer.",
+  leisure: "Piscina, rooftop e espaços de convívio.",
+  interior: "Sala, quartos, cozinha, suíte e banheiro.",
+  floor_plan: "A planta e a distribuição dos espaços.",
+  commercial_material: "Marca do imóvel; documentos vêm depois.",
+  closing_cta: "O fechamento é gerado automaticamente.",
+};
+
+const MEDIA_SLOT_BY_KEY = new Map<GuidedMediaSlotKey, GuidedMediaSlotDefinition>(
+  GUIDED_MEDIA_SLOT_DEFINITIONS.map((slot) => [slot.key, slot]),
+);
+
+function previewStatusLabel(slot: GuidedMediaSlotDefinition): string {
+  if (slot.support === "pending") return "Em breve";
+  if (slot.importance === "required") return "Organizar depois";
+  if (slot.importance === "optional") return "Opcional";
+  return "Recomendado";
+}
+
+function previewStatusTone(label: string): SurfaceTone {
+  if (label === "Organizar depois") return "pending";
+  if (label === "Recomendado") return "info";
+  return "idle";
+}
+
+const RELEASE_CARDS: { title: string; detail: string; icon: MediaGroupIcon }[] = [
+  {
+    title: "Carrossel",
+    detail: "Capa e uma seleção mínima de imagens aprovadas.",
+    icon: CardIcon,
+  },
+  {
+    title: "Vídeo tour",
+    detail: "Capa, volume mínimo e variedade de ambientes.",
+    icon: CreativeIcon,
+  },
+  {
+    title: "Anúncios",
+    detail: "Dados do imóvel e material suficiente para a peça.",
+    icon: CampaignIcon,
+  },
+];
+
 function MediaPreparationTab() {
   return (
     <div className="flex flex-col gap-7">
       <WorkspaceSection
         first
         title="Mídias do imóvel"
-        description="Antecipe os materiais que serão organizados assim que este imóvel tiver um cadastro próprio."
+        description="Depois de salvar, você organiza cada imagem pelo papel que cumpre na apresentação."
       >
-        <div className="flex items-start gap-3 border-y border-[color:var(--yzi-border-subtle)] py-4">
-          <span
-            aria-hidden
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)]"
-          >
-            <StackIcon className="h-4 w-4" />
-          </span>
-          <div className="max-w-2xl">
-            <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">
-              Separe as mídias pelo papel que cumprem na apresentação
-            </p>
-            <p className="mt-1 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-              Essa organização fornece contexto estruturado ao runtime e reduz a dependência de
-              classificação automática por IA. Nenhuma mídia é enviada ou registrada antes de o
-              imóvel ser salvo.
-            </p>
+        <div className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:rgba(var(--imob-ice),0.28)] bg-[rgba(var(--imob-cold),0.1)] text-[rgb(var(--imob-ice))]"
+            >
+              <StackIcon className="h-4 w-4" />
+            </span>
+            <div className="max-w-2xl">
+              <p className="text-[0.92rem] font-semibold text-[var(--yzi-text-primary)]">
+                Prepare o material antes de gerar criativos
+              </p>
+              <p className="mt-1 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                Separe o que você já tem nestes três grupos. Nenhuma mídia é enviada ou registrada antes
+                de o imóvel ser salvo.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-3 sm:gap-5 sm:divide-x sm:divide-[color:var(--yzi-border-subtle)]">
+            {MEDIA_GROUPS.map((group) => (
+              <div key={group.title} className="flex flex-col gap-3 sm:px-5 sm:first:pl-0 sm:last:pr-0">
+                <div className="flex items-center gap-2">
+                  <group.icon aria-hidden className="h-3.5 w-3.5 text-[var(--yzi-text-faint)]" />
+                  <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
+                    {group.title}
+                  </p>
+                </div>
+                <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">{group.hint}</p>
+
+                <div className="flex flex-col gap-2">
+                  {group.slotKeys.map((key) => {
+                    const slot = MEDIA_SLOT_BY_KEY.get(key);
+                    if (!slot) return null;
+                    const status = previewStatusLabel(slot);
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <StateTag tone={previewStatusTone(status)} label={status} />
+                        </div>
+                        <p className="mt-1.5 text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
+                          {slot.label}
+                        </p>
+                        <p className="mt-0.5 text-[0.7rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                          {MEDIA_SLOT_PHRASES[key]}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
-        <ol className="divide-y divide-[color:var(--yzi-border-subtle)]">
-          {GUIDED_MEDIA_SLOT_DEFINITIONS.map((slot, index) => (
-            <li
-              key={slot.key}
-              className="grid gap-2 py-3.5 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:items-start"
-            >
-              <span className="text-[0.68rem] font-medium tabular-nums text-[var(--yzi-text-faint)]">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
-                  {slot.label}
-                </p>
-                <p className="mt-1 max-w-2xl text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                  {slot.description}
-                </p>
-              </div>
-              <span className="text-[0.68rem] text-[var(--yzi-text-faint)] sm:pt-0.5">
-                {slot.support === "pending"
-                  ? "Contrato pendente"
-                  : slot.support === "partial"
-                    ? "Suporte parcial"
-                    : "Organizar depois"}
-              </span>
-            </li>
-          ))}
-        </ol>
       </WorkspaceSection>
 
       <WorkspaceSection
-        title="O que esta preparação libera"
-        description="A liberação é calculada depois do salvamento, usando dados e mídias reais do imóvel."
+        title="O que isso libera"
+        description="Calculado depois do salvamento, a partir dos dados e das mídias reais do imóvel."
       >
-        <div className="grid border-y border-[color:var(--yzi-border-subtle)] sm:grid-cols-3 sm:divide-x sm:divide-[color:var(--yzi-border-subtle)]">
-          {[
-            ["Carrossel", "Capa e seleção mínima de imagens aprovadas."],
-            ["Vídeo tour", "Capa, volume mínimo e variedade de ambientes."],
-            ["Anúncios", "Dados do imóvel e materiais suficientes para a peça."],
-          ].map(([title, detail]) => (
-            <div key={title} className="py-4 sm:px-4 sm:first:pl-0 sm:last:pr-0">
-              <p className="text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">{title}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {RELEASE_CARDS.map((card) => (
+            <div
+              key={card.title}
+              className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4"
+            >
+              <span
+                aria-hidden
+                className="grid h-8 w-8 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)]"
+              >
+                <card.icon className="h-4 w-4" />
+              </span>
+              <p className="mt-3 text-[0.8rem] font-medium text-[var(--yzi-text-primary)]">
+                {card.title}
+              </p>
               <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                {detail}
+                {card.detail}
               </p>
             </div>
           ))}
@@ -424,9 +532,10 @@ function MediaPreparationTab() {
         <div className="flex items-start gap-2.5 text-[0.76rem] leading-relaxed text-[var(--yzi-text-secondary)]">
           <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--imob-ice))]" />
           <p className="max-w-2xl">
-            Você será levado à aba Mídias do imóvel para organizar o que já estiver vinculado. O
-            upload real só será conectado quando existir um identificador seguro para o imóvel. A
-            YZI prepara criativos apenas quando o runtime confirmar dados e mídias suficientes.
+            Ao salvar, você é levado direto à aba Mídias deste imóvel para organizar o que já
+            tiver. O upload real depende do imóvel já existir, então ele é liberado só a partir
+            daí. A YZI prepara criativos apenas quando houver dados e mídias suficientes — nada é
+            gerado sem essa confirmação.
           </p>
         </div>
       </WorkspaceSection>
