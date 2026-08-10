@@ -11,7 +11,7 @@ export type GuidedMediaInput = {
   id: string;
   tenantId: string;
   propertyId: string;
-  mediaType: "image" | "video";
+  mediaType: "image" | "video" | "document";
   environmentType: CreativeEnvironmentType;
   displayOrder: number;
   isPrimary: boolean;
@@ -23,6 +23,9 @@ export type GuidedMediaInput = {
   height: number | null;
   humanNote: string | null;
   exclusionReason: string | null;
+  processingStatus?: "processing" | "ready" | "failed";
+  isPublicationAllowed?: boolean;
+  uploadState?: "reserved" | "completed" | "cancelled" | "failed" | null;
 };
 
 export type GuidedMediaSlotKey =
@@ -93,8 +96,9 @@ export const GUIDED_MEDIA_SLOT_DEFINITIONS: readonly GuidedMediaSlotDefinition[]
     key: "common_area",
     label: "Área comum",
     description: "Ainda não é possível organizar isso separado de Lazer nesta etapa.",
-    support: "pending",
+    support: "supported",
     importance: "optional",
+    environments: ["common_area"],
   },
   {
     key: "leisure",

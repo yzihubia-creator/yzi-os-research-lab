@@ -18,6 +18,7 @@ const ENVIRONMENT_PRIORITY = [
   "kitchen",
   "suite",
   "bedroom",
+  "common_area",
   "leisure",
   "bathroom",
   "floor_plan",

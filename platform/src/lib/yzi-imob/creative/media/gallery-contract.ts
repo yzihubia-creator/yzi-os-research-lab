@@ -38,6 +38,7 @@ export type PropertyGallerySlotKey =
 
 export type PropertyGallerySlotDefinition = {
   key: PropertyGallerySlotKey;
+  mediaClass: keyof typeof PROPERTY_MEDIA_ALLOWED_FILES;
   label: string;
   description: string;
   fileRule: string;
@@ -59,6 +60,7 @@ const INTERIOR_ENVIRONMENTS = new Set([
 export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = [
   {
     key: "primary",
+    mediaClass: "image",
     label: "Imagem principal",
     description: "Capa operacional do imóvel e referência para os formatos derivados.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -67,6 +69,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "facade",
+    mediaClass: "image",
     label: "Fachada",
     description: "Identidade externa do imóvel ou do empreendimento.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -75,6 +78,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "location_view",
+    mediaClass: "image",
     label: "Localização / vista externa",
     description: "Entorno, acesso e vistas externas confirmadas.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -84,6 +88,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "entrance",
+    mediaClass: "image",
     label: "Entrada / recepção",
     description: "Chegada, hall e recepção do imóvel ou condomínio.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -92,15 +97,16 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "common_area",
+    mediaClass: "image",
     label: "Área comum",
     description: "Circulação, salão, academia e outras áreas compartilhadas.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
-    support: "migration_required",
-    contractNote: "O enum atual não distingue área comum de lazer.",
-    matches: () => false,
+    support: "current",
+    matches: (media) => media.mediaType === "image" && media.slot === "common_area",
   },
   {
     key: "leisure",
+    mediaClass: "image",
     label: "Lazer / rooftop / piscina",
     description: "Piscina, rooftop e espaços de lazer confirmados.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -109,6 +115,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "interior",
+    mediaClass: "image",
     label: "Unidade / interior",
     description: "Sala, varanda, cozinha, quartos, suítes, banheiros e detalhes.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -118,6 +125,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "floor_plan",
+    mediaClass: "image",
     label: "Planta / tipologia",
     description: "Plantas e materiais visuais que explicam a distribuição dos espaços.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
@@ -126,21 +134,24 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
   {
     key: "raw_video",
+    mediaClass: "rawVideo",
     label: "Vídeos brutos",
     description: "Captações originais, separadas de tours e peças geradas.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.rawVideo.ruleLabel,
-    support: "partial",
-    contractNote: "O banco aceita vídeo, mas ainda não registra MIME, tamanho ou slot de ingestão.",
+    support: "current",
     matches: (media) => media.mediaType === "video",
   },
   {
     key: "commercial_document",
+    mediaClass: "document",
     label: "Material comercial / documentos",
     description: "Apresentações, folders, tabelas e documentos liberados para uso.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.document.ruleLabel,
-    support: "migration_required",
-    contractNote: "PDF/documento não é aceito pelo media_type atual; imagens de marca continuam visíveis aqui.",
-    matches: (media) => media.environmentType === "brand",
+    support: "current",
+    matches: (media) =>
+      media.slot === "commercial_document" ||
+      media.mediaType === "document" ||
+      media.environmentType === "brand",
   },
 ] as const;
 
@@ -148,7 +159,7 @@ export function mediaForGallerySlot(
   slot: PropertyGallerySlotDefinition,
   media: readonly PropertyPublicationMedia[],
 ): readonly PropertyPublicationMedia[] {
-  return media.filter(slot.matches).sort(
+  return media.filter((item) => item.slot === slot.key || slot.matches(item)).sort(
     (left, right) =>
       left.displayOrder - right.displayOrder ||
       left.sortOrder - right.sortOrder ||
@@ -161,9 +172,34 @@ export function buildPropertySourceMediaPath(input: {
   propertyId: string;
   slot: PropertyGallerySlotKey;
   mediaId: string;
-  safeFilename: string;
+  fileExtension: string;
 }): string {
-  return `tenant/${input.tenantId}/properties/${input.propertyId}/source-media/${input.slot}/${input.mediaId}-${input.safeFilename}`;
+  return `tenants/${input.tenantId}/properties/${input.propertyId}/source-media/${input.slot}/${input.mediaId}.${input.fileExtension}`;
+}
+
+export type PropertyMediaFileValidation =
+  | { valid: true; mediaClass: PropertyGallerySlotDefinition["mediaClass"] }
+  | { valid: false; message: string };
+
+export function validatePropertyMediaFile(
+  slotKey: PropertyGallerySlotKey,
+  file: { name: string; type: string; size: number },
+): PropertyMediaFileValidation {
+  const slot = PROPERTY_GALLERY_SLOTS.find((item) => item.key === slotKey);
+  if (!slot) return { valid: false, message: "Slot de mídia inválido." };
+  const contract = PROPERTY_MEDIA_ALLOWED_FILES[slot.mediaClass];
+  const limits = PROPERTY_MEDIA_LIMITS[slot.mediaClass];
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!(contract.mimeTypes as readonly string[]).includes(file.type)) {
+    return { valid: false, message: `Tipo de arquivo não permitido. Use ${contract.ruleLabel}.` };
+  }
+  if (!(contract.extensions as readonly string[]).includes(extension)) {
+    return { valid: false, message: "A extensão do arquivo não corresponde ao tipo selecionado." };
+  }
+  if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > limits.maxBytes) {
+    return { valid: false, message: `Arquivo fora do limite. Use ${contract.ruleLabel}.` };
+  }
+  return { valid: true, mediaClass: slot.mediaClass };
 }
 
 export function buildPropertyCreativeRunPath(input: {

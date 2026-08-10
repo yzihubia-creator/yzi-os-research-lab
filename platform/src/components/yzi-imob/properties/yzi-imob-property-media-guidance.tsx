@@ -9,6 +9,11 @@ import {
 } from "@/components/yzi-imob/yzi-imob-surface-kit";
 import { YziInsight } from "@/components/yzi-imob/yzi-imob-yzi-kit";
 import {
+  PropertyMediaCoverControl,
+  PropertyMediaPreview,
+  PropertyMediaUploadControl,
+} from "@/components/yzi-imob/properties/yzi-imob-property-media-upload-control";
+import {
   PROPERTY_GALLERY_SLOTS,
   PROPERTY_MEDIA_LIMITS,
   mediaForGallerySlot,
@@ -25,6 +30,7 @@ type Props = {
   propertyFactsComplete: boolean;
   media: readonly PropertyPublicationMedia[];
   mediaUnavailable?: boolean;
+  uploadEnabled?: boolean;
 };
 
 const FLOOR_PLAN_PROPERTY_TYPES = ["apartamento", "casa", "comercial"] as const;
@@ -56,7 +62,7 @@ function mediaState(item: PropertyPublicationMedia): { label: string; tone: Surf
   }
   if (item.mediaStatus === "approved") return { label: "Aprovada", tone: "ok" };
   if (item.mediaStatus === "excluded") return { label: "Excluída", tone: "idle" };
-  return { label: "Pendente", tone: "pending" };
+  return { label: "Aguardando revisão", tone: "pending" };
 }
 
 function DisabledMediaAction({ label, reason }: { label: string; reason: string }) {
@@ -120,6 +126,7 @@ export function YziImobPropertyMediaGuidance({
   propertyFactsComplete,
   media,
   mediaUnavailable = false,
+  uploadEnabled = false,
 }: Props) {
   const journey = buildGuidedMediaJourney({
     tenantId,
@@ -142,6 +149,9 @@ export function YziImobPropertyMediaGuidance({
       height: item.height,
       humanNote: item.humanNote,
       exclusionReason: item.exclusionReason,
+      processingStatus: item.processingStatus,
+      isPublicationAllowed: item.isPublicationAllowed,
+      uploadState: item.uploadState,
     })),
     readFailed: mediaUnavailable,
   });
@@ -177,10 +187,13 @@ export function YziImobPropertyMediaGuidance({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <DisabledMediaAction
-              label="Adicionar mídia"
-              reason="Upload indisponível: falta contrato de ingestão e policy de escrita no storage privado."
-            />
+            <a
+              href="#gallery-slots-title"
+              className="inline-flex items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-[0.74rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)]"
+            >
+              <PlusIcon className="h-4 w-4" />
+              Adicionar mídia
+            </a>
             <Link
               href={creativeHref}
               className="inline-flex items-center gap-2 rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-strong)] px-3 py-2 text-[0.74rem] text-[var(--yzi-text-secondary)] transition-colors hover:text-[var(--yzi-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:rgba(var(--imob-ice),0.55)]"
@@ -193,7 +206,9 @@ export function YziImobPropertyMediaGuidance({
 
         <p className="flex items-start gap-2 text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">
           <PlusIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Nenhum seletor de arquivo foi habilitado: o storage atual não autoriza ingestão de mídia original.
+          {uploadEnabled
+            ? "Cada slot envia somente para o acervo privado. A mídia nasce pendente e não entra automaticamente em publicação, WhatsApp ou criativos."
+            : "Upload indisponível neste ambiente até a migration local de ingestão segura ser aplicada com autorização."}
         </p>
       </section>
 
@@ -237,9 +252,6 @@ export function YziImobPropertyMediaGuidance({
           {PROPERTY_GALLERY_SLOTS.map((slot, index) => {
             const slotMedia = mediaForGallerySlot(slot, media);
             const presentation = gallerySlotPresentation(slot, slotMedia, mediaUnavailable);
-            const uploadReason = slot.support === "migration_required"
-              ? slot.contractNote ?? "Este slot exige evolução do contrato de mídia."
-              : "Upload indisponível: falta contrato de ingestão e policy de escrita no storage privado.";
             return (
               <li key={slot.key} className="flex min-h-[15rem] flex-col rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -260,14 +272,15 @@ export function YziImobPropertyMediaGuidance({
                       <div key={item.id} className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-[0.74rem] font-medium text-[var(--yzi-text-primary)]">{item.altText?.trim() || `${item.mediaType === "video" ? "Vídeo" : "Imagem"} ${itemIndex + 1}`}</p>
+                            <p className="truncate text-[0.74rem] font-medium text-[var(--yzi-text-primary)]">{item.originalFilename?.trim() || item.altText?.trim() || `${item.mediaType === "video" ? "Vídeo" : item.mediaType === "document" ? "Documento" : "Imagem"} ${itemIndex + 1}`}</p>
                             <p className={cx(TYPE.meta, "mt-1")}>{item.width && item.height ? `${item.width} × ${item.height} · ` : ""}ID {item.id.slice(0, 8)}</p>
                           </div>
                           <StateTag tone={state.tone} label={state.label} />
                         </div>
+                        <PropertyMediaPreview media={item} />
                         <div className="mt-3 flex flex-wrap gap-2">
                           <DisabledMediaAction label="Substituir" reason="Substituição exige upload real e ação explícita sem upsert implícito." />
-                          <DisabledMediaAction label="Definir capa" reason="A governança existe, mas esta galeria ainda não expõe uma ação segura de capa." />
+                          <PropertyMediaCoverControl propertyId={propertyId} media={item} enabled={uploadEnabled} />
                           <DisabledMediaAction label="Baixar" reason="O contrato de mídia original ainda não fornece download por signed URL." />
                           <DisabledMediaAction label="Copiar link" reason="Nenhum link privado temporário é exposto para mídia original nesta tela." />
                         </div>
@@ -279,7 +292,9 @@ export function YziImobPropertyMediaGuidance({
                     </div>
                   )}
                 </div>
-                <div className="mt-3"><DisabledMediaAction label="Adicionar mídia" reason={uploadReason} /></div>
+                <div className="mt-3">
+                  <PropertyMediaUploadControl propertyId={propertyId} slot={slot} enabled={uploadEnabled} />
+                </div>
               </li>
             );
           })}

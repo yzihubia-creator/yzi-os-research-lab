@@ -170,6 +170,7 @@ type Props = {
   descriptionRevisions?: readonly PropertyDescriptionRevision[];
   media?: readonly PropertyPublicationMedia[];
   mediaUnavailable?: boolean;
+  mediaUploadEnabled?: boolean;
 };
 
 export function YziImobPropertyWorkspace({
@@ -181,6 +182,7 @@ export function YziImobPropertyWorkspace({
   descriptionRevisions = [],
   media = [],
   mediaUnavailable = false,
+  mediaUploadEnabled = false,
 }: Props) {
   const router = useRouter();
   const { select, clear } = useYziImobWorkspace();
@@ -773,6 +775,7 @@ export function YziImobPropertyWorkspace({
             propertyFactsComplete={Boolean(property.title && property.city)}
             media={media}
             mediaUnavailable={mediaUnavailable}
+            uploadEnabled={mediaUploadEnabled}
           />
         ) : tab === "publicacao" ? (
           <YziImobPropertyPublicationWorkspaceSlot />

@@ -52,7 +52,9 @@ export type PropertyPublicationMedia = {
   id: string;
   tenantId: string;
   propertyId: string;
-  mediaType: "image" | "video";
+  mediaType: "image" | "video" | "document";
+  storageBucket: string | null;
+  storagePath: string | null;
   url: string | null;
   altText: string | null;
   sortOrder: number;
@@ -61,7 +63,7 @@ export type PropertyPublicationMedia = {
   processingStatus: "processing" | "ready" | "failed";
   environmentType:
     | "facade" | "entrance" | "living_room" | "balcony" | "kitchen"
-    | "bedroom" | "suite" | "bathroom" | "leisure" | "view"
+    | "bedroom" | "suite" | "bathroom" | "common_area" | "leisure" | "view"
     | "floor_plan" | "location" | "detail" | "brand" | "other";
   displayOrder: number;
   isPrimary: boolean;
@@ -73,6 +75,13 @@ export type PropertyPublicationMedia = {
   height: number | null;
   humanNote: string | null;
   exclusionReason: string | null;
+  slot: import("@/lib/yzi-imob/creative/media/gallery-contract").PropertyGallerySlotKey | null;
+  originalFilename: string | null;
+  mimeType: string | null;
+  fileExtension: string | null;
+  byteSize: number | null;
+  sourceKind: "original_upload" | "external_url" | "legacy_storage" | null;
+  uploadState: "reserved" | "completed" | "cancelled" | "failed" | null;
 };
 
 export type PublicationReadinessEligibility = {

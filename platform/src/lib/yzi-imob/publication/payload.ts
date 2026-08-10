@@ -173,6 +173,7 @@ function toPublicMedia(item: PropertyPublicationMedia): PropertyPublicMedia | nu
   if (
     !item.isPublicationAllowed ||
     item.processingStatus !== "ready" ||
+    item.mediaType === "document" ||
     !item.url
   ) {
     return null;

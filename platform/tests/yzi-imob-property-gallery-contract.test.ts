@@ -8,6 +8,7 @@ import {
   buildPropertyCreativeRunPath,
   buildPropertySourceMediaPath,
   mediaForGallerySlot,
+  validatePropertyMediaFile,
 } from "../src/lib/yzi-imob/creative/media/gallery-contract.ts";
 import type { PropertyPublicationMedia } from "../src/lib/yzi-imob/publication/types.ts";
 
@@ -17,6 +18,8 @@ function media(overrides: Partial<PropertyPublicationMedia>): PropertyPublicatio
     tenantId: "00000000-0000-4000-8000-000000000002",
     propertyId: "00000000-0000-4000-8000-000000000003",
     mediaType: "image",
+    storageBucket: null,
+    storagePath: null,
     url: null,
     altText: null,
     sortOrder: 0,
@@ -34,6 +37,13 @@ function media(overrides: Partial<PropertyPublicationMedia>): PropertyPublicatio
     height: null,
     humanNote: null,
     exclusionReason: null,
+    slot: null,
+    originalFilename: null,
+    mimeType: null,
+    fileExtension: null,
+    byteSize: null,
+    sourceKind: null,
+    uploadState: null,
     ...overrides,
   };
 }
@@ -79,7 +89,7 @@ test("organiza registros reais nos slots sem inventar documentos", () => {
   assert.equal(mediaForGallerySlot(primary, records).length, 1);
   assert.equal(mediaForGallerySlot(rawVideo, records).length, 1);
   assert.equal(mediaForGallerySlot(document, records).length, 1);
-  assert.equal(document.support, "migration_required");
+  assert.equal(document.support, "current");
 });
 
 test("documenta os paths alvo sem sobrescrita implícita", () => {
@@ -89,9 +99,9 @@ test("documenta os paths alvo sem sobrescrita implícita", () => {
       propertyId: "property-id",
       slot: "facade",
       mediaId: "media-id",
-      safeFilename: "fachada.webp",
+      fileExtension: "webp",
     }),
-    "tenant/tenant-id/properties/property-id/source-media/facade/media-id-fachada.webp",
+    "tenants/tenant-id/properties/property-id/source-media/facade/media-id.webp",
   );
   assert.equal(
     buildPropertyCreativeRunPath({
@@ -102,5 +112,32 @@ test("documenta os paths alvo sem sobrescrita implícita", () => {
       safeFilename: "card-01.png",
     }),
     "tenant/tenant-id/properties/property-id/creative-runs/run-id/carousel/card-01.png",
+  );
+});
+
+test("valida tipo, extensão e tamanho por slot antes da reserva", () => {
+  assert.deepEqual(
+    validatePropertyMediaFile("facade", {
+      name: "fachada.webp",
+      type: "image/webp",
+      size: 1024,
+    }),
+    { valid: true, mediaClass: "image" },
+  );
+  assert.equal(
+    validatePropertyMediaFile("raw_video", {
+      name: "tour.pdf",
+      type: "application/pdf",
+      size: 1024,
+    }).valid,
+    false,
+  );
+  assert.equal(
+    validatePropertyMediaFile("commercial_document", {
+      name: "folder.pdf",
+      type: "application/pdf",
+      size: PROPERTY_MEDIA_LIMITS.document.maxBytes + 1,
+    }).valid,
+    false,
   );
 });

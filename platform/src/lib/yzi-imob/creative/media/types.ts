@@ -1,6 +1,7 @@
 export const CREATIVE_ENVIRONMENT_TYPES = [
   "facade",
   "entrance",
+  "common_area",
   "living_room",
   "balcony",
   "kitchen",
@@ -25,7 +26,7 @@ export type GovernedPropertyMedia = {
   id: string;
   tenantId: string;
   propertyId: string;
-  mediaType: "image" | "video";
+  mediaType: "image" | "video" | "document";
   environmentType: CreativeEnvironmentType;
   displayOrder: number;
   isPrimary: boolean;
@@ -37,6 +38,9 @@ export type GovernedPropertyMedia = {
   height: number | null;
   humanNote: string | null;
   exclusionReason: string | null;
+  processingStatus?: "processing" | "ready" | "failed";
+  isPublicationAllowed?: boolean;
+  uploadState?: "reserved" | "completed" | "cancelled" | "failed" | null;
 };
 
 export type CreativeReadinessDiagnostic = {

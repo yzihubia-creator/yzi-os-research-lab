@@ -2,6 +2,7 @@ import { YziImobPropertyWorkspace } from "@/components/yzi-imob/yzi-imob-propert
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
+import { getPropertyMediaUploadCapability } from "@/lib/yzi-imob/creative/media/source-upload-repository";
 import { listPropertyPublicationMedia } from "@/lib/yzi-imob/publication/repository";
 import { getPropertyWorkspaceData } from "@/lib/yzi-imob/properties/repository";
 
@@ -44,9 +45,10 @@ export default async function YziImobImovelWorkspacePage({
   }
 
   const supabase = await createServerSupabaseClient();
-  const [result, mediaResult] = await Promise.all([
+  const [result, mediaResult, mediaUploadEnabled] = await Promise.all([
     getPropertyWorkspaceData(supabase, tenantContext.tenant.id, id),
     listPropertyPublicationMedia(supabase, tenantContext.tenant.id, id),
+    getPropertyMediaUploadCapability(supabase, id),
   ]);
 
   if (result.status === "error") {
@@ -63,6 +65,7 @@ export default async function YziImobImovelWorkspacePage({
       descriptionRevisions={result.value.descriptionRevisions}
       media={mediaResult.status === "ok" ? mediaResult.value : []}
       mediaUnavailable={mediaResult.status === "error"}
+      mediaUploadEnabled={mediaUploadEnabled}
     />
   );
 }

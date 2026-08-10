@@ -39,8 +39,9 @@ const REVISION_COLUMNS =
 const JOB_COLUMNS =
   "id, tenant_id, property_id, publication_id, operation, status, revision_id, publication_version, correlation_id, attempt_count, max_attempts, last_error_code, scheduled_at, started_at, completed_at";
 
-const MEDIA_COLUMNS =
-  "id, tenant_id, property_id, media_type, public_url, alt_text, sort_order, is_cover, is_publication_allowed, processing_status, environment_type, display_order, is_primary, eligible_for_carousel, eligible_for_video, media_status, orientation, width_px, height_px, human_note, exclusion_reason";
+const MEDIA_BASE_COLUMNS =
+  "id, tenant_id, property_id, media_type, storage_bucket, storage_path, public_url, alt_text, sort_order, is_cover, is_publication_allowed, processing_status, environment_type, display_order, is_primary, eligible_for_carousel, eligible_for_video, media_status, orientation, width_px, height_px, human_note, exclusion_reason";
+const MEDIA_COLUMNS = `${MEDIA_BASE_COLUMNS}, slot, original_filename, mime_type, file_extension, byte_size, source_kind, upload_state`;
 
 type PublicationRow = {
   id: string;
@@ -106,6 +107,8 @@ type MediaRow = {
   tenant_id: string;
   property_id: string;
   media_type: string;
+  storage_bucket: string | null;
+  storage_path: string | null;
   public_url: string | null;
   alt_text: string | null;
   sort_order: number;
@@ -123,6 +126,13 @@ type MediaRow = {
   height_px: number | null;
   human_note: string | null;
   exclusion_reason: string | null;
+  slot?: string | null;
+  original_filename?: string | null;
+  mime_type?: string | null;
+  file_extension?: string | null;
+  byte_size?: number | null;
+  source_kind?: string | null;
+  upload_state?: string | null;
 };
 
 export type PropertyPublicationRepositoryError =
@@ -216,6 +226,8 @@ function mapMedia(row: MediaRow): PropertyPublicationMedia {
     tenantId: row.tenant_id,
     propertyId: row.property_id,
     mediaType: row.media_type as PropertyPublicationMedia["mediaType"],
+    storageBucket: row.storage_bucket,
+    storagePath: row.storage_path,
     url: row.public_url,
     altText: row.alt_text,
     sortOrder: row.sort_order,
@@ -235,6 +247,13 @@ function mapMedia(row: MediaRow): PropertyPublicationMedia {
     height: row.height_px,
     humanNote: row.human_note,
     exclusionReason: row.exclusion_reason,
+    slot: (row.slot ?? null) as PropertyPublicationMedia["slot"],
+    originalFilename: row.original_filename ?? null,
+    mimeType: row.mime_type ?? null,
+    fileExtension: row.file_extension ?? null,
+    byteSize: row.byte_size ?? null,
+    sourceKind: (row.source_kind ?? null) as PropertyPublicationMedia["sourceKind"],
+    uploadState: (row.upload_state ?? null) as PropertyPublicationMedia["uploadState"],
   };
 }
 
@@ -243,9 +262,27 @@ export async function listPropertyPublicationMedia(
   tenantId: string,
   propertyId: string,
 ): Promise<PropertyPublicationRepositoryResult<readonly PropertyPublicationMedia[]>> {
-  const { data, error } = await supabase
+  const extended = await supabase
     .from("yzi_imob_property_media")
     .select(MEDIA_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("property_id", propertyId)
+    .neq("upload_state", "cancelled")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (!extended.error) {
+    return {
+      status: "ok",
+      value: ((extended.data as unknown as MediaRow[] | null) ?? []).map(mapMedia),
+    };
+  }
+
+  // Compatibilidade de rollout: antes da migration local ser aplicada, a
+  // leitura legada continua funcionando e a capability de upload fica false.
+  const { data, error } = await supabase
+    .from("yzi_imob_property_media")
+    .select(MEDIA_BASE_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("property_id", propertyId)
     .order("sort_order", { ascending: true })

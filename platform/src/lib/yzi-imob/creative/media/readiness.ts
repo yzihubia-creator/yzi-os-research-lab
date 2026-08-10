@@ -43,7 +43,13 @@ export function evaluateCreativeMediaReadiness(input: {
     ),
   );
   const approvedImages = scoped.filter(
-    (item) => item.mediaType === "image" && item.mediaStatus === "approved",
+    (item) =>
+      item.mediaType === "image" &&
+      item.mediaStatus === "approved" &&
+      item.processingStatus !== "processing" &&
+      item.processingStatus !== "failed" &&
+      item.isPublicationAllowed !== false &&
+      !["reserved", "cancelled", "failed"].includes(item.uploadState ?? "completed"),
   );
   const primary = approvedImages.filter((item) => item.isPrimary);
   const baseDiagnostics = [...diagnostics];

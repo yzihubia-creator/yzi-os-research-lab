@@ -269,7 +269,7 @@ test("jornada de midias orienta slots e libera formatos sem IA", () => {
   assert.equal(ready.slots.length, 10);
   assert.equal(
     ready.slots.find((slot) => slot.key === "common_area")?.status,
-    "contract_pending",
+    "optional",
   );
   assert.equal(
     ready.slots.find((slot) => slot.key === "closing_cta")?.status,
