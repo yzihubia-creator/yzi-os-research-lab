@@ -23,13 +23,15 @@ import {
   CampaignIcon,
   CardIcon,
   CreativeIcon,
+  ImageIcon,
+  LockIcon,
   PlusIcon,
   PropertyIcon,
   ShieldIcon,
   StackIcon,
   TargetIcon,
 } from "@/components/yzi-imob/yzi-imob-icons-v2";
-import { StateTag, type SurfaceTone } from "@/components/yzi-imob/yzi-imob-surface-kit";
+import { StateTag, cx, type SurfaceTone } from "@/components/yzi-imob/yzi-imob-surface-kit";
 import {
   GUIDED_MEDIA_SLOT_DEFINITIONS,
   type GuidedMediaSlotDefinition,
@@ -360,29 +362,37 @@ function HiddenDraftFields({ draft }: { draft: PropertyDraft }) {
 
 type MediaGroupIcon = typeof PropertyIcon;
 
-const MEDIA_GROUPS: {
+type MediaGroupConfig = {
   title: string;
   hint: string;
   icon: MediaGroupIcon;
   slotKeys: readonly GuidedMediaSlotKey[];
-}[] = [
+  gridClassName: string;
+  featuredKey?: GuidedMediaSlotKey;
+};
+
+const MEDIA_GROUPS: readonly MediaGroupConfig[] = [
   {
-    title: "Base do imóvel",
+    title: "Essenciais para começar",
     hint: "O que apresenta o imóvel de primeira.",
     icon: PropertyIcon,
     slotKeys: ["primary", "facade", "location_view"],
+    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-2",
+    featuredKey: "primary",
   },
   {
-    title: "Experiência",
+    title: "Experiência do imóvel",
     hint: "O que mostra como é viver ali.",
     icon: StackIcon,
     slotKeys: ["entrance", "common_area", "leisure", "interior"],
+    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4",
   },
   {
-    title: "Decisão",
+    title: "Decisão e fechamento",
     hint: "O que ajuda a fechar a visita.",
     icon: TargetIcon,
     slotKeys: ["floor_plan", "commercial_material", "closing_cta"],
+    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-3",
   },
 ];
 
@@ -403,16 +413,16 @@ const MEDIA_SLOT_BY_KEY = new Map<GuidedMediaSlotKey, GuidedMediaSlotDefinition>
   GUIDED_MEDIA_SLOT_DEFINITIONS.map((slot) => [slot.key, slot]),
 );
 
-function previewStatusLabel(slot: GuidedMediaSlotDefinition): string {
+function slotImportanceLabel(slot: GuidedMediaSlotDefinition): string {
   if (slot.support === "pending") return "Em breve";
-  if (slot.importance === "required") return "Organizar depois";
-  if (slot.importance === "optional") return "Opcional";
-  return "Recomendado";
+  if (slot.importance === "required") return "Obrigatório";
+  if (slot.importance === "recommended") return "Recomendado";
+  return "Opcional";
 }
 
-function previewStatusTone(label: string): SurfaceTone {
-  if (label === "Organizar depois") return "pending";
-  if (label === "Recomendado") return "info";
+function slotImportanceTone(label: string): SurfaceTone {
+  if (label === "Obrigatório") return "info";
+  if (label === "Recomendado") return "pending";
   return "idle";
 }
 
@@ -434,70 +444,111 @@ const RELEASE_CARDS: { title: string; detail: string; icon: MediaGroupIcon }[] =
   },
 ];
 
+/** Campo de mídia individual — o "slot" no padrão de anexo estilo Airtable:
+ * papel do arquivo, importância e uma área de anexo (bloqueada até salvar). */
+function MediaSlotCard({
+  slotKey,
+  featured = false,
+}: {
+  slotKey: GuidedMediaSlotKey;
+  featured?: boolean;
+}) {
+  const slot = MEDIA_SLOT_BY_KEY.get(slotKey);
+  if (!slot) return null;
+
+  const importance = slotImportanceLabel(slot);
+  const tone = slotImportanceTone(importance);
+  const isPending = slot.support === "pending";
+
+  return (
+    <div
+      className={cx(
+        "flex flex-col gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4",
+        featured && "sm:col-span-2",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">{slot.label}</p>
+        <StateTag tone={tone} label={importance} />
+      </div>
+      <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+        {MEDIA_SLOT_PHRASES[slotKey]}
+      </p>
+
+      <div
+        className={cx(
+          "flex cursor-not-allowed flex-col items-center justify-center gap-1.5 rounded-[var(--yzi-radius-sm)] border border-dashed border-[color:var(--yzi-border-subtle)] bg-[rgba(255,255,255,0.015)] px-3 text-center",
+          featured ? "aspect-[21/9]" : "aspect-[4/3]",
+        )}
+      >
+        <ImageIcon aria-hidden className="h-5 w-5 text-[var(--yzi-text-faint)]" />
+        {isPending ? (
+          <p className="text-[0.68rem] text-[var(--yzi-text-faint)]">Ainda não disponível</p>
+        ) : (
+          <>
+            <p className="text-[0.72rem] font-medium text-[var(--yzi-text-secondary)]">
+              Salvar para adicionar mídia
+            </p>
+            <p className="flex items-center gap-1 text-[0.62rem] text-[var(--yzi-text-faint)]">
+              <LockIcon aria-hidden className="h-3 w-3" />
+              Disponível depois de salvar
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MediaGroupSection({ group }: { group: MediaGroupConfig }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)]"
+        >
+          <group.icon className="h-3.5 w-3.5" />
+        </span>
+        <div>
+          <p className="text-[0.8rem] font-semibold text-[var(--yzi-text-primary)]">{group.title}</p>
+          <p className="text-[0.7rem] text-[var(--yzi-text-faint)]">{group.hint}</p>
+        </div>
+      </div>
+      <div className={group.gridClassName}>
+        {group.slotKeys.map((key) => (
+          <MediaSlotCard key={key} slotKey={key} featured={key === group.featuredKey} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MediaPreparationTab() {
   return (
     <div className="flex flex-col gap-7">
       <WorkspaceSection
         first
         title="Mídias do imóvel"
-        description="Depois de salvar, você organiza cada imagem pelo papel que cumpre na apresentação."
+        description="Separe os arquivos pelo papel que eles cumprem na apresentação."
       >
-        <div className="rounded-[var(--yzi-radius-lg)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:rgba(var(--imob-ice),0.28)] bg-[rgba(var(--imob-cold),0.1)] text-[rgb(var(--imob-ice))]"
-            >
-              <StackIcon className="h-4 w-4" />
-            </span>
-            <div className="max-w-2xl">
-              <p className="text-[0.92rem] font-semibold text-[var(--yzi-text-primary)]">
-                Prepare o material antes de gerar criativos
+        <div className="flex flex-col gap-6">
+          <div className="flex items-start gap-3 rounded-[var(--yzi-radius-md)] border border-[color:rgba(var(--imob-ice),0.28)] bg-[rgba(var(--imob-cold),0.08)] px-4 py-3.5 sm:px-5">
+            <LockIcon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--imob-ice))]" />
+            <div>
+              <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">
+                Salve o imóvel para liberar os campos de mídia.
               </p>
-              <p className="mt-1 text-[0.78rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                Separe o que você já tem nestes três grupos. Nenhuma mídia é enviada ou registrada antes
-                de o imóvel ser salvo.
+              <p className="mt-1 text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                Nenhuma mídia é enviada ou registrada antes de o imóvel existir — assim que você
+                salvar, cada campo abaixo passa a aceitar arquivo.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-6 sm:grid-cols-3 sm:gap-5 sm:divide-x sm:divide-[color:var(--yzi-border-subtle)]">
-            {MEDIA_GROUPS.map((group) => (
-              <div key={group.title} className="flex flex-col gap-3 sm:px-5 sm:first:pl-0 sm:last:pr-0">
-                <div className="flex items-center gap-2">
-                  <group.icon aria-hidden className="h-3.5 w-3.5 text-[var(--yzi-text-faint)]" />
-                  <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">
-                    {group.title}
-                  </p>
-                </div>
-                <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">{group.hint}</p>
-
-                <div className="flex flex-col gap-2">
-                  {group.slotKeys.map((key) => {
-                    const slot = MEDIA_SLOT_BY_KEY.get(key);
-                    if (!slot) return null;
-                    const status = previewStatusLabel(slot);
-                    return (
-                      <div
-                        key={key}
-                        className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-2.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <StateTag tone={previewStatusTone(status)} label={status} />
-                        </div>
-                        <p className="mt-1.5 text-[0.78rem] font-medium text-[var(--yzi-text-primary)]">
-                          {slot.label}
-                        </p>
-                        <p className="mt-0.5 text-[0.7rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                          {MEDIA_SLOT_PHRASES[key]}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          {MEDIA_GROUPS.map((group) => (
+            <MediaGroupSection key={group.title} group={group} />
+          ))}
         </div>
       </WorkspaceSection>
 
@@ -505,24 +556,16 @@ function MediaPreparationTab() {
         title="O que isso libera"
         description="Calculado depois do salvamento, a partir dos dados e das mídias reais do imóvel."
       >
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 divide-y divide-[color:var(--yzi-border-subtle)] rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {RELEASE_CARDS.map((card) => (
-            <div
-              key={card.title}
-              className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4"
-            >
-              <span
-                aria-hidden
-                className="grid h-8 w-8 place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] text-[var(--yzi-text-secondary)]"
-              >
-                <card.icon className="h-4 w-4" />
-              </span>
-              <p className="mt-3 text-[0.8rem] font-medium text-[var(--yzi-text-primary)]">
-                {card.title}
-              </p>
-              <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
-                {card.detail}
-              </p>
+            <div key={card.title} className="flex items-start gap-2.5 px-4 py-3.5">
+              <card.icon aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--yzi-text-faint)]" />
+              <div>
+                <p className="text-[0.76rem] font-medium text-[var(--yzi-text-primary)]">{card.title}</p>
+                <p className="mt-0.5 text-[0.68rem] leading-relaxed text-[var(--yzi-text-faint)]">
+                  {card.detail}
+                </p>
+              </div>
             </div>
           ))}
         </div>

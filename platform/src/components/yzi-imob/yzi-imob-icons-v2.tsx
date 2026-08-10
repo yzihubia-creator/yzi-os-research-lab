@@ -248,3 +248,23 @@ export function CardIcon(props: SVGProps<SVGSVGElement>) {
     </YziIcon>
   );
 }
+
+export function ImageIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <circle cx="9" cy="9.8" r="1.6" />
+      <path d="M4.2 17.3l4.6-4.6 2.8 2.8 3.3-3.8 4.4 5.6" />
+    </YziIcon>
+  );
+}
+
+export function LockIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <YziIcon {...props}>
+      <rect x="5.5" y="10.5" width="13" height="9" rx="2" />
+      <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+      <path d="M12 14v2.4" />
+    </YziIcon>
+  );
+}
