@@ -21,6 +21,7 @@ import {
 } from "@/lib/yzi-imob/creative/media/gallery-contract";
 import { buildGuidedMediaJourney } from "@/lib/yzi-imob/creative/media/guided-journey";
 import type { PropertyPublicationMedia } from "@/lib/yzi-imob/publication/types";
+import { PROPERTY_FLOOR_PLAN_APPLICABLE_TYPES } from "@/lib/yzi-imob/properties/contract";
 
 type Props = {
   tenantId: string;
@@ -33,11 +34,9 @@ type Props = {
   uploadEnabled?: boolean;
 };
 
-const FLOOR_PLAN_PROPERTY_TYPES = ["apartamento", "casa", "comercial"] as const;
-
 function isFloorPlanApplicable(propertyType: string | null): boolean {
   const normalized = propertyType?.trim().toLocaleLowerCase("pt-BR") ?? "";
-  return FLOOR_PLAN_PROPERTY_TYPES.some((type) => normalized.includes(type));
+  return (PROPERTY_FLOOR_PLAN_APPLICABLE_TYPES as readonly string[]).includes(normalized);
 }
 
 function gallerySlotPresentation(
@@ -91,7 +90,7 @@ function FormatReadiness({
 }) {
   const relevantDiagnostics = diagnostics.filter((item) => item.code !== "property_facts_incomplete");
   return (
-    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-3 py-4 @sm/media:flex-row @sm/media:items-start @sm/media:justify-between">
       <div className="flex min-w-0 items-start gap-3">
         <span
           aria-hidden
@@ -113,7 +112,7 @@ function FormatReadiness({
           ) : null}
         </div>
       </div>
-      <StateTag tone={ready ? "ok" : "attention"} label={ready ? "Pronto" : "Faltam materiais"} className="sm:mt-1" />
+      <StateTag tone={ready ? "ok" : "attention"} label={ready ? "Pronto" : "Faltam materiais"} className="@sm/media:mt-1" />
     </div>
   );
 }
@@ -175,10 +174,10 @@ export function YziImobPropertyMediaGuidance({
       ].filter((item): item is string => Boolean(item));
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-7 @container/media">
       <section className="flex flex-col gap-4" aria-labelledby="property-media-title">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <div className="flex flex-col gap-4 @sm/media:flex-row @sm/media:items-end @sm/media:justify-between">
+          <div className="min-w-0">
             <h2 id="property-media-title" className="text-[1.05rem] font-semibold tracking-[-0.01em] text-[var(--yzi-text-primary)]">
               Galeria do imóvel
             </h2>
@@ -242,19 +241,19 @@ export function YziImobPropertyMediaGuidance({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-4 @sm/media:grid-cols-3">
           <div><p className={TYPE.meta}>Imagens</p><p className={cx(TYPE.itemTitle, "mt-1")}>Até {PROPERTY_MEDIA_LIMITS.image.maxPerProperty} por imóvel</p></div>
           <div><p className={TYPE.meta}>Vídeos brutos</p><p className={cx(TYPE.itemTitle, "mt-1")}>Até {PROPERTY_MEDIA_LIMITS.rawVideo.maxPerProperty} por imóvel</p></div>
           <div><p className={TYPE.meta}>Documentos</p><p className={cx(TYPE.itemTitle, "mt-1")}>Até {PROPERTY_MEDIA_LIMITS.document.maxPerProperty} por imóvel</p></div>
         </div>
 
-        <ol className="mt-4 grid gap-4 lg:grid-cols-2">
+        <ol className="mt-4 grid gap-4 @lg/media:grid-cols-2">
           {PROPERTY_GALLERY_SLOTS.map((slot, index) => {
             const slotMedia = mediaForGallerySlot(slot, media);
             const presentation = gallerySlotPresentation(slot, slotMedia, mediaUnavailable);
             return (
               <li key={slot.key} className="flex min-h-[15rem] flex-col rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
                   <div className="min-w-0">
                     <p className="text-[0.68rem] font-medium tabular-nums text-[var(--yzi-text-faint)]">SLOT {String(index + 1).padStart(2, "0")}</p>
                     <p className={cx(TYPE.itemTitle, "mt-1")}>{slot.label}</p>
@@ -279,9 +278,9 @@ export function YziImobPropertyMediaGuidance({
                         </div>
                         <PropertyMediaPreview media={item} />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <DisabledMediaAction label="Substituir" reason="Substituição exige upload real e ação explícita sem upsert implícito." />
+                          <DisabledMediaAction label="Substituir" reason="Substituir exige um novo envio explícito; nada é sobrescrito automaticamente." />
                           <PropertyMediaCoverControl propertyId={propertyId} media={item} enabled={uploadEnabled} />
-                          <DisabledMediaAction label="Baixar" reason="O contrato de mídia original ainda não fornece download por signed URL." />
+                          <DisabledMediaAction label="Baixar" reason="O download por link temporário ainda não está disponível para mídia original." />
                           <DisabledMediaAction label="Copiar link" reason="Nenhum link privado temporário é exposto para mídia original nesta tela." />
                         </div>
                       </div>

@@ -35,17 +35,27 @@ import {
 } from "@/app/cockpit/yzi-imob/imoveis/[id]/actions";
 import { computePropertyCompleteness } from "@/lib/yzi-imob/properties/completeness";
 import { computePropertyQuality } from "@/lib/yzi-imob/properties/quality";
+import {
+  PROPERTY_COMMERCIAL_STAGE_OPTIONS,
+  PROPERTY_FLOOR_DESIGNATION_OPTIONS,
+  PROPERTY_PRICE_QUALIFIER_OPTIONS,
+  PROPERTY_RECORD_KIND_OPTIONS,
+  PROPERTY_TRANSACTION_OPTIONS,
+  PROPERTY_TYPE_LEGACY_OPTIONS,
+  PROPERTY_TYPE_OPTIONS,
+  type ContractOption,
+} from "@/lib/yzi-imob/properties/contract";
 import type { PropertyPublicationMedia } from "@/lib/yzi-imob/publication/types";
 import {
   PROPERTY_AVAILABILITY_STATUS_VALUES,
   PROPERTY_EDITORIAL_STATUS_VALUES,
   PROPERTY_FURNISHED_STATUS_VALUES,
+  PROPERTY_OPERATIONAL_STATUS_VALUES,
   PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES,
   PROPERTY_PROXIMITY_SOURCE_VALUES,
   PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES,
   PROPERTY_SOLAR_ORIENTATION_VALUES,
   PROPERTY_STAGE_VALUES,
-  PROPERTY_STATUS_VALUES,
   type Property,
   type PropertyDescriptionRevision,
   type PropertyPrivateLocation,
@@ -144,17 +154,22 @@ function SelectField({
   name,
   defaultValue,
   values,
+  options,
 }: {
   name: string;
   defaultValue?: string | null;
-  values: readonly string[];
+  values?: readonly string[];
+  options?: readonly ContractOption<string>[];
 }) {
+  const resolved = options ?? (values ?? []).map((value) => ({ value, label: value }));
+  const hasPersistedValue = resolved.some((option) => option.value === defaultValue);
   return (
     <select name={name} defaultValue={defaultValue ?? ""} className={inputClass}>
       <option value="">Nao informado</option>
-      {values.map((value) => (
-        <option key={value} value={value}>
-          {value}
+      {defaultValue && !hasPersistedValue ? <option value={defaultValue}>{defaultValue} (legado)</option> : null}
+      {resolved.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
         </option>
       ))}
     </select>
@@ -336,17 +351,23 @@ export function YziImobPropertyWorkspace({
                     <input name="title" required defaultValue={property.title} className={inputClass} />
                   </FormField>
                   <FormField label="Tipo">
-                    <input name="propertyType" defaultValue={textValue(property.propertyType)} className={inputClass} />
-                  </FormField>
-                  <FormField label="Transacao">
-                    <input
-                      name="transactionType"
-                      defaultValue={textValue(property.transactionType)}
-                      className={inputClass}
+                    <SelectField
+                      name="propertyType"
+                      defaultValue={property.propertyType}
+                      options={[...PROPERTY_TYPE_OPTIONS, ...PROPERTY_TYPE_LEGACY_OPTIONS]}
                     />
                   </FormField>
+                  <FormField label="Transacao">
+                    <SelectField name="transactionType" defaultValue={property.transactionType} options={PROPERTY_TRANSACTION_OPTIONS} />
+                  </FormField>
+                  <FormField label="Cadastro representa">
+                    <SelectField name="recordKind" defaultValue={String(property.commercialContext.record_kind ?? "unit")} options={PROPERTY_RECORD_KIND_OPTIONS} />
+                  </FormField>
+                  <FormField label="Fase comercial">
+                    <SelectField name="commercialStage" defaultValue={property.commercialContext.commercial_stage as string | undefined} options={PROPERTY_COMMERCIAL_STAGE_OPTIONS} />
+                  </FormField>
                   <FormField label="Status">
-                    <SelectField name="status" defaultValue={property.status} values={PROPERTY_STATUS_VALUES} />
+                    <SelectField name="status" defaultValue={property.status} values={PROPERTY_OPERATIONAL_STATUS_VALUES} />
                   </FormField>
                   <FormField label="Etapa">
                     <SelectField name="stage" defaultValue={property.stage} values={PROPERTY_STAGE_VALUES} />
@@ -452,6 +473,14 @@ export function YziImobPropertyWorkspace({
                     />
                   </FormField>
                   <FormField label="Andar">
+                    <SelectField
+                      name="floorDesignation"
+                      defaultValue={
+                        property.attributes.floorDesignation ??
+                        (property.floor === 0 ? "ground" : property.floor !== null ? "number" : null)
+                      }
+                      options={PROPERTY_FLOOR_DESIGNATION_OPTIONS}
+                    />
                     <input
                       name="floor"
                       type="number"
@@ -488,6 +517,13 @@ export function YziImobPropertyWorkspace({
                       step="0.01"
                       defaultValue={numberValue(property.price)}
                       className={inputClass}
+                    />
+                  </FormField>
+                  <FormField label="Referencia do preco">
+                    <SelectField
+                      name="priceQualifier"
+                      defaultValue={String(property.commercialContext.price_qualifier ?? "exact")}
+                      options={PROPERTY_PRICE_QUALIFIER_OPTIONS}
                     />
                   </FormField>
                   <FormField label="Condominio">

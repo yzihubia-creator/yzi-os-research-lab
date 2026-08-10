@@ -16,10 +16,15 @@ const RESIDENTIAL_TYPES = new Set([
   "apartment",
   "casa",
   "house",
+  "loft",
   "studio",
+  "flat",
   "cobertura",
   "duplex",
   "triplex",
+  "kitnet",
+  "casa_condominio",
+  "apartamento_garden",
 ]);
 
 const AREA_NOT_APPLICABLE_TYPES = new Set(["vaga", "garagem", "parking_space"]);
@@ -65,7 +70,8 @@ export function evaluatePropertyPublicationReadiness(
   const propertyType = normalizedType(property.propertyType);
   const description = (property.optimizedDescription ?? property.description ?? "").trim();
   const isResidential = RESIDENTIAL_TYPES.has(propertyType);
-  const requiresArea = !AREA_NOT_APPLICABLE_TYPES.has(propertyType);
+  const isDevelopment = property.commercialContext.record_kind === "development";
+  const requiresArea = !isDevelopment && !AREA_NOT_APPLICABLE_TYPES.has(propertyType);
 
   requireField(property.title.trim().length > 0, "title");
   requireField(propertyType.length > 0, "property_type");
@@ -80,7 +86,7 @@ export function evaluatePropertyPublicationReadiness(
     requireField(property.privateArea !== null || property.totalArea !== null, "area");
   }
 
-  if (isResidential) {
+  if (isResidential && !isDevelopment) {
     requireField(property.bedrooms !== null, "bedrooms");
     requireField(property.suites !== null, "suites");
     requireField(property.bathrooms !== null, "bathrooms");

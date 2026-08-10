@@ -68,6 +68,14 @@ function buildPropertyInput(formData: FormData): CreatePropertyInput {
   const condominiumFee = numberValue(formData, "condominiumFee");
   const iptuValue = numberValue(formData, "iptuValue");
   const originalDescription = stringValue(formData, "originalDescription");
+  const floorDesignation = stringValue(formData, "floorDesignation");
+  const floor =
+    floorDesignation === "ground"
+      ? 0
+      : floorDesignation === "number"
+        ? numberValue(formData, "floor")
+        : null;
+  const priceQualifier = stringValue(formData, "priceQualifier") ?? "exact";
 
   return {
     referenceCode: stringValue(formData, "referenceCode"),
@@ -87,6 +95,7 @@ function buildPropertyInput(formData: FormData): CreatePropertyInput {
       ...(totalArea === null ? {} : { areaTotal: totalArea }),
       ...(condominiumFee === null ? {} : { condoFee: condominiumFee }),
       ...(iptuValue === null ? {} : { iptu: iptuValue }),
+      ...(floorDesignation === null ? {} : { floorDesignation }),
     },
     stage: "intake",
     availabilityStatus: stringValue(formData, "availabilityStatus") ?? "available",
@@ -96,7 +105,7 @@ function buildPropertyInput(formData: FormData): CreatePropertyInput {
     parkingSpaces,
     privateArea,
     totalArea,
-    floor: numberValue(formData, "floor"),
+    floor,
     solarOrientation: stringValue(formData, "solarOrientation"),
     furnishedStatus: stringValue(formData, "furnishedStatus"),
     condominiumFee,
@@ -112,6 +121,10 @@ function buildPropertyInput(formData: FormData): CreatePropertyInput {
       ["payment_conditions", stringValue(formData, "commercialPaymentConditions")],
       ["occupancy_status", stringValue(formData, "commercialOccupancyStatus")],
       ["commercial_notes", stringValue(formData, "commercialNotes")],
+      ["record_kind", stringValue(formData, "recordKind") ?? "unit"],
+      ["commercial_stage", stringValue(formData, "commercialStage")],
+      ["price_qualifier", priceQualifier],
+      ["price_policy", priceQualifier === "on_request" ? "on_request" : null],
     ]),
   };
 }
@@ -168,6 +181,9 @@ const FIELD_MESSAGES: Record<string, [string, string]> = {
   title_required: ["title", "Informe o título do imóvel."],
   status_invalid: ["status", "Selecione um status válido."],
   availability_status_invalid: ["availabilityStatus", "Selecione uma disponibilidade válida."],
+  property_type_invalid: ["propertyType", "Selecione um tipo de imóvel válido."],
+  transaction_type_invalid: ["transactionType", "Selecione uma transação válida."],
+  commercial_context_invalid: ["commercialStage", "Revise a fase, o escopo e a referência de preço."],
   solar_orientation_invalid: ["solarOrientation", "Selecione uma orientação solar válida."],
   furnished_status_invalid: ["furnishedStatus", "Selecione uma opção de mobília válida."],
   price_invalid: ["price", "Informe um valor monetário válido."],
@@ -178,6 +194,9 @@ const FIELD_MESSAGES: Record<string, [string, string]> = {
   private_area_invalid: ["privateArea", "Informe uma área válida."],
   total_area_invalid: ["totalArea", "Informe uma área válida."],
   floor_invalid: ["floor", "Use um número inteiro igual ou maior que zero."],
+  floor_ground_must_be_zero: ["floor", "Térreo é persistido como pavimento zero."],
+  floor_number_required: ["floor", "Informe um número de andar maior que zero."],
+  floor_special_must_not_have_number: ["floor", "Pavimentos especiais não usam número de andar."],
   condominium_fee_invalid: ["condominiumFee", "Informe um valor monetário válido."],
   iptu_value_invalid: ["iptuValue", "Informe um valor monetário válido."],
   latitude_invalid: ["latitude", "A latitude deve estar entre -90 e 90."],

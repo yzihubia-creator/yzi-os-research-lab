@@ -38,13 +38,24 @@ import {
   type GuidedMediaSlotKey,
 } from "@/lib/yzi-imob/creative/media/guided-journey";
 import {
+  PROPERTY_AMENITY_OPTIONS,
+  PROPERTY_COMMERCIAL_STAGE_OPTIONS,
+  PROPERTY_FEATURE_OPTIONS,
+  PROPERTY_FLOOR_DESIGNATION_OPTIONS,
+  PROPERTY_PRICE_QUALIFIER_OPTIONS,
+  PROPERTY_RECORD_KIND_OPTIONS,
+  PROPERTY_SURROUNDING_OPTIONS,
+  PROPERTY_TRANSACTION_OPTIONS,
+  PROPERTY_TYPE_OPTIONS as CANONICAL_PROPERTY_TYPE_OPTIONS,
+} from "@/lib/yzi-imob/properties/contract";
+import {
   PROPERTY_AVAILABILITY_STATUS_VALUES,
   PROPERTY_FURNISHED_STATUS_VALUES,
   PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES,
   PROPERTY_PROXIMITY_SOURCE_VALUES,
   PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES,
   PROPERTY_SOLAR_ORIENTATION_VALUES,
-  PROPERTY_STATUS_VALUES,
+  PROPERTY_OPERATIONAL_STATUS_VALUES,
 } from "@/lib/yzi-imob/properties/types";
 
 const TABS = [
@@ -64,18 +75,12 @@ const QUICK_ACTIONS = [
 
 const PROPERTY_TYPE_OPTIONS = [
   { value: "", label: "Selecione" },
-  { value: "apartamento", label: "Apartamento" },
-  { value: "casa", label: "Casa" },
-  { value: "terreno", label: "Terreno" },
-  { value: "comercial", label: "Comercial" },
-  { value: "outro", label: "Outro" },
+  ...CANONICAL_PROPERTY_TYPE_OPTIONS,
 ];
 
 const TRANSACTION_TYPE_OPTIONS = [
   { value: "", label: "Selecione" },
-  { value: "venda", label: "Venda" },
-  { value: "aluguel", label: "Aluguel" },
-  { value: "ambos", label: "Venda ou aluguel" },
+  ...PROPERTY_TRANSACTION_OPTIONS,
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -112,32 +117,9 @@ const SOLAR_LABELS: Record<string, string> = {
   southwest: "Sudoeste",
 };
 
-const FEATURE_OPTIONS = [
-  "varanda",
-  "vista para o mar",
-  "posição nascente",
-  "dependência",
-  "escritório",
-  "área de serviço",
-];
-
-const AMENITY_OPTIONS = [
-  "piscina",
-  "academia",
-  "salão de festas",
-  "portaria",
-  "elevador",
-  "espaço gourmet",
-];
-
-const SURROUNDING_OPTIONS = [
-  "praia",
-  "escolas",
-  "hospitais",
-  "comércio",
-  "parques",
-  "mobilidade",
-];
+const FEATURE_OPTIONS = [...PROPERTY_FEATURE_OPTIONS];
+const AMENITY_OPTIONS = [...PROPERTY_AMENITY_OPTIONS];
+const SURROUNDING_OPTIONS = [...PROPERTY_SURROUNDING_OPTIONS];
 
 type ProximityDraft = {
   id: string;
@@ -158,16 +140,20 @@ type PropertyDraft = {
   transactionType: string;
   status: string;
   availabilityStatus: string;
+  recordKind: string;
+  commercialStage: string;
   bedrooms: string;
   suites: string;
   bathrooms: string;
   parkingSpaces: string;
   floor: string;
+  floorDesignation: string;
   furnishedStatus: string;
   solarOrientation: string;
   privateArea: string;
   totalArea: string;
   priceCents: string;
+  priceQualifier: string;
   condominiumFeeCents: string;
   iptuValueCents: string;
   city: string;
@@ -200,16 +186,20 @@ const INITIAL_DRAFT: PropertyDraft = {
   transactionType: "",
   status: "draft",
   availabilityStatus: "available",
+  recordKind: "unit",
+  commercialStage: "",
   bedrooms: "",
   suites: "",
   bathrooms: "",
   parkingSpaces: "",
   floor: "",
+  floorDesignation: "",
   furnishedStatus: "",
   solarOrientation: "",
   privateArea: "",
   totalArea: "",
   priceCents: "",
+  priceQualifier: "exact",
   condominiumFeeCents: "",
   iptuValueCents: "",
   city: "",
@@ -306,11 +296,14 @@ function HiddenDraftFields({ draft }: { draft: PropertyDraft }) {
     ["transactionType", "transactionType"],
     ["status", "status"],
     ["availabilityStatus", "availabilityStatus"],
+    ["recordKind", "recordKind"],
+    ["commercialStage", "commercialStage"],
     ["bedrooms", "bedrooms"],
     ["suites", "suites"],
     ["bathrooms", "bathrooms"],
     ["parkingSpaces", "parkingSpaces"],
     ["floor", "floor"],
+    ["floorDesignation", "floorDesignation"],
     ["furnishedStatus", "furnishedStatus"],
     ["solarOrientation", "solarOrientation"],
     ["privateArea", "privateArea"],
@@ -333,6 +326,7 @@ function HiddenDraftFields({ draft }: { draft: PropertyDraft }) {
     ["commercialNotes", "commercialNotes"],
     ["originalDescription", "originalDescription"],
     ["shortSummary", "shortSummary"],
+    ["priceQualifier", "priceQualifier"],
   ];
 
   return (
@@ -753,10 +747,23 @@ export function YziImobPropertyCreateWorkspace() {
                   options={TRANSACTION_TYPE_OPTIONS}
                 />
                 <WorkspaceDropdown
+                  label="Cadastro representa"
+                  value={draft.recordKind}
+                  onChange={(value) => set("recordKind", value)}
+                  options={[...PROPERTY_RECORD_KIND_OPTIONS]}
+                />
+                <WorkspaceDropdown
+                  label="Fase comercial"
+                  value={draft.commercialStage}
+                  onChange={(value) => set("commercialStage", value)}
+                  options={[{ value: "", label: "Não informado" }, ...PROPERTY_COMMERCIAL_STAGE_OPTIONS]}
+                  error={error("commercialStage")}
+                />
+                <WorkspaceDropdown
                   label="Status"
                   value={draft.status}
                   onChange={(value) => set("status", value)}
-                  options={enumOptions(PROPERTY_STATUS_VALUES, STATUS_LABELS)}
+                  options={enumOptions(PROPERTY_OPERATIONAL_STATUS_VALUES, STATUS_LABELS)}
                   error={error("status")}
                 />
                 <WorkspaceDropdown
@@ -780,7 +787,6 @@ export function YziImobPropertyCreateWorkspace() {
                     ["suites", "Suítes"],
                     ["bathrooms", "Banheiros"],
                     ["parkingSpaces", "Vagas"],
-                    ["floor", "Andar"],
                   ] as const
                 ).map(([key, label]) => (
                   <WorkspaceField
@@ -795,6 +801,29 @@ export function YziImobPropertyCreateWorkspace() {
                     error={error(key)}
                   />
                 ))}
+                <WorkspaceDropdown
+                  label="Pavimento"
+                  value={draft.floorDesignation}
+                  onChange={(value) => {
+                    set("floorDesignation", value);
+                    if (value === "ground") set("floor", "0");
+                    if (value !== "ground" && value !== "number") set("floor", "");
+                  }}
+                  options={[{ value: "", label: "Não informado" }, ...PROPERTY_FLOOR_DESIGNATION_OPTIONS]}
+                  error={error("floor")}
+                />
+                {draft.floorDesignation === "number" ? (
+                  <WorkspaceField
+                    label="Número do andar"
+                    value={draft.floor}
+                    onChange={(value) => set("floor", value)}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    error={error("floor")}
+                  />
+                ) : null}
                 <WorkspaceDropdown
                   label="Mobília"
                   value={draft.furnishedStatus}
@@ -841,6 +870,13 @@ export function YziImobPropertyCreateWorkspace() {
                   inputMode="numeric"
                   placeholder="R$ 0,00"
                   error={error("price")}
+                />
+                <WorkspaceDropdown
+                  label="Referência do preço"
+                  value={draft.priceQualifier}
+                  onChange={(value) => set("priceQualifier", value)}
+                  options={[...PROPERTY_PRICE_QUALIFIER_OPTIONS]}
+                  error={error("priceQualifier")}
                 />
                 <WorkspaceField
                   label="Condomínio"

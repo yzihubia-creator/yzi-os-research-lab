@@ -4,7 +4,14 @@
 // related tables. Private exact address data is intentionally represented as a
 // separate type and must only be read/written through governed RPCs.
 
-import type { PropertyAttributes } from "./attributes";
+import type { PropertyAttributes } from "./attributes.ts";
+import type {
+  PropertyCommercialStage,
+  PropertyPriceQualifier,
+  PropertyRecordKind,
+  PropertyTransaction,
+  PropertyType,
+} from "./contract.ts";
 
 export const PROPERTY_STATUS_VALUES = [
   "draft",
@@ -13,8 +20,13 @@ export const PROPERTY_STATUS_VALUES = [
   "sold",
   "rented",
   "archived",
+  "em_captacao",
 ] as const;
 export type PropertyStatus = (typeof PROPERTY_STATUS_VALUES)[number];
+
+// New writes use lifecycle-only statuses. sold/rented live in availability;
+// the broader list above remains accepted for historical rows.
+export const PROPERTY_OPERATIONAL_STATUS_VALUES = ["draft", "active", "paused", "archived"] as const;
 
 export function isPropertyStatus(value: string): value is PropertyStatus {
   return (PROPERTY_STATUS_VALUES as readonly string[]).includes(value);
@@ -84,6 +96,17 @@ export type PropertyDescriptionRevisionStatus =
 export type JsonObject = Record<string, unknown>;
 export type JsonArray = unknown[];
 
+export type PropertyCommercialContext = JsonObject & {
+  payment_conditions?: string;
+  occupancy_status?: string;
+  commercial_notes?: string;
+  record_kind?: PropertyRecordKind;
+  commercial_stage?: PropertyCommercialStage;
+  price_qualifier?: PropertyPriceQualifier;
+  price_policy?: "on_request";
+  priceHidden?: boolean;
+};
+
 export function isOneOf<const T extends readonly string[]>(
   values: T,
   value: string | null | undefined,
@@ -96,8 +119,8 @@ export type Property = {
   tenantId: string;
   referenceCode: string | null;
   title: string;
-  propertyType: string | null;
-  transactionType: string | null;
+  propertyType: PropertyType | string | null;
+  transactionType: PropertyTransaction | string | null;
   status: PropertyStatus | string;
   city: string | null;
   neighborhood: string | null;
@@ -125,7 +148,7 @@ export type Property = {
   propertyFeatures: JsonArray;
   condominiumAmenities: JsonArray;
   surroundings: JsonArray;
-  commercialContext: JsonObject;
+  commercialContext: PropertyCommercialContext;
   createdAt: string;
   updatedAt: string;
 };

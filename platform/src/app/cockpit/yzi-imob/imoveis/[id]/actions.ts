@@ -8,6 +8,7 @@ import {
   acceptPropertyDescriptionRevision,
   createPropertyDescriptionRevision,
   createPropertyProximity,
+  getPropertyById,
   rejectPropertyDescriptionRevision,
   updateProperty,
   upsertPropertyPrivateLocation,
@@ -24,6 +25,7 @@ import type {
   UpdatePropertyInput,
   UpsertPropertyPrivateLocationInput,
 } from "@/lib/yzi-imob/properties/types";
+import type { PropertyFloorDesignation, PropertyCommercialStage } from "@/lib/yzi-imob/properties/contract";
 
 export type PropertyWorkspaceActionState = {
   status: "idle" | "ok" | "error" | "membership_missing";
@@ -97,6 +99,13 @@ export async function updatePropertyCoreAction(
   formData: FormData,
 ): Promise<PropertyWorkspaceActionState> {
   const propertyId = requiredStringValue(formData, "propertyId");
+  const floorDesignation = stringValue(formData, "floorDesignation");
+  const floor =
+    floorDesignation === "ground"
+      ? 0
+      : floorDesignation === "number"
+        ? numberValue(formData, "floor")
+        : null;
   const input: UpdatePropertyInput = {
     referenceCode: stringValue(formData, "referenceCode"),
     title: requiredStringValue(formData, "title"),
@@ -114,7 +123,7 @@ export async function updatePropertyCoreAction(
     parkingSpaces: numberValue(formData, "parkingSpaces"),
     privateArea: numberValue(formData, "privateArea"),
     totalArea: numberValue(formData, "totalArea"),
-    floor: numberValue(formData, "floor"),
+    floor,
     solarOrientation: stringValue(formData, "solarOrientation"),
     furnishedStatus: stringValue(formData, "furnishedStatus"),
     condominiumFee: numberValue(formData, "condominiumFee"),
@@ -124,7 +133,7 @@ export async function updatePropertyCoreAction(
     editorialStatus: stringValue(formData, "editorialStatus"),
   };
 
-  const validated = validateUpdateProperty(input);
+  let validated = validateUpdateProperty(input);
   if (!validated.valid) {
     return { status: "error", message: "Revise os campos do imovel.", fieldErrors: validated.errors };
   }
@@ -133,6 +142,32 @@ export async function updatePropertyCoreAction(
   if (context.status === "error") return context.state;
 
   const supabase = await createServerSupabaseClient();
+  const existing = await getPropertyById(supabase, context.tenantId, propertyId);
+  if (existing.status === "error") {
+    return { status: "error", message: "Imovel nao encontrado para esta imobiliaria." };
+  }
+  const priceQualifier = stringValue(formData, "priceQualifier") ?? "exact";
+  const mergedAttributes = { ...existing.value.attributes };
+  if (floorDesignation) mergedAttributes.floorDesignation = floorDesignation as PropertyFloorDesignation;
+  else delete mergedAttributes.floorDesignation;
+  const mergedCommercialContext = {
+    ...existing.value.commercialContext,
+    record_kind: stringValue(formData, "recordKind") ?? "unit",
+    price_qualifier: priceQualifier,
+  };
+  const commercialStage = stringValue(formData, "commercialStage");
+  if (commercialStage) mergedCommercialContext.commercial_stage = commercialStage as PropertyCommercialStage;
+  else delete mergedCommercialContext.commercial_stage;
+  if (priceQualifier === "on_request") mergedCommercialContext.price_policy = "on_request";
+  else delete mergedCommercialContext.price_policy;
+  validated = validateUpdateProperty({
+    ...input,
+    attributes: mergedAttributes,
+    commercialContext: mergedCommercialContext,
+  });
+  if (!validated.valid) {
+    return { status: "error", message: "Revise os campos do imovel.", fieldErrors: validated.errors };
+  }
   const result = await updateProperty(supabase, context.tenantId, propertyId, validated.value);
   if (result.status === "error") {
     return { status: "error", message: "Nao foi possivel atualizar o imovel agora." };

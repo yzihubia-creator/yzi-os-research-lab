@@ -18,6 +18,7 @@ export const REAL_PROPERTY_STATUS_LABEL: Record<PropertyStatus, string> = {
   sold: "Vendido",
   rented: "Alugado",
   archived: "Arquivado",
+  em_captacao: "Em captação (legado)",
 };
 
 export const REAL_PROPERTY_STATUS_ACCENT: Record<PropertyStatus, YziImobRole> = {
@@ -27,6 +28,7 @@ export const REAL_PROPERTY_STATUS_ACCENT: Record<PropertyStatus, YziImobRole> = 
   sold: "primary",
   rented: "cyan",
   archived: "neutral",
+  em_captacao: "amber",
 };
 
 const FALLBACK_STATUS_LABEL = "Status desconhecido";

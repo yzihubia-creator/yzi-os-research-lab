@@ -2,9 +2,11 @@
 // Nenhuma tela consome este módulo ainda (fora do escopo desta unidade).
 
 export * from "./attributes";
+export * from "./contract";
 export * from "./types";
 export * from "./validation";
 export * from "./completeness";
 export * from "./quality";
 export * from "./mapper";
+export * from "./persistence";
 export * from "./repository";

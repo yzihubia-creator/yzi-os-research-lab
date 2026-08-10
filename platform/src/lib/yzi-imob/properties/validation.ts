@@ -3,7 +3,18 @@
 // Pure validation only. Tenant is resolved by server actions/repositories and
 // must never be accepted from client payloads.
 
-import { validatePropertyAttributes, type PropertyAttributes } from "./attributes";
+import { validatePropertyAttributes, type PropertyAttributes } from "./attributes.ts";
+import {
+  PROPERTY_AMENITY_OPTIONS,
+  PROPERTY_COMMERCIAL_STAGE_VALUES,
+  PROPERTY_FEATURE_OPTIONS,
+  PROPERTY_PRICE_QUALIFIER_VALUES,
+  PROPERTY_RECORD_KIND_VALUES,
+  PROPERTY_SURROUNDING_OPTIONS,
+  PROPERTY_TRANSACTION_VALUES,
+  PROPERTY_TYPE_VALUES,
+  includesContractValue,
+} from "./contract.ts";
 import {
   isOneOf,
   isPropertyStatus,
@@ -20,10 +31,10 @@ import {
   type CreatePropertyInput,
   type CreatePropertyProximityInput,
   type JsonArray,
-  type JsonObject,
+  type PropertyCommercialContext,
   type UpdatePropertyInput,
   type UpsertPropertyPrivateLocationInput,
-} from "./types";
+} from "./types.ts";
 
 export type ValidationResult<T> =
   | { valid: true; value: T }
@@ -60,7 +71,7 @@ export type ValidatedCreateProperty = {
   propertyFeatures: JsonArray;
   condominiumAmenities: JsonArray;
   surroundings: JsonArray;
-  commercialContext: JsonObject;
+  commercialContext: PropertyCommercialContext;
 };
 
 export type ValidatedUpdateProperty = Partial<ValidatedCreateProperty>;
@@ -164,22 +175,58 @@ function validateCanonical<const T extends readonly string[]>(
   return normalized;
 }
 
-function validateJsonArray(value: unknown, code: string, errors: string[]): JsonArray {
+function validateStringOptions(
+  value: unknown,
+  allowed: readonly string[],
+  code: string,
+  errors: string[],
+): JsonArray {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) {
-    errors.push(code);
+    errors.push(`${code}_must_be_array`);
     return [];
   }
-  return value;
+  const normalized = value.filter((item): item is string => typeof item === "string");
+  if (normalized.length !== value.length || normalized.some((item) => !allowed.includes(item))) {
+    errors.push(`${code}_invalid`);
+    return [];
+  }
+  return [...new Set(normalized)];
 }
 
-function validateJsonObject(value: unknown, code: string, errors: string[]): JsonObject {
+const COMMERCIAL_CONTEXT_STRING_KEYS = new Set([
+  "payment_conditions",
+  "occupancy_status",
+  "commercial_notes",
+]);
+
+function validateCommercialContext(value: unknown, errors: string[]): PropertyCommercialContext {
   if (value === undefined || value === null) return {};
   if (typeof value !== "object" || Array.isArray(value)) {
-    errors.push(code);
+    errors.push("commercial_context_must_be_object");
     return {};
   }
-  return value as JsonObject;
+  const input = value as Record<string, unknown>;
+  const result: PropertyCommercialContext = {};
+  for (const [key, item] of Object.entries(input)) {
+    if (COMMERCIAL_CONTEXT_STRING_KEYS.has(key)) {
+      if (typeof item !== "string") errors.push(`commercial_context_invalid:${key}`);
+      else result[key] = item;
+    } else if (key === "record_kind" && includesContractValue(PROPERTY_RECORD_KIND_VALUES, item as string)) {
+      result.record_kind = item as PropertyCommercialContext["record_kind"];
+    } else if (key === "commercial_stage" && includesContractValue(PROPERTY_COMMERCIAL_STAGE_VALUES, item as string)) {
+      result.commercial_stage = item as PropertyCommercialContext["commercial_stage"];
+    } else if (key === "price_qualifier" && includesContractValue(PROPERTY_PRICE_QUALIFIER_VALUES, item as string)) {
+      result.price_qualifier = item as PropertyCommercialContext["price_qualifier"];
+    } else if (key === "price_policy" && item === "on_request") {
+      result.price_policy = item;
+    } else if (key === "priceHidden" && typeof item === "boolean") {
+      result.priceHidden = item;
+    } else {
+      errors.push(`commercial_context_invalid:${key}`);
+    }
+  }
+  return result;
 }
 
 function validateLatitude(value: number | null | undefined, errors: string[]): number | null {
@@ -215,8 +262,13 @@ function applyPropertyCoreValidation(
 ): Omit<ValidatedCreateProperty, "title" | "status" | "attributes"> {
   return {
     referenceCode: normalizeOptionalString(input.referenceCode),
-    propertyType: normalizeOptionalString(input.propertyType),
-    transactionType: normalizeOptionalString(input.transactionType),
+    propertyType: validateCanonical(input.propertyType, PROPERTY_TYPE_VALUES, "property_type_invalid", errors),
+    transactionType: validateCanonical(
+      input.transactionType,
+      PROPERTY_TRANSACTION_VALUES,
+      "transaction_type_invalid",
+      errors,
+    ),
     city: normalizeOptionalString(input.city),
     neighborhood: normalizeOptionalString(input.neighborhood),
     price: validateNonNegativeNumber(input.price, "price_invalid", errors),
@@ -258,14 +310,25 @@ function applyPropertyCoreValidation(
       "editorial_status_invalid",
       errors,
     ),
-    propertyFeatures: validateJsonArray(input.propertyFeatures, "property_features_must_be_array", errors),
-    condominiumAmenities: validateJsonArray(
-      input.condominiumAmenities,
-      "condominium_amenities_must_be_array",
+    propertyFeatures: validateStringOptions(
+      input.propertyFeatures,
+      PROPERTY_FEATURE_OPTIONS,
+      "property_features",
       errors,
     ),
-    surroundings: validateJsonArray(input.surroundings, "surroundings_must_be_array", errors),
-    commercialContext: validateJsonObject(input.commercialContext, "commercial_context_must_be_object", errors),
+    condominiumAmenities: validateStringOptions(
+      input.condominiumAmenities,
+      PROPERTY_AMENITY_OPTIONS,
+      "condominium_amenities",
+      errors,
+    ),
+    surroundings: validateStringOptions(
+      input.surroundings,
+      PROPERTY_SURROUNDING_OPTIONS,
+      "surroundings",
+      errors,
+    ),
+    commercialContext: validateCommercialContext(input.commercialContext, errors),
   };
 }
 
@@ -276,6 +339,16 @@ export function validateCreateProperty(input: CreatePropertyInput): ValidationRe
   const attributesResult = validatePropertyAttributes(input.attributes);
   if (!attributesResult.valid) errors.push(...attributesResult.errors);
   const core = applyPropertyCoreValidation(input, errors);
+  const floorDesignation = attributesResult.valid
+    ? attributesResult.attributes.floorDesignation
+    : undefined;
+  if (floorDesignation === "ground" && core.floor !== 0) errors.push("floor_ground_must_be_zero");
+  if (floorDesignation === "number" && (core.floor === null || core.floor < 1)) {
+    errors.push("floor_number_required");
+  }
+  if (floorDesignation && !["ground", "number"].includes(floorDesignation) && core.floor !== null) {
+    errors.push("floor_special_must_not_have_number");
+  }
 
   if (errors.length > 0) return { valid: false, errors };
 
@@ -311,10 +384,18 @@ export function validateUpdateProperty(input: UpdatePropertyInput): ValidationRe
       (value as Record<string, unknown>)[key] = coreValue;
     }
   }
+  if (input.attributes !== undefined && input.floor !== undefined) {
+    const floorDesignation = value.attributes?.floorDesignation;
+    if (floorDesignation === "ground" && core.floor !== 0) errors.push("floor_ground_must_be_zero");
+    if (floorDesignation === "number" && (core.floor === null || core.floor < 1)) {
+      errors.push("floor_number_required");
+    }
+    if (floorDesignation && !["ground", "number"].includes(floorDesignation) && core.floor !== null) {
+      errors.push("floor_special_must_not_have_number");
+    }
+  }
 
   if (input.referenceCode !== undefined) value.referenceCode = normalizeOptionalString(input.referenceCode);
-  if (input.propertyType !== undefined) value.propertyType = normalizeOptionalString(input.propertyType);
-  if (input.transactionType !== undefined) value.transactionType = normalizeOptionalString(input.transactionType);
   if (input.city !== undefined) value.city = normalizeOptionalString(input.city);
   if (input.neighborhood !== undefined) value.neighborhood = normalizeOptionalString(input.neighborhood);
   if (input.description !== undefined) value.description = normalizeOptionalString(input.description);

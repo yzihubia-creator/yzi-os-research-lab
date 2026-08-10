@@ -128,6 +128,8 @@ function buildSeoContract(
   const propertyType = property.propertyType ?? "";
   const locationSilo = [slugify(city), slugify(neighborhood)].filter(Boolean).join("/");
   const propertyTypeSilo = slugify(propertyType);
+  const developmentSilo =
+    property.commercialContext.record_kind === "development" ? slugify(property.title) : null;
 
   const structuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -161,7 +163,7 @@ function buildSeoContract(
     sitemapInclusion: true,
     locationSilo,
     propertyTypeSilo,
-    developmentSilo: null,
+    developmentSilo,
     relatedContentIdentifiers: [
       `location:${locationSilo}`,
       `property_type:${propertyTypeSilo}`,
@@ -253,7 +255,10 @@ export function buildPropertyPublicPayload(
             visibility: "visible",
             amount: input.property.price,
             currency: "BRL",
-            formatted: PRICE_FORMATTER.format(input.property.price),
+            formatted:
+              input.property.commercialContext.price_qualifier === "starting_at"
+                ? `A partir de ${PRICE_FORMATTER.format(input.property.price)}`
+                : PRICE_FORMATTER.format(input.property.price),
           }
         : { visibility: "on_request", label: "Sob consulta" },
     bedrooms: input.property.bedrooms,
@@ -267,7 +272,10 @@ export function buildPropertyPublicPayload(
     },
     features,
     highlights,
-    development: null,
+    development:
+      input.property.commercialContext.record_kind === "development"
+        ? input.property.title
+        : null,
     gallery,
     cover,
     videos,

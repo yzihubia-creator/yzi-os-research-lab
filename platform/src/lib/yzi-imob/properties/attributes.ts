@@ -6,6 +6,12 @@
 // lista ou com tipo incorreto. Nenhum campo comercial inventado: apenas os
 // atributos físicos/operacionais necessários para completude e prontidão.
 
+import {
+  PROPERTY_FLOOR_DESIGNATION_VALUES,
+  includesContractValue,
+  type PropertyFloorDesignation,
+} from "./contract.ts";
+
 export type PropertyAttributes = {
   bedrooms?: number;
   bathrooms?: number;
@@ -16,6 +22,7 @@ export type PropertyAttributes = {
   petsAllowed?: boolean;
   condoFee?: number;
   iptu?: number;
+  floorDesignation?: PropertyFloorDesignation;
 };
 
 const ALLOWED_NUMBER_KEYS: readonly (keyof PropertyAttributes)[] = [
@@ -33,7 +40,13 @@ const ALLOWED_BOOLEAN_KEYS: readonly (keyof PropertyAttributes)[] = [
   "petsAllowed",
 ];
 
-const ALLOWED_KEYS = new Set<string>([...ALLOWED_NUMBER_KEYS, ...ALLOWED_BOOLEAN_KEYS]);
+const ALLOWED_STRING_KEYS: readonly (keyof PropertyAttributes)[] = ["floorDesignation"];
+
+const ALLOWED_KEYS = new Set<string>([
+  ...ALLOWED_NUMBER_KEYS,
+  ...ALLOWED_BOOLEAN_KEYS,
+  ...ALLOWED_STRING_KEYS,
+]);
 
 export type AttributesValidationResult =
   | { valid: true; attributes: PropertyAttributes }
@@ -73,6 +86,14 @@ export function validatePropertyAttributes(input: unknown): AttributesValidation
         continue;
       }
       (result as Record<string, unknown>)[key] = value;
+    } else if (
+      key === "floorDesignation" &&
+      typeof value === "string" &&
+      includesContractValue(PROPERTY_FLOOR_DESIGNATION_VALUES, value)
+    ) {
+      result.floorDesignation = value;
+    } else {
+      errors.push(`attributes_invalid_string:${key}`);
     }
   }
 
@@ -88,4 +109,4 @@ export function countFilledAttributes(attributes: PropertyAttributes): number {
 }
 
 export const PROPERTY_ATTRIBUTES_KNOWN_KEY_COUNT =
-  ALLOWED_NUMBER_KEYS.length + ALLOWED_BOOLEAN_KEYS.length;
+  ALLOWED_NUMBER_KEYS.length + ALLOWED_BOOLEAN_KEYS.length + ALLOWED_STRING_KEYS.length;
