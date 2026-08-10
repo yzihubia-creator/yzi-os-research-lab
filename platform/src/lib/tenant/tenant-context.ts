@@ -3,8 +3,10 @@ import { cookies } from "next/headers";
 
 import {
   ACTIVE_TENANT_COOKIE,
+  getRequiredTenantSelectionOptions,
   selectActiveTenantMembership,
   type ActiveTenantMembership,
+  type ActiveTenantSelectionOption,
 } from "@/lib/tenant/active-tenant";
 
 // Resolução read-only do contexto de tenant (Lane 4, Step 5, gate L4-G3).
@@ -32,11 +34,64 @@ export type TenantContext =
   | { status: "tenant_found"; userId: string; tenant: TenantSummary; role: string }
   | { status: "error"; error: string };
 
+export type TenantSelectionOption = ActiveTenantSelectionOption;
+
+export type TenantSelectionState =
+  | { status: "not_required" }
+  | { status: "selection_required"; operations: TenantSelectionOption[] };
+
 const TENANT_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$/;
 
 const NO_MEMBERSHIP_MESSAGE = "Você ainda não pertence a um tenant.";
 const TENANT_SELECTION_REQUIRED_MESSAGE =
   "Selecione explicitamente a organização que deseja acessar.";
+
+/** Lista somente as operações elegíveis quando a escolha explícita é necessária. */
+export async function getTenantSelectionState(): Promise<TenantSelectionState> {
+  const user = await getSessionUser();
+  if (!user) return { status: "not_required" };
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: memberships, error: membershipError } = await supabase
+      .from("tenant_memberships")
+      .select("tenant_id, role")
+      .eq("user_id", user.id)
+      .eq("status", "active");
+
+    if (membershipError) return { status: "not_required" };
+
+    const activeMemberships = (memberships ?? []) as ActiveTenantMembership[];
+    const selectedTenantId =
+      (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value ?? null;
+    if (activeMemberships.length === 0) {
+      return { status: "not_required" };
+    }
+
+    const { data: tenants, error: tenantError } = await supabase
+      .from("tenants")
+      .select("id, slug, name")
+      .in(
+        "id",
+        activeMemberships.map((membership) => membership.tenant_id),
+      )
+      .eq("status", "active");
+
+    if (tenantError) return { status: "not_required" };
+
+    const operations = getRequiredTenantSelectionOptions(
+      activeMemberships,
+      (tenants ?? []) as TenantSummary[],
+      selectedTenantId,
+    );
+
+    return operations
+      ? { status: "selection_required", operations }
+      : { status: "not_required" };
+  } catch {
+    return { status: "not_required" };
+  }
+}
 
 /**
  * Obtém o contexto de tenant do usuário autenticado via RLS, somente leitura.

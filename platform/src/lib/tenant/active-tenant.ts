@@ -13,6 +13,15 @@ export type ActiveTenantMembership = {
   role: string;
 };
 
+export type ActiveTenantSelectionOption = {
+  slug: string;
+  name: string;
+};
+
+type ActiveTenantRecord = ActiveTenantSelectionOption & {
+  id: string;
+};
+
 export type ActiveTenantMembershipSelection =
   | { status: "no_membership" }
   | { status: "selection_required" }
@@ -42,4 +51,39 @@ export function selectActiveTenantMembership(
   }
 
   return { status: "selection_required" };
+}
+
+export function listActiveTenantSelectionOptions(
+  memberships: ActiveTenantMembership[],
+  activeTenants: ActiveTenantRecord[],
+): ActiveTenantSelectionOption[] {
+  const membershipTenantIds = new Set(
+    memberships.map((membership) => membership.tenant_id),
+  );
+
+  return activeTenants
+    .filter((tenant) => membershipTenantIds.has(tenant.id))
+    .map(({ slug, name }) => ({ slug, name }))
+    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+}
+
+export function getRequiredTenantSelectionOptions(
+  memberships: ActiveTenantMembership[],
+  activeTenants: ActiveTenantRecord[],
+  selectedTenantId: string | null,
+): ActiveTenantSelectionOption[] | null {
+  const selection = selectActiveTenantMembership(memberships, selectedTenantId);
+  if (selection.status === "no_membership") return null;
+
+  if (
+    selection.status === "selected" &&
+    activeTenants.some(
+      (tenant) => tenant.id === selection.membership.tenant_id,
+    )
+  ) {
+    return null;
+  }
+
+  const options = listActiveTenantSelectionOptions(memberships, activeTenants);
+  return options.length > 0 ? options : null;
 }
