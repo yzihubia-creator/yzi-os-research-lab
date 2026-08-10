@@ -377,36 +377,36 @@ const MEDIA_GROUPS: readonly MediaGroupConfig[] = [
     hint: "O que apresenta o imóvel de primeira.",
     icon: PropertyIcon,
     slotKeys: ["primary", "facade", "location_view"],
-    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-2",
+    gridClassName: "grid grid-cols-1 gap-4 @sm/media:grid-cols-2",
     featuredKey: "primary",
   },
   {
     title: "Experiência do imóvel",
     hint: "O que mostra como é viver ali.",
     icon: StackIcon,
-    slotKeys: ["entrance", "common_area", "leisure", "interior"],
-    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4",
+    slotKeys: ["entrance", "common_area", "leisure"],
+    gridClassName: "grid grid-cols-1 gap-4 @sm/media:grid-cols-2 @lg/media:grid-cols-3",
   },
   {
-    title: "Decisão e fechamento",
-    hint: "O que ajuda a fechar a visita.",
+    title: "Decisão e venda",
+    hint: "O que ajuda a decidir e fechar a venda.",
     icon: TargetIcon,
-    slotKeys: ["floor_plan", "commercial_material", "closing_cta"],
-    gridClassName: "grid grid-cols-1 gap-4 sm:grid-cols-3",
+    slotKeys: ["interior", "floor_plan", "commercial_material"],
+    gridClassName: "grid grid-cols-1 gap-4 @sm/media:grid-cols-2 @lg/media:grid-cols-3",
   },
 ];
 
 const MEDIA_SLOT_PHRASES: Record<GuidedMediaSlotKey, string> = {
-  primary: "A capa que abre a apresentação.",
-  facade: "A fachada ou identidade externa.",
-  location_view: "Entorno, acesso ou vista confirmada.",
-  entrance: "A chegada até os ambientes internos.",
-  common_area: "Por enquanto, organizada junto com Lazer.",
-  leisure: "Piscina, rooftop e espaços de convívio.",
+  primary: "Capa do imóvel.",
+  facade: "Primeira leitura externa.",
+  location_view: "Vista, rua, entorno ou mapa.",
+  entrance: "Recepção, acesso ou chegada.",
+  common_area: "Ambientes compartilhados do imóvel.",
+  leisure: "Rooftop, piscina e espaços de convivência.",
   interior: "Sala, quartos, cozinha, suíte e banheiro.",
-  floor_plan: "A planta e a distribuição dos espaços.",
-  commercial_material: "Marca do imóvel; documentos vêm depois.",
-  closing_cta: "O fechamento é gerado automaticamente.",
+  floor_plan: "Distribuição e tipologia.",
+  commercial_material: "Book, tabela, memorial ou PDF.",
+  closing_cta: "Imagem final ou chamada para contato.",
 };
 
 const MEDIA_SLOT_BY_KEY = new Map<GuidedMediaSlotKey, GuidedMediaSlotDefinition>(
@@ -464,11 +464,11 @@ function MediaSlotCard({
     <div
       className={cx(
         "flex flex-col gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] p-4",
-        featured && "sm:col-span-2",
+        featured && "@sm/media:col-span-2",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">{slot.label}</p>
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <p className="min-w-0 text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">{slot.label}</p>
         <StateTag tone={tone} label={importance} />
       </div>
       <p className="text-[0.72rem] leading-relaxed text-[var(--yzi-text-secondary)]">
@@ -526,7 +526,7 @@ function MediaGroupSection({ group }: { group: MediaGroupConfig }) {
 
 function MediaPreparationTab() {
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-7 @container/media">
       <WorkspaceSection
         first
         title="Mídias do imóvel"
@@ -549,6 +549,19 @@ function MediaPreparationTab() {
           {MEDIA_GROUPS.map((group) => (
             <MediaGroupSection key={group.title} group={group} />
           ))}
+
+          <div className="flex items-start gap-3 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] px-4 py-3.5 sm:px-5">
+            <CreativeIcon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--yzi-text-secondary)]" />
+            <div>
+              <p className="text-[0.82rem] font-medium text-[var(--yzi-text-primary)]">
+                Fechamento gerado pela YZI
+              </p>
+              <p className="mt-1 text-[0.74rem] leading-relaxed text-[var(--yzi-text-secondary)]">
+                A imagem final e a chamada para contato são preparadas automaticamente a partir das
+                mídias aprovadas e dos dados do imóvel.
+              </p>
+            </div>
+          </div>
         </div>
       </WorkspaceSection>
 
@@ -556,7 +569,7 @@ function MediaPreparationTab() {
         title="O que isso libera"
         description="Calculado depois do salvamento, a partir dos dados e das mídias reais do imóvel."
       >
-        <div className="grid grid-cols-1 divide-y divide-[color:var(--yzi-border-subtle)] rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid grid-cols-1 divide-y divide-[color:var(--yzi-border-subtle)] rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] @sm/media:grid-cols-3 @sm/media:divide-x @sm/media:divide-y-0">
           {RELEASE_CARDS.map((card) => (
             <div key={card.title} className="flex items-start gap-2.5 px-4 py-3.5">
               <card.icon aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--yzi-text-faint)]" />
