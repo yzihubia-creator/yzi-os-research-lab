@@ -18,6 +18,11 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { PropertyPublicationMedia } from "@/lib/yzi-imob/publication/types";
 
 type UploadPhase = "idle" | "reserving" | "uploading" | "finalizing" | "success" | "error";
+type UploadStage = "reserve" | "storage" | "finalize" | "cancel";
+type SuccessfulReservation = Extract<
+  Awaited<ReturnType<typeof beginPropertyMediaUploadAction>>,
+  { status: "ok" }
+>;
 
 const PHASE_PROGRESS: Record<UploadPhase, number> = {
   idle: 0,
@@ -27,6 +32,13 @@ const PHASE_PROGRESS: Record<UploadPhase, number> = {
   success: 100,
   error: 0,
 };
+
+function logUploadFailure(stage: UploadStage, error: unknown) {
+  console.error("[yzi-imob-property-media-upload]", {
+    stage,
+    errorName: error instanceof Error ? error.name : "UnknownError",
+  });
+}
 
 export function PropertyMediaUploadControl({
   propertyId,
@@ -52,62 +64,85 @@ export function PropertyMediaUploadControl({
       return;
     }
 
-    setMessage("Reservando um caminho privado e tenant-scoped...");
-    setPhase("reserving");
-    const reservation = await beginPropertyMediaUploadAction({
-      propertyId,
-      slot: slot.key,
-      filename: file.name,
-      mimeType: file.type,
-      byteSize: file.size,
-    });
-    if (reservation.status === "error") {
-      setPhase("error");
-      setMessage(reservation.message);
-      return;
-    }
+    let stage: UploadStage = "reserve";
+    let reservation: SuccessfulReservation | null = null;
 
     const cancelReservation = async () => {
-      await cancelPropertyMediaUploadAction({
+      if (!reservation) return;
+      try {
+        await cancelPropertyMediaUploadAction({
+          propertyId,
+          mediaId: reservation.reservation.mediaId,
+          path: reservation.reservation.path,
+        });
+      } catch (error) {
+        logUploadFailure("cancel", error);
+      }
+    };
+
+    try {
+      setMessage("Preparando a mídia...");
+      setPhase("reserving");
+      const reservationResult = await beginPropertyMediaUploadAction({
+        propertyId,
+        slot: slot.key,
+        filename: file.name,
+        mimeType: file.type,
+        byteSize: file.size,
+      });
+      if (reservationResult.status === "error") {
+        setPhase("error");
+        setMessage(reservationResult.message);
+        return;
+      }
+      reservation = reservationResult;
+
+      stage = "storage";
+      setPhase("uploading");
+      setMessage("Enviando mídia...");
+      const upload = await getSupabaseBrowserClient().storage
+        .from(reservation.reservation.bucket)
+        .upload(reservation.reservation.path, file, {
+          contentType: file.type,
+          cacheControl: "3600",
+          upsert: false,
+        });
+      if (upload.error) {
+        logUploadFailure("storage", upload.error);
+        await cancelReservation();
+        setPhase("error");
+        setMessage("Não foi possível enviar a mídia. Tente novamente.");
+        return;
+      }
+
+      stage = "finalize";
+      setPhase("finalizing");
+      setMessage("Finalizando envio...");
+      const finalized = await finalizePropertyMediaUploadAction({
         propertyId,
         mediaId: reservation.reservation.mediaId,
         path: reservation.reservation.path,
       });
-    };
+      if (finalized.status === "error") {
+        await cancelReservation();
+        setPhase("error");
+        setMessage(finalized.message);
+        return;
+      }
 
-    setPhase("uploading");
-    setMessage("Enviando o arquivo para o acervo privado...");
-    const upload = await getSupabaseBrowserClient().storage
-      .from(reservation.reservation.bucket)
-      .upload(reservation.reservation.path, file, {
-        contentType: file.type,
-        cacheControl: "3600",
-        upsert: false,
-      });
-    if (upload.error) {
-      await cancelReservation();
-      setPhase("error");
-      setMessage("O envio falhou. A reserva foi cancelada; tente novamente.");
-      return;
-    }
-
-    setPhase("finalizing");
-    setMessage("Validando tipo, tamanho e vínculo do arquivo...");
-    const finalized = await finalizePropertyMediaUploadAction({
-      propertyId,
-      mediaId: reservation.reservation.mediaId,
-      path: reservation.reservation.path,
-    });
-    if (finalized.status === "error") {
-      await cancelReservation();
-      setPhase("error");
+      setPhase("success");
       setMessage(finalized.message);
-      return;
+      router.refresh();
+    } catch (error) {
+      logUploadFailure(stage, error);
+      if (reservation) await cancelReservation();
+      setPhase("error");
+      setMessage(
+        stage === "reserve"
+          ? "Não foi possível preparar a mídia. Atualize a página e tente novamente."
+          : "Não foi possível concluir o envio. Tente novamente.",
+      );
     }
-
-    setPhase("success");
-    setMessage(finalized.message);
-    router.refresh();
   }
 
   return (

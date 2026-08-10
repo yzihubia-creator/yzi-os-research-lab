@@ -45,17 +45,22 @@ import {
   PROPERTY_TYPE_OPTIONS,
   type ContractOption,
 } from "@/lib/yzi-imob/properties/contract";
+import {
+  completenessFieldLabel,
+  PROPERTY_AVAILABILITY_STATUS_OPTIONS,
+  PROPERTY_EDITORIAL_STATUS_OPTIONS,
+  PROPERTY_FURNISHED_STATUS_OPTIONS,
+  PROPERTY_OPERATIONAL_STATUS_LEGACY_OPTIONS,
+  PROPERTY_OPERATIONAL_STATUS_OPTIONS,
+  PROPERTY_PROXIMITY_SOURCE_OPTIONS,
+  PROPERTY_PROXIMITY_TRAVEL_MODE_OPTIONS,
+  PROPERTY_SOLAR_ORIENTATION_OPTIONS,
+  PROPERTY_STAGE_OPTIONS,
+  qualityCheckLabel,
+} from "@/lib/yzi-imob/properties/labels";
 import type { PropertyPublicationMedia } from "@/lib/yzi-imob/publication/types";
 import {
-  PROPERTY_AVAILABILITY_STATUS_VALUES,
-  PROPERTY_EDITORIAL_STATUS_VALUES,
-  PROPERTY_FURNISHED_STATUS_VALUES,
-  PROPERTY_OPERATIONAL_STATUS_VALUES,
   PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES,
-  PROPERTY_PROXIMITY_SOURCE_VALUES,
-  PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES,
-  PROPERTY_SOLAR_ORIENTATION_VALUES,
-  PROPERTY_STAGE_VALUES,
   type Property,
   type PropertyDescriptionRevision,
   type PropertyPrivateLocation,
@@ -63,9 +68,9 @@ import {
 } from "@/lib/yzi-imob/properties/types";
 
 const TABS = [
-  { id: "informacoes", label: "Informacoes" },
+  { id: "informacoes", label: "Informações" },
   { id: "midias", label: "Mídias" },
-  { id: "publicacao", label: "Publicacao" },
+  { id: "publicacao", label: "Publicação" },
   { id: "ia", label: "IA", soon: true },
 ];
 
@@ -81,11 +86,11 @@ function numberValue(value: number | null | undefined): string {
 }
 
 function formatArea(value: number | null | undefined): string {
-  return value !== null && value !== undefined ? `${value} m2` : "Nao informado";
+  return value !== null && value !== undefined ? `${value} m2` : "Não informado";
 }
 
 function formatCount(value: number | null | undefined): string {
-  return value !== null && value !== undefined ? String(value) : "Nao informado";
+  return value !== null && value !== undefined ? String(value) : "Não informado";
 }
 
 function formatRevisionStatus(status: PropertyDescriptionRevision["status"]): string {
@@ -165,8 +170,8 @@ function SelectField({
   const hasPersistedValue = resolved.some((option) => option.value === defaultValue);
   return (
     <select name={name} defaultValue={defaultValue ?? ""} className={inputClass}>
-      <option value="">Nao informado</option>
-      {defaultValue && !hasPersistedValue ? <option value={defaultValue}>{defaultValue} (legado)</option> : null}
+      <option value="">Não informado</option>
+      {defaultValue && !hasPersistedValue ? <option value={defaultValue}>{defaultValue} (valor legado, não catalogado)</option> : null}
       {resolved.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -234,19 +239,19 @@ export function YziImobPropertyWorkspace({
     const quality = computePropertyQuality(property);
     select({
       name: property.title,
-      subtitle: [property.neighborhood, property.city].filter(Boolean).join(" - ") || "Localizacao nao informada",
+      subtitle: [property.neighborhood, property.city].filter(Boolean).join(" - ") || "Localização não informada",
       statusLabel: propertyStatusLabel(property.status),
       situation:
         quality.level === "ready"
-          ? "Cadastro pronto para publicacao."
+          ? "Cadastro pronto para publicação."
           : quality.level === "basic"
-            ? "Cadastro basico; ainda faltam itens para publicacao."
-            : "Cadastro insuficiente para publicacao.",
+            ? "Cadastro básico; ainda faltam itens para publicação."
+            : "Cadastro insuficiente para publicação.",
       pendencies:
         completeness.missingFields.length > 0
-          ? completeness.missingFields.map((field) => `Campo pendente: ${field}`)
-          : ["Nenhuma pendencia de cadastro registrada."],
-      checklist: quality.checks.map((check) => ({ label: check.name, done: check.passed })),
+          ? completeness.missingFields.map((field) => `Campo pendente: ${completenessFieldLabel(field)}`)
+          : ["Nenhuma pendência de cadastro registrada."],
+      checklist: quality.checks.map((check) => ({ label: qualityCheckLabel(check.name), done: check.passed })),
       score: completeness.percentage,
       scoreLabel: "Property Readiness",
       nextAction:
@@ -260,16 +265,16 @@ export function YziImobPropertyWorkspace({
     return (
       <section className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center gap-3 px-8 py-10 text-center">
         <p className="text-[1.1rem] font-semibold text-[var(--yzi-text-primary)]">
-          Imovel nao encontrado.
+          Imóvel não encontrado.
         </p>
         <p className="text-[0.86rem] text-[var(--yzi-text-secondary)]">
-          Este imovel nao existe ou nao pertence a sua imobiliaria.
+          Este imóvel não existe ou não pertence à sua imobiliária.
         </p>
         <Link
           href="/cockpit/yzi-imob/imoveis"
           className="mt-2 text-[0.82rem] text-[rgb(var(--imob-ice))] hover:underline"
         >
-          Voltar ao catalogo
+          Voltar ao catálogo
         </Link>
       </section>
     );
@@ -283,11 +288,11 @@ export function YziImobPropertyWorkspace({
     { label: "Completude", value: `${completeness.percentage}%`, detail: "Campos de cadastro preenchidos." },
     {
       label: "Qualidade",
-      value: quality.level === "ready" ? "Pronto" : quality.level === "basic" ? "Basico" : "Insuficiente",
-      detail: "Checagem minima para site/atendimento.",
+      value: quality.level === "ready" ? "Pronto" : quality.level === "basic" ? "Básico" : "Insuficiente",
+      detail: "Checagem mínima para site/atendimento.",
     },
-    { label: "Status", value: propertyStatusLabel(property.status), detail: "Estado operacional atual do imovel." },
-    { label: "Preco", value: formatPropertyPrice(property.price), detail: "Valor cadastrado para este imovel." },
+    { label: "Status", value: propertyStatusLabel(property.status), detail: "Estado operacional atual do imóvel." },
+    { label: "Preço", value: formatPropertyPrice(property.price), detail: "Valor cadastrado para este imóvel." },
   ];
 
   return (
@@ -295,12 +300,12 @@ export function YziImobPropertyWorkspace({
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-8 pt-10">
         <EntityHero
           backHref="/cockpit/yzi-imob/imoveis"
-          backLabel="Imoveis"
+          backLabel="Imóveis"
           kicker="Property Workspace"
           title={property.title}
           subtitle={formatPropertyLocation(property.city, property.neighborhood)}
           statusLabel={propertyStatusLabel(property.status)}
-          composerPlaceholder="Pergunte a YZI sobre este imovel..."
+          composerPlaceholder="Pergunte a YZI sobre este imóvel..."
           quickActions={[]}
           onAsk={() => router.push("/cockpit/yzi-imob/radar")}
         />
@@ -344,10 +349,10 @@ export function YziImobPropertyWorkspace({
               <input type="hidden" name="propertyId" value={property.id} />
               <WorkspaceSection first title="Identidade">
                 <WorkspaceGrid>
-                  <FormField label="Referencia">
+                  <FormField label="Referência">
                     <input name="referenceCode" defaultValue={textValue(property.referenceCode)} className={inputClass} />
                   </FormField>
-                  <FormField label="Titulo">
+                  <FormField label="Título">
                     <input name="title" required defaultValue={property.title} className={inputClass} />
                   </FormField>
                   <FormField label="Tipo">
@@ -357,7 +362,7 @@ export function YziImobPropertyWorkspace({
                       options={[...PROPERTY_TYPE_OPTIONS, ...PROPERTY_TYPE_LEGACY_OPTIONS]}
                     />
                   </FormField>
-                  <FormField label="Transacao">
+                  <FormField label="Transação">
                     <SelectField name="transactionType" defaultValue={property.transactionType} options={PROPERTY_TRANSACTION_OPTIONS} />
                   </FormField>
                   <FormField label="Cadastro representa">
@@ -367,39 +372,43 @@ export function YziImobPropertyWorkspace({
                     <SelectField name="commercialStage" defaultValue={property.commercialContext.commercial_stage as string | undefined} options={PROPERTY_COMMERCIAL_STAGE_OPTIONS} />
                   </FormField>
                   <FormField label="Status">
-                    <SelectField name="status" defaultValue={property.status} values={PROPERTY_OPERATIONAL_STATUS_VALUES} />
+                    <SelectField
+                      name="status"
+                      defaultValue={property.status}
+                      options={[...PROPERTY_OPERATIONAL_STATUS_OPTIONS, ...PROPERTY_OPERATIONAL_STATUS_LEGACY_OPTIONS]}
+                    />
                   </FormField>
                   <FormField label="Etapa">
-                    <SelectField name="stage" defaultValue={property.stage} values={PROPERTY_STAGE_VALUES} />
+                    <SelectField name="stage" defaultValue={property.stage} options={PROPERTY_STAGE_OPTIONS} />
                   </FormField>
                   <FormField label="Disponibilidade">
                     <SelectField
                       name="availabilityStatus"
                       defaultValue={property.availabilityStatus}
-                      values={PROPERTY_AVAILABILITY_STATUS_VALUES}
+                      options={PROPERTY_AVAILABILITY_STATUS_OPTIONS}
                     />
                   </FormField>
                   <FormField label="Editorial">
                     <SelectField
                       name="editorialStatus"
                       defaultValue={property.editorialStatus}
-                      values={PROPERTY_EDITORIAL_STATUS_VALUES}
+                      options={PROPERTY_EDITORIAL_STATUS_OPTIONS}
                     />
                   </FormField>
                 </WorkspaceGrid>
               </WorkspaceSection>
 
               <WorkspaceSection
-                title="Corretor responsavel"
-                description="O corretor responsável ainda não foi definido neste cadastro."
+                title="Corretores e comissão"
+                description="A YZI ainda não registra corretor captador, parceiro de captação ou comissão por imóvel — este cadastro só guarda quem o criou no sistema. Corretor responsável pelo lead é definido apenas quando um atendimento é assumido, na aba de leads."
               >
                 <ReadOnlyField
-                  label="Criado por"
-                  value={property.createdByUserId ? "Usuario autenticado registrado" : "Nao informado"}
+                  label="Cadastrado por"
+                  value={property.createdByUserId ? "Registrado no sistema" : "Não informado"}
                 />
               </WorkspaceSection>
 
-              <WorkspaceSection title="Localizacao publica">
+              <WorkspaceSection title="Localização pública">
                 <WorkspaceGrid>
                   <FormField label="Cidade">
                     <input name="city" defaultValue={textValue(property.city)} className={inputClass} />
@@ -410,9 +419,9 @@ export function YziImobPropertyWorkspace({
                 </WorkspaceGrid>
               </WorkspaceSection>
 
-              <WorkspaceSection title="Caracteristicas">
+              <WorkspaceSection title="Características">
                 <WorkspaceGrid>
-                  <FormField label="Area privativa">
+                  <FormField label="Área privativa">
                     <input
                       name="privateArea"
                       type="number"
@@ -422,7 +431,7 @@ export function YziImobPropertyWorkspace({
                       className={inputClass}
                     />
                   </FormField>
-                  <FormField label="Area total">
+                  <FormField label="Área total">
                     <input
                       name="totalArea"
                       type="number"
@@ -442,7 +451,7 @@ export function YziImobPropertyWorkspace({
                       className={inputClass}
                     />
                   </FormField>
-                  <FormField label="Suites">
+                  <FormField label="Suítes">
                     <input
                       name="suites"
                       type="number"
@@ -490,18 +499,18 @@ export function YziImobPropertyWorkspace({
                       className={inputClass}
                     />
                   </FormField>
-                  <FormField label="Orientacao solar">
+                  <FormField label="Orientação solar">
                     <SelectField
                       name="solarOrientation"
                       defaultValue={property.solarOrientation}
-                      values={PROPERTY_SOLAR_ORIENTATION_VALUES}
+                      options={PROPERTY_SOLAR_ORIENTATION_OPTIONS}
                     />
                   </FormField>
-                  <FormField label="Mobilia">
+                  <FormField label="Mobília">
                     <SelectField
                       name="furnishedStatus"
                       defaultValue={property.furnishedStatus}
-                      values={PROPERTY_FURNISHED_STATUS_VALUES}
+                      options={PROPERTY_FURNISHED_STATUS_OPTIONS}
                     />
                   </FormField>
                 </WorkspaceGrid>
@@ -509,7 +518,7 @@ export function YziImobPropertyWorkspace({
 
               <WorkspaceSection title="Valores">
                 <WorkspaceGrid>
-                  <FormField label="Preco">
+                  <FormField label="Preço">
                     <input
                       name="price"
                       type="number"
@@ -519,14 +528,14 @@ export function YziImobPropertyWorkspace({
                       className={inputClass}
                     />
                   </FormField>
-                  <FormField label="Referencia do preco">
+                  <FormField label="Referência do preço">
                     <SelectField
                       name="priceQualifier"
                       defaultValue={String(property.commercialContext.price_qualifier ?? "exact")}
                       options={PROPERTY_PRICE_QUALIFIER_OPTIONS}
                     />
                   </FormField>
-                  <FormField label="Condominio">
+                  <FormField label="Condomínio">
                     <input
                       name="condominiumFee"
                       type="number"
@@ -551,7 +560,7 @@ export function YziImobPropertyWorkspace({
 
               <WorkspaceSection title="Conhecimento da YZI">
                 <div className="grid grid-cols-1 gap-4">
-                  <FormField label="Descricao original">
+                  <FormField label="Descrição original">
                     <textarea
                       name="originalDescription"
                       rows={5}
@@ -568,8 +577,8 @@ export function YziImobPropertyWorkspace({
                     />
                   </FormField>
                   <ReadOnlyField
-                    label="Descricao otimizada"
-                    value={property.optimizedDescription ?? "Nenhuma descricao otimizada aceita ainda."}
+                    label="Descrição otimizada"
+                    value={property.optimizedDescription ?? "Nenhuma descrição otimizada aceita ainda."}
                   />
                 </div>
               </WorkspaceSection>
@@ -579,14 +588,14 @@ export function YziImobPropertyWorkspace({
             </form>
 
             <WorkspaceSection
-              title="Endereco privado"
+              title="Endereço privado"
               description="O endereço exato é protegido e não aparece na divulgação pública do imóvel."
             >
               <form action={privateAction} className="flex flex-col gap-4">
                 <input type="hidden" name="propertyId" value={property.id} />
                 {privateLocationError ? (
                   <p className="text-[0.76rem] text-[rgb(255,170,170)]">
-                    Endereco privado indisponivel para seu perfil.
+                    Endereço privado indisponível para seu perfil.
                   </p>
                 ) : null}
                 <WorkspaceGrid>
@@ -596,13 +605,13 @@ export function YziImobPropertyWorkspace({
                   <FormField label="Rua">
                     <input name="street" defaultValue={textValue(privateLocation?.street)} className={inputClass} />
                   </FormField>
-                  <FormField label="Numero">
+                  <FormField label="Número">
                     <input name="number" defaultValue={textValue(privateLocation?.number)} className={inputClass} />
                   </FormField>
                   <FormField label="Complemento">
                     <input name="complement" defaultValue={textValue(privateLocation?.complement)} className={inputClass} />
                   </FormField>
-                  <FormField label="Condominio">
+                  <FormField label="Condomínio">
                     <input
                       name="condominiumName"
                       defaultValue={textValue(privateLocation?.condominiumName)}
@@ -634,7 +643,7 @@ export function YziImobPropertyWorkspace({
                     />
                   </FormField>
                 </WorkspaceGrid>
-                <FormField label="Instrucoes de acesso">
+                <FormField label="Instruções de acesso">
                   <textarea
                     name="accessInstructions"
                     rows={3}
@@ -651,31 +660,44 @@ export function YziImobPropertyWorkspace({
                   />
                 </FormField>
                 <ActionMessage state={privateState} />
-                <SubmitButton label="Salvar endereco privado" pending={privatePending} />
+                <SubmitButton label="Salvar endereço privado" pending={privatePending} />
               </form>
             </WorkspaceSection>
 
-            <WorkspaceSection title="Proximidades">
+            <WorkspaceSection
+              title="Proximidades"
+              description="Pontos de referência perto do imóvel, usados para localizar o cliente na região."
+            >
               <div className="flex flex-col gap-4">
                 {proximities.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3">
                     {proximities.map((proximity) => (
                       <div
                         key={proximity.id}
-                        className="rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-3"
+                        className="flex flex-col gap-1.5 rounded-[var(--yzi-radius-md)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)] px-3 py-3"
                       >
-                        <p className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">
-                          {proximity.label}
-                        </p>
-                        <p className="mt-1 text-[0.72rem] text-[var(--yzi-text-secondary)]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[0.84rem] font-medium text-[var(--yzi-text-primary)]">
+                            {proximity.label}
+                          </p>
+                          <span
+                            className={
+                              proximity.isConfirmed
+                                ? "w-fit rounded-full border border-[rgba(var(--imob-ice),0.32)] bg-[rgba(var(--imob-ice),0.1)] px-2 py-0.5 text-[0.66rem] text-[rgb(var(--imob-ice))]"
+                                : "w-fit rounded-full border border-[color:var(--yzi-border-subtle)] px-2 py-0.5 text-[0.66rem] text-[var(--yzi-text-faint)]"
+                            }
+                          >
+                            {proximity.isConfirmed ? "Distância confirmada" : "Distância a confirmar"}
+                          </span>
+                        </div>
+                        <p className="text-[0.72rem] text-[var(--yzi-text-secondary)]">
                           {proximity.placeType}
                           {proximity.distanceValue !== null
-                            ? ` - ${proximity.distanceValue}${proximity.distanceUnit ?? ""}`
+                            ? ` · ${proximity.distanceValue}${proximity.distanceUnit ?? ""}`
                             : ""}
                           {proximity.estimatedMinutes !== null
-                            ? ` - ${proximity.estimatedMinutes} min`
+                            ? ` · ${proximity.estimatedMinutes} min`
                             : ""}
-                          {proximity.isConfirmed ? " - confirmada" : " - nao confirmada"}
                         </p>
                       </div>
                     ))}
@@ -695,24 +717,24 @@ export function YziImobPropertyWorkspace({
                     <FormField label="Nome">
                       <input name="label" className={inputClass} />
                     </FormField>
-                    <FormField label="Distancia">
+                    <FormField label="Distância">
                       <input name="distanceValue" type="number" min="0" step="0.01" className={inputClass} />
                     </FormField>
                     <FormField label="Unidade">
                       <SelectField name="distanceUnit" values={PROPERTY_PROXIMITY_DISTANCE_UNIT_VALUES} />
                     </FormField>
-                    <FormField label="Modo">
-                      <SelectField name="travelMode" values={PROPERTY_PROXIMITY_TRAVEL_MODE_VALUES} />
+                    <FormField label="Modo de deslocamento">
+                      <SelectField name="travelMode" options={PROPERTY_PROXIMITY_TRAVEL_MODE_OPTIONS} />
                     </FormField>
                     <FormField label="Minutos estimados">
                       <input name="estimatedMinutes" type="number" min="0" step="1" className={inputClass} />
                     </FormField>
-                    <FormField label="Origem">
-                      <SelectField name="source" defaultValue="manual" values={PROPERTY_PROXIMITY_SOURCE_VALUES} />
+                    <FormField label="Origem do registro">
+                      <SelectField name="source" defaultValue="manual" options={PROPERTY_PROXIMITY_SOURCE_OPTIONS} />
                     </FormField>
                     <label className="flex items-center gap-2 pt-6 text-[0.78rem] text-[var(--yzi-text-secondary)]">
                       <input name="isConfirmed" type="checkbox" className="h-4 w-4" />
-                      Confirmada
+                      Distância confirmada
                     </label>
                   </WorkspaceGrid>
                   <ActionMessage state={proximityState} />
@@ -721,11 +743,11 @@ export function YziImobPropertyWorkspace({
               </div>
             </WorkspaceSection>
 
-            <WorkspaceSection title="Sugestao editorial">
+            <WorkspaceSection title="Sugestão editorial">
               <div className="flex flex-col gap-4">
                 <WorkspaceGrid>
-                  <ReadOnlyField label="Area privativa" value={formatArea(property.privateArea)} />
-                  <ReadOnlyField label="Area total" value={formatArea(property.totalArea)} />
+                  <ReadOnlyField label="Área privativa" value={formatArea(property.privateArea)} />
+                  <ReadOnlyField label="Área total" value={formatArea(property.totalArea)} />
                   <ReadOnlyField label="Quartos" value={formatCount(property.bedrooms)} />
                   <ReadOnlyField label="Banheiros" value={formatCount(property.bathrooms)} />
                 </WorkspaceGrid>
@@ -816,7 +838,7 @@ export function YziImobPropertyWorkspace({
         ) : tab === "publicacao" ? (
           <YziImobPropertyPublicationWorkspaceSlot />
         ) : (
-          <ComingSoonPanel label="IA" note="A YZI ja esta no Inspector; mais acoes chegam aqui." />
+          <ComingSoonPanel label="IA" note="A YZI já está no Inspector; mais ações chegam aqui." />
         )}
 
         <p className="text-[0.7rem] leading-relaxed text-[var(--yzi-text-faint)]">

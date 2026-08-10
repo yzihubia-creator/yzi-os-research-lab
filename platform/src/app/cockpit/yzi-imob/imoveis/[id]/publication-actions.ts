@@ -12,6 +12,7 @@ import {
   simulatePropertyPublicationSync,
 } from "@/lib/yzi-imob/publication/repository";
 import type { PropertyPublicationReviewDecision } from "@/lib/yzi-imob/publication/types";
+import { syncErrorLabel } from "@/lib/yzi-imob/publication/labels";
 
 export type PropertyPublicationActionState = {
   status: "idle" | "ok" | "error" | "forbidden";
@@ -178,7 +179,7 @@ export async function synchronizePublicationAction(
       }
     : {
         status: "error",
-        message: `Falha simulada registrada: ${result.value.errorCode}.`,
+        message: `Falha simulada registrada: ${syncErrorLabel(result.value.errorCode)}.`,
       };
 }
 

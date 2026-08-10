@@ -15,6 +15,12 @@ import type {
   PropertyPublicationReadiness,
   PropertyPublicationWorkspace,
 } from "@/lib/yzi-imob/publication/types";
+import {
+  publicationBlockerLabel,
+  publicationStatusLabel,
+  publicationWarningLabel,
+  syncErrorLabel,
+} from "@/lib/yzi-imob/publication/labels";
 
 function Message({ state }: { state: PropertyPublicationActionState }) {
   if (state.status === "idle" || !state.message) return null;
@@ -29,7 +35,9 @@ function Message({ state }: { state: PropertyPublicationActionState }) {
     >
       <p>{state.message}</p>
       {state.blockers?.length ? (
-        <p className="mt-1 text-[0.7rem] opacity-80">{state.blockers.join(", ")}</p>
+        <p className="mt-1 text-[0.7rem] opacity-80">
+          {state.blockers.map(publicationBlockerLabel).join(", ")}
+        </p>
       ) : null}
     </div>
   );
@@ -145,7 +153,7 @@ export function YziImobPropertyPublicationPanel({
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Datum label="Prontidão" value={readiness.ready ? "Pronto" : "Incompleto"} />
-        <Datum label="Publicação" value={state?.status ?? "draft"} />
+        <Datum label="Publicação" value={publicationStatusLabel(state?.status)} />
         <Datum
           label="Revisão atual"
           value={currentRevision ? `#${currentRevision.revisionNumber}` : "Nenhuma"}
@@ -160,7 +168,7 @@ export function YziImobPropertyPublicationPanel({
         />
         <Datum label="Última sincronização" value={formatDate(state?.lastSyncedAt)} />
         <Datum label="URL pública" value={state?.publicUrl ?? "Ainda não disponível"} />
-        <Datum label="Erro sanitizado" value={state?.syncErrorCode ?? "Nenhum"} />
+        <Datum label="Erro de sincronização" value={syncErrorLabel(state?.syncErrorCode)} />
       </div>
 
       {!readiness.ready ? (
@@ -171,7 +179,7 @@ export function YziImobPropertyPublicationPanel({
             </p>
             <ul className="mt-2 space-y-1 text-[0.74rem] text-[var(--yzi-text-secondary)]">
               {readiness.blockers.map((blocker) => (
-                <li key={blocker}>• {blocker}</li>
+                <li key={blocker}>• {publicationBlockerLabel(blocker)}</li>
               ))}
             </ul>
           </div>
@@ -181,7 +189,7 @@ export function YziImobPropertyPublicationPanel({
             </p>
             <ul className="mt-2 space-y-1 text-[0.74rem] text-[var(--yzi-text-secondary)]">
               {readiness.warnings.map((warning) => (
-                <li key={warning}>• {warning}</li>
+                <li key={warning}>• {publicationWarningLabel(warning)}</li>
               ))}
             </ul>
           </div>

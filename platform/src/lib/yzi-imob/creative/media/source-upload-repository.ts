@@ -25,6 +25,13 @@ function firstRow<T>(data: unknown): T | null {
   return (data as T | null) ?? null;
 }
 
+function logMediaRpcFailure(operation: "capability" | "reserve" | "finalize" | "cancel", error: { code?: string }) {
+  console.error("[yzi-imob-property-media-rpc]", {
+    operation,
+    code: error.code ?? "unknown",
+  });
+}
+
 export async function getPropertyMediaUploadCapability(
   supabase: SupabaseClient,
   propertyId: string,
@@ -32,7 +39,10 @@ export async function getPropertyMediaUploadCapability(
   const result = await supabase.rpc("get_yzi_imob_property_media_upload_capability", {
     p_property_id: propertyId,
   });
-  if (result.error) return false;
+  if (result.error) {
+    logMediaRpcFailure("capability", result.error);
+    return false;
+  }
   const row = firstRow<{ enabled?: boolean; storage_bucket?: string }>(result.data);
   return row?.enabled === true && row.storage_bucket === PROPERTY_SOURCE_MEDIA_BUCKET;
 }
@@ -54,7 +64,10 @@ export async function reservePropertyMediaUpload(
     p_mime_type: input.mimeType,
     p_byte_size: input.byteSize,
   });
-  if (result.error) return null;
+  if (result.error) {
+    logMediaRpcFailure("reserve", result.error);
+    return null;
+  }
   const row = firstRow<UploadReservationRow>(result.data);
   if (
     !row ||
@@ -76,7 +89,10 @@ export async function finalizePropertyMediaUpload(
     p_media_id: input.mediaId,
     p_storage_path: input.storagePath,
   });
-  if (result.error) return null;
+  if (result.error) {
+    logMediaRpcFailure("finalize", result.error);
+    return null;
+  }
   return firstRow<UploadFinalizationRow>(result.data);
 }
 
@@ -88,7 +104,10 @@ export async function cancelPropertyMediaUpload(
     p_media_id: input.mediaId,
     p_storage_path: input.storagePath,
   });
-  if (result.error) return null;
+  if (result.error) {
+    logMediaRpcFailure("cancel", result.error);
+    return null;
+  }
   const row = firstRow<{
     media_id: string;
     storage_bucket: string;

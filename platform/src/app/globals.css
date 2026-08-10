@@ -715,6 +715,18 @@ select.yzi-field {
   background-color: rgba(var(--imob-ice), 0.34);
 }
 
+/* Number inputs render with the OS-native spinner in Chromium/WebKit and
+   Firefox; the design system has no numeric field that wants it. */
+.yzi-imob-scope input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.yzi-imob-scope input[type="number"]::-webkit-inner-spin-button,
+.yzi-imob-scope input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Shell rails (sidebar / inspector): the content stays reachable via wheel,
    trackpad and keyboard, but the native scrollbar never renders — the rails
    must read as fixed chrome, only the central canvas shows a scrollbar
