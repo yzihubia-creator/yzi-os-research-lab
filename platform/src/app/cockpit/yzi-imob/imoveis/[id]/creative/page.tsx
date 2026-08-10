@@ -400,6 +400,11 @@ export default async function CreativeEnginePropertyPage({
         previews={propertyAssetPreviews}
         canDecide={canDecide}
         currentRevisionIds={currentRevisionIds}
+        run={workspace.request ? {
+          id: workspace.request.id,
+          status: statusLabel(workspace.request.status),
+          createdAt: workspace.request.createdAt,
+        } : null}
       />
 
       {readiness.carousel.state !== "ready" || readiness.videoTour.state !== "ready" ? (

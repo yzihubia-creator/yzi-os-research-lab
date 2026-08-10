@@ -33,6 +33,7 @@ export type PropertyAssetProductionPath =
 
 export type PropertyAsset = {
   id: string;
+  runId: string;
   propertyId: string;
   deliverableId: string;
   revisionId: string | null;
@@ -44,6 +45,7 @@ export type PropertyAsset = {
   previewLabel: string;
   previewDetail: string;
   sourceAssetIds: readonly string[];
+  finalAssetCount: number;
   eligibleUsageChannels: readonly PropertyAssetUsageChannel[];
 };
 
@@ -111,12 +113,19 @@ function buildPropertyAsset(
       (!revision || asset.revisionId === revision.id),
   );
   const published = physicalAssets.some((asset) => asset.publicationState === "published");
+  const finalAssetCount = physicalAssets.filter(
+    (asset) =>
+      asset.assetKind === "final_render" &&
+      asset.storageState === "promoted" &&
+      ["eligible", "published"].includes(asset.publicationState),
+  ).length;
   const status = operationalStatus(deliverable, revision, published);
   const preview = previewFor(revision);
   const isVideo = deliverable.deliverableType === "video_tour";
 
   return {
     id: revision?.id ?? deliverable.id,
+    runId: workspace.request?.id ?? deliverable.requestId,
     propertyId: deliverable.propertyId,
     deliverableId: deliverable.id,
     revisionId: revision?.id ?? null,
@@ -128,6 +137,7 @@ function buildPropertyAsset(
     previewLabel: preview.label,
     previewDetail: preview.detail,
     sourceAssetIds: physicalAssets.map((asset) => asset.id),
+    finalAssetCount,
     eligibleUsageChannels:
       status === "approved" ? APPROVED_USAGE_CHANNELS : [],
   };

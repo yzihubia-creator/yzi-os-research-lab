@@ -38,6 +38,25 @@ function statusTone(status: PropertyAssetStatus) {
   return "neutral" as const;
 }
 
+function DisabledCreativeAction({
+  label,
+  reason,
+}: {
+  label: string;
+  reason: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled
+      title={reason}
+      className="cursor-not-allowed rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] px-2.5 py-1.5 text-[0.68rem] text-[var(--yzi-text-faint)] opacity-70"
+    >
+      {label}
+    </button>
+  );
+}
+
 function AssetCard({
   asset,
   preview,
@@ -89,6 +108,19 @@ function AssetCard({
             WhatsApp, site e redes sociais permanecem bloqueados até a aprovação.
           </p>
         )}
+
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--yzi-border-subtle)] pt-4">
+          <DisabledCreativeAction
+            label="Baixar"
+            reason={asset.finalAssetCount > 0 ? "O asset final existe, mas esta tela ainda não expõe um signed URL de download." : "Disponível somente quando houver asset final aprovado."}
+          />
+          <DisabledCreativeAction
+            label="Copiar link"
+            reason={asset.finalAssetCount > 0 ? "O asset final existe, mas o link seguro temporário ainda não está exposto nesta tela." : "Disponível somente quando houver asset final aprovado."}
+          />
+          <DisabledCreativeAction label="Enviar no WhatsApp" reason="Envio é uma etapa separada e permanece bloqueado nesta tarefa." />
+          <DisabledCreativeAction label="Publicar" reason="Aprovação não publica; publicação continua uma ação separada." />
+        </div>
 
         {canReview ? (
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -278,17 +310,46 @@ export function YziImobPropertyAssetsReview({
   previews,
   canDecide,
   currentRevisionIds,
+  run,
 }: {
   assets: readonly PropertyAsset[];
   previews: Readonly<Record<string, PropertyAssetVisualPreview>>;
   canDecide: boolean;
   currentRevisionIds: readonly string[];
+  run: { id: string; status: string; createdAt: string } | null;
 }) {
   return (
     <div className="flex flex-col gap-8">
+      <section aria-labelledby="property-creative-runs-title">
+        <div>
+          <h2 id="property-creative-runs-title" className="text-base font-semibold">
+            Artes geradas deste imóvel
+          </h2>
+          <p className="mt-1 text-sm text-[var(--yzi-text-secondary)]">
+            Cada pedido é uma execução lógica separada, com entregas, revisões, assets, eventos e aprovação próprios.
+          </p>
+        </div>
+        <YziPanel className="mt-4">
+          {run ? (
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-[0.66rem] uppercase tracking-[0.14em] text-[var(--yzi-text-faint)]">Execução mais recente</p>
+                <p className="mt-2 font-mono text-xs text-[var(--yzi-text-primary)]">run {run.id}</p>
+                <p className="mt-1 text-xs text-[var(--yzi-text-faint)]">
+                  {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(run.createdAt))}
+                </p>
+              </div>
+              <YziStatusBadge tone="neutral">{run.status}</YziStatusBadge>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--yzi-text-secondary)]">Nenhuma execução criativa foi registrada para este imóvel.</p>
+          )}
+        </YziPanel>
+      </section>
+
       <AssetSection
-        title="Artes estáticas"
-        description="Carrosséis e peças deste imóvel, prontos para você revisar e aprovar."
+        title="Carrossel Canva"
+        description="O contrato atual suporta carrossel e preview local; Canva ainda não está conectado."
         category="static_art"
         assets={assets}
         previews={previews}
@@ -297,13 +358,39 @@ export function YziImobPropertyAssetsReview({
       />
       <AssetSection
         title="Video tour"
-        description="Vídeo deste imóvel, pronto para você revisar e aprovar."
+        description="O contrato atual suporta video tour e revisão; Higgsfield não está conectado nesta tarefa."
         category="video_tour"
         assets={assets}
         previews={previews}
         canDecide={canDecide}
         currentRevisionIds={currentRevisionIds}
       />
+
+      <section aria-labelledby="property-assets-ads">
+        <h2 id="property-assets-ads" className="text-base font-semibold">Anúncios e Stories</h2>
+        <p className="mt-1 text-sm text-[var(--yzi-text-secondary)]">Formatos reservados para uma evolução futura do contrato de deliverables.</p>
+        <YziPanel className="mt-4">
+          <p className="text-sm text-[var(--yzi-text-secondary)]">Nenhum formato de anúncio ou Stories é aceito pelo contrato atual.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <DisabledCreativeAction label="Baixar" reason="Não há asset final deste formato." />
+            <DisabledCreativeAction label="Copiar link" reason="Não há asset final deste formato." />
+            <DisabledCreativeAction label="Publicar" reason="Formato ainda não suportado e publicação é etapa separada." />
+          </div>
+        </YziPanel>
+      </section>
+
+      <section aria-labelledby="property-assets-whatsapp">
+        <h2 id="property-assets-whatsapp" className="text-base font-semibold">Kit WhatsApp</h2>
+        <p className="mt-1 text-sm text-[var(--yzi-text-secondary)]">Só poderá usar assets finais aprovados; mídia bruta nunca entra automaticamente.</p>
+        <YziPanel className="mt-4">
+          <p className="text-sm text-[var(--yzi-text-secondary)]">O contrato atual não possui deliverable de Kit WhatsApp.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <DisabledCreativeAction label="Baixar" reason="Não há asset final deste formato." />
+            <DisabledCreativeAction label="Copiar link" reason="Não há asset final deste formato." />
+            <DisabledCreativeAction label="Enviar no WhatsApp" reason="Envio não está conectado e exige asset final aprovado." />
+          </div>
+        </YziPanel>
+      </section>
     </div>
   );
 }
