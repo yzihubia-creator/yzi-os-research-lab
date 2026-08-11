@@ -92,7 +92,11 @@ export function PropertyMediaUploadControl({
       });
       if (reservationResult.status === "error") {
         setPhase("error");
-        setMessage(reservationResult.message);
+        setMessage(
+          reservationResult.code === "media_upload_prepare_failed"
+            ? `Não foi possível preparar a mídia. Código de diagnóstico: ${reservationResult.diagnosticId}. Etapa: ${reservationResult.stage}.`
+            : reservationResult.message,
+        );
         return;
       }
       reservation = reservationResult;

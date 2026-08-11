@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/auth/session";
@@ -35,18 +37,71 @@ export type PropertyMediaUploadReservationResult =
         expiresAt: string;
       };
     }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; code?: undefined }
+  | {
+      status: "error";
+      message: string;
+      code: "media_upload_prepare_failed";
+      stage: MediaUploadPrepareStage;
+      diagnosticId: string;
+    };
 
-async function getMediaActionContext(propertyId: string) {
+type MediaUploadPrepareStage =
+  | "action_started"
+  | "property_input_validated"
+  | "tenant_resolve_start"
+  | "tenant_resolved"
+  | "property_access_client_create"
+  | "property_access_query_start"
+  | "property_access_resolved"
+  | "capability_call_start"
+  | "capability_loaded"
+  | "reserve_call_start"
+  | "reserve_call_result";
+
+type MediaUploadCheckpoint = (stage: MediaUploadPrepareStage) => void;
+
+function sanitizeDiagnosticValue(value: string, fallback: string) {
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  if (!normalized) return fallback;
+  return normalized
+    .replace(/\bBearer\s+\S+/gi, "[redacted]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted]")
+    .replace(
+      /\b(access[_ -]?token|refresh[_ -]?token|signed[_ -]?(?:upload[_ -]?)?token|service[_ -]?role|api[_ -]?key|apikey|authorization|cookie|password|secret)\b\s*[:=]\s*\S+/gi,
+      "$1=[redacted]",
+    )
+    .replace(/[A-Za-z0-9_-]{80,}/g, "[redacted]")
+    .slice(0, 240);
+}
+
+function getSafeErrorDetails(error: unknown) {
+  if (!(error instanceof Error)) {
+    return { errorClass: "UnknownError", errorMessage: "Non-Error exception" };
+  }
+  return {
+    errorClass: sanitizeDiagnosticValue(error.name, "Error").slice(0, 80),
+    errorMessage: sanitizeDiagnosticValue(error.message, "No error message"),
+  };
+}
+
+async function getMediaActionContext(propertyId: string, checkpoint?: MediaUploadCheckpoint) {
   if (!UUID_RE.test(propertyId)) return null;
+  checkpoint?.("tenant_resolve_start");
   const tenant = await getTenantContext();
+  if (checkpoint && tenant.status === "error") {
+    throw new Error("Tenant context returned an error status");
+  }
   if (
     tenant.status !== "tenant_found" ||
     !["owner", "admin", "operator"].includes(tenant.role)
   ) {
     return null;
   }
+  checkpoint?.("tenant_resolved");
+  checkpoint?.("property_access_client_create");
   const supabase = await createServerSupabaseClient();
+  checkpoint?.("property_access_query_start");
   const property = await supabase
     .from("yzi_imob_properties")
     .select("id")
@@ -54,6 +109,7 @@ async function getMediaActionContext(propertyId: string) {
     .eq("tenant_id", tenant.tenant.id)
     .maybeSingle();
   if (property.error || !property.data) return null;
+  checkpoint?.("property_access_resolved");
   return { supabase, tenantId: tenant.tenant.id };
 }
 
@@ -71,6 +127,15 @@ export async function beginPropertyMediaUploadAction(input: {
   mimeType: string;
   byteSize: number;
 }): Promise<PropertyMediaUploadReservationResult> {
+  const diagnosticId = randomUUID();
+  let stage: MediaUploadPrepareStage = "action_started";
+  const checkpoint: MediaUploadCheckpoint = (nextStage) => {
+    stage = nextStage;
+    console.info("[yzi-imob-property-media-upload-prepare]", { diagnosticId, stage });
+  };
+
+  checkpoint(stage);
+  try {
   if (
     !input ||
     typeof input.propertyId !== "string" ||
@@ -95,14 +160,20 @@ export async function beginPropertyMediaUploadAction(input: {
   if (!PROPERTY_GALLERY_SLOTS.some((slot) => slot.key === input.slot)) {
     return { status: "error", message: "Slot de mídia inválido." };
   }
+  checkpoint("property_input_validated");
 
-  const context = await getMediaActionContext(input.propertyId);
+  const context = await getMediaActionContext(input.propertyId, checkpoint);
   if (!context) return { status: "error", message: "Você não pode enviar mídia para este imóvel." };
-  if (!(await getPropertyMediaUploadCapability(context.supabase, input.propertyId))) {
+  checkpoint("capability_call_start");
+  const capabilityEnabled = await getPropertyMediaUploadCapability(context.supabase, input.propertyId);
+  checkpoint("capability_loaded");
+  if (!capabilityEnabled) {
     return { status: "error", message: "O upload seguro ainda não está disponível neste ambiente." };
   }
 
+  checkpoint("reserve_call_start");
   const reservation = await reservePropertyMediaUpload(context.supabase, input);
+  checkpoint("reserve_call_result");
   if (!reservation) {
     return {
       status: "error",
@@ -118,6 +189,20 @@ export async function beginPropertyMediaUploadAction(input: {
       expiresAt: reservation.expires_at,
     },
   };
+  } catch (error) {
+    console.error("[yzi-imob-property-media-upload-prepare-failed]", {
+      diagnosticId,
+      stage,
+      ...getSafeErrorDetails(error),
+    });
+    return {
+      status: "error",
+      code: "media_upload_prepare_failed",
+      stage,
+      diagnosticId,
+      message: `Não foi possível preparar a mídia. Código de diagnóstico: ${diagnosticId}. Etapa: ${stage}.`,
+    };
+  }
 }
 
 export async function finalizePropertyMediaUploadAction(input: {
