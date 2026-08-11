@@ -56,6 +56,8 @@ export type PropertyPublicationMedia = {
   storageBucket: string | null;
   storagePath: string | null;
   url: string | null;
+  previewUrl?: string | null;
+  previewExpiresAt?: string | null;
   altText: string | null;
   sortOrder: number;
   isCover: boolean;
