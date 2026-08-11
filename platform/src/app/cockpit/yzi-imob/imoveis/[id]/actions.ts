@@ -26,16 +26,7 @@ import type {
   UpsertPropertyPrivateLocationInput,
 } from "@/lib/yzi-imob/properties/types";
 import type { PropertyFloorDesignation, PropertyCommercialStage } from "@/lib/yzi-imob/properties/contract";
-
-export type PropertyWorkspaceActionState = {
-  status: "idle" | "ok" | "error" | "membership_missing";
-  message?: string;
-  fieldErrors?: readonly string[];
-};
-
-export const INITIAL_PROPERTY_WORKSPACE_ACTION_STATE: PropertyWorkspaceActionState = {
-  status: "idle",
-};
+import type { PropertyWorkspaceActionState } from "./action-state";
 
 function stringValue(formData: FormData, name: string): string | null {
   const value = formData.get(name);

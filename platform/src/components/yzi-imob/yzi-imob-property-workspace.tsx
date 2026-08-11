@@ -27,12 +27,14 @@ import {
   acceptDescriptionRevisionAction,
   createDescriptionRevisionAction,
   createProximityAction,
-  INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
   rejectDescriptionRevisionAction,
   updatePropertyCoreAction,
   upsertPrivateLocationAction,
-  type PropertyWorkspaceActionState,
 } from "@/app/cockpit/yzi-imob/imoveis/[id]/actions";
+import {
+  INITIAL_PROPERTY_WORKSPACE_ACTION_STATE,
+  type PropertyWorkspaceActionState,
+} from "@/app/cockpit/yzi-imob/imoveis/[id]/action-state";
 import { computePropertyCompleteness } from "@/lib/yzi-imob/properties/completeness";
 import { computePropertyQuality } from "@/lib/yzi-imob/properties/quality";
 import {

@@ -13,16 +13,7 @@ import {
 } from "@/lib/yzi-imob/publication/repository";
 import type { PropertyPublicationReviewDecision } from "@/lib/yzi-imob/publication/types";
 import { syncErrorLabel } from "@/lib/yzi-imob/publication/labels";
-
-export type PropertyPublicationActionState = {
-  status: "idle" | "ok" | "error" | "forbidden";
-  message?: string;
-  blockers?: readonly string[];
-};
-
-export const INITIAL_PROPERTY_PUBLICATION_ACTION_STATE: PropertyPublicationActionState = {
-  status: "idle",
-};
+import type { PropertyPublicationActionState } from "./publication-action-state";
 
 function value(formData: FormData, name: string): string {
   const item = formData.get(name);

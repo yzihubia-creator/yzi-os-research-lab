@@ -5,12 +5,14 @@ import { useActionState } from "react";
 import {
   changePublicationAvailabilityAction,
   decidePublicationReviewAction,
-  INITIAL_PROPERTY_PUBLICATION_ACTION_STATE,
   requestPublicationReviewAction,
   retryPublicationAction,
   synchronizePublicationAction,
-  type PropertyPublicationActionState,
 } from "@/app/cockpit/yzi-imob/imoveis/[id]/publication-actions";
+import {
+  INITIAL_PROPERTY_PUBLICATION_ACTION_STATE,
+  type PropertyPublicationActionState,
+} from "@/app/cockpit/yzi-imob/imoveis/[id]/publication-action-state";
 import type {
   PropertyPublicationReadiness,
   PropertyPublicationWorkspace,
