@@ -269,14 +269,16 @@ export function YziImobPropertyMediaGuidance({
                     const state = mediaState(item);
                     return (
                       <div key={item.id} className="rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-elevated)] p-3">
-                        <div className="flex items-start justify-between gap-3">
+                        <PropertyMediaPreview media={item} />
+                        <div className="mt-3 flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-[0.74rem] font-medium text-[var(--yzi-text-primary)]">{item.originalFilename?.trim() || item.altText?.trim() || `${item.mediaType === "video" ? "Vídeo" : item.mediaType === "document" ? "Documento" : "Imagem"} ${itemIndex + 1}`}</p>
-                            <p className={cx(TYPE.meta, "mt-1")}>{item.width && item.height ? `${item.width} × ${item.height} · ` : ""}ID {item.id.slice(0, 8)}</p>
+                            {item.width && item.height ? (
+                              <p className={cx(TYPE.meta, "mt-1")}>{item.width} × {item.height}</p>
+                            ) : null}
                           </div>
                           <StateTag tone={state.tone} label={state.label} />
                         </div>
-                        <PropertyMediaPreview media={item} />
                         <div className="mt-3 flex flex-wrap gap-2">
                           <DisabledMediaAction label="Substituir" reason="Substituir exige um novo envio explícito; nada é sobrescrito automaticamente." />
                           <PropertyMediaCoverControl propertyId={propertyId} media={item} enabled={uploadEnabled} />

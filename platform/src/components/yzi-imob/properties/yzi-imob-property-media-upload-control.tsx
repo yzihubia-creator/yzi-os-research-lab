@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
@@ -185,47 +186,33 @@ export function PropertyMediaUploadControl({
 }
 
 export function PropertyMediaPreview({ media }: { media: PropertyPublicationMedia }) {
-  const [temporaryUrl, setTemporaryUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function loadPreview() {
-    if (!media.storageBucket || !media.storagePath || media.uploadState !== "completed") return;
-    setLoading(true);
-    const result = await getSupabaseBrowserClient().storage
-      .from(media.storageBucket)
-      .createSignedUrl(media.storagePath, 120);
-    setLoading(false);
-    if (!result.error) setTemporaryUrl(result.data.signedUrl);
-  }
-
   if (!media.storageBucket || !media.storagePath || media.uploadState !== "completed") return null;
-  if (!temporaryUrl) {
+  if (!media.previewUrl) {
     return (
-      <button
-        type="button"
-        onClick={() => void loadPreview()}
-        disabled={loading}
-        className="mt-3 text-left text-[0.68rem] text-[rgb(var(--imob-ice))] disabled:opacity-60"
-      >
-        {loading ? "Criando acesso temporário..." : "Carregar prévia privada (2 min)"}
-      </button>
+      <div className="grid aspect-video w-full place-items-center rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
+        <p className="text-[0.68rem] text-[var(--yzi-text-faint)]">Prévia temporariamente indisponível</p>
+      </div>
     );
   }
   if (media.mediaType === "image") {
     return (
-      <div
-        role="img"
-        aria-label={media.altText ?? media.originalFilename ?? "Prévia da mídia do imóvel"}
-        className="mt-3 aspect-video w-full rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-cover bg-center"
-        style={{ backgroundImage: `url(${JSON.stringify(temporaryUrl)})` }}
-      />
+      <div className="relative aspect-video w-full overflow-hidden rounded-[var(--yzi-radius-sm)] border border-[color:var(--yzi-border-subtle)] bg-[var(--yzi-surface-base)]">
+        <Image
+          src={media.previewUrl}
+          alt={media.altText ?? media.originalFilename ?? "Prévia da mídia do imóvel"}
+          fill
+          sizes="(max-width: 768px) 100vw, 50vw"
+          className="object-cover"
+          unoptimized
+        />
+      </div>
     );
   }
   if (media.mediaType === "video") {
-    return <video className="mt-3 w-full rounded-[var(--yzi-radius-sm)]" controls preload="metadata" src={temporaryUrl} />;
+    return <video className="w-full rounded-[var(--yzi-radius-sm)]" controls preload="metadata" src={media.previewUrl} />;
   }
   return (
-    <a className="mt-3 inline-flex text-[0.68rem] text-[rgb(var(--imob-ice))]" href={temporaryUrl} target="_blank" rel="noreferrer">
+    <a className="inline-flex text-[0.68rem] text-[rgb(var(--imob-ice))]" href={media.previewUrl} target="_blank" rel="noreferrer">
       Abrir PDF em acesso temporário
     </a>
   );

@@ -2,7 +2,10 @@ import { YziImobPropertyWorkspace } from "@/components/yzi-imob/yzi-imob-propert
 import { YziImobPropertyAccessState } from "@/components/yzi-imob/properties/yzi-imob-property-access-state";
 import { createServerSupabaseClient } from "@/lib/auth/session";
 import { getTenantContext } from "@/lib/tenant/tenant-context";
-import { getPropertyMediaUploadCapability } from "@/lib/yzi-imob/creative/media/source-upload-repository";
+import {
+  createPropertyMediaPreview,
+  getPropertyMediaUploadCapability,
+} from "@/lib/yzi-imob/creative/media/source-upload-repository";
 import { listPropertyPublicationMedia } from "@/lib/yzi-imob/publication/repository";
 import { getPropertyWorkspaceData } from "@/lib/yzi-imob/properties/repository";
 
@@ -55,6 +58,25 @@ export default async function YziImobImovelWorkspacePage({
     return <YziImobPropertyWorkspace tenantId={tenantContext.tenant.id} property={null} />;
   }
 
+  const mediaWithPreviews = mediaResult.status === "ok"
+    ? await Promise.all(mediaResult.value.map(async (item) => {
+        if (!item.storageBucket || !item.storagePath || item.uploadState !== "completed") {
+          return item;
+        }
+        const preview = await createPropertyMediaPreview(supabase, {
+          tenantId: tenantContext.tenant.id,
+          propertyId: id,
+          storageBucket: item.storageBucket,
+          storagePath: item.storagePath,
+        });
+        return {
+          ...item,
+          previewUrl: preview?.signedUrl ?? null,
+          previewExpiresAt: preview?.expiresAt ?? null,
+        };
+      }))
+    : [];
+
   return (
     <YziImobPropertyWorkspace
       tenantId={tenantContext.tenant.id}
@@ -63,7 +85,7 @@ export default async function YziImobImovelWorkspacePage({
       privateLocation={result.value.privateLocation}
       privateLocationError={result.value.privateLocationError}
       descriptionRevisions={result.value.descriptionRevisions}
-      media={mediaResult.status === "ok" ? mediaResult.value : []}
+      media={mediaWithPreviews}
       mediaUnavailable={mediaResult.status === "error"}
       mediaUploadEnabled={mediaUploadEnabled}
     />

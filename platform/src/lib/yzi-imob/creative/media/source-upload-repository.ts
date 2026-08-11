@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PropertyGallerySlotKey } from "./gallery-contract.ts";
 
 export const PROPERTY_SOURCE_MEDIA_BUCKET = "yzi-imob-source-media" as const;
+export const PROPERTY_MEDIA_PREVIEW_TTL_SECONDS = 120 as const;
 
 type UploadReservationRow = {
   media_id: string;
@@ -30,6 +31,34 @@ function logMediaRpcFailure(operation: "capability" | "reserve" | "finalize" | "
     operation,
     code: error.code ?? "unknown",
   });
+}
+
+export async function createPropertyMediaPreview(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    propertyId: string;
+    storageBucket: string;
+    storagePath: string;
+  },
+): Promise<{ signedUrl: string; expiresAt: string } | null> {
+  const expectedPrefix = `tenants/${input.tenantId}/properties/${input.propertyId}/source-media/`;
+  if (
+    input.storageBucket !== PROPERTY_SOURCE_MEDIA_BUCKET ||
+    !input.storagePath.startsWith(expectedPrefix)
+  ) {
+    return null;
+  }
+
+  const result = await supabase.storage
+    .from(PROPERTY_SOURCE_MEDIA_BUCKET)
+    .createSignedUrl(input.storagePath, PROPERTY_MEDIA_PREVIEW_TTL_SECONDS);
+  if (result.error || !result.data.signedUrl) return null;
+
+  return {
+    signedUrl: result.data.signedUrl,
+    expiresAt: new Date(Date.now() + PROPERTY_MEDIA_PREVIEW_TTL_SECONDS * 1000).toISOString(),
+  };
 }
 
 export async function getPropertyMediaUploadCapability(
