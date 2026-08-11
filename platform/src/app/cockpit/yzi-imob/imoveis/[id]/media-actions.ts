@@ -14,8 +14,10 @@ import {
 import { updateCreativeMediaGovernance } from "@/lib/yzi-imob/creative/media/repository";
 import {
   cancelPropertyMediaUpload,
+  createPropertyMediaAccessLink,
   finalizePropertyMediaUpload,
   getPropertyMediaUploadCapability,
+  removePropertyMedia,
   reservePropertyMediaUpload,
 } from "@/lib/yzi-imob/creative/media/source-upload-repository";
 import type { CreativeEnvironmentType } from "@/lib/yzi-imob/creative/media/types";
@@ -273,6 +275,107 @@ export async function cancelPropertyMediaUploadAction(input: {
   };
 }
 
+const GOVERNABLE_MEDIA_COLUMNS =
+  "id,media_type,environment_type,sort_order,eligible_for_carousel,eligible_for_video,media_status,orientation,human_note,exclusion_reason,processing_status,is_publication_allowed,upload_state,is_cover,storage_bucket,storage_path,original_filename,file_extension,source_kind";
+
+type GovernableMediaRow = {
+  id: string;
+  media_type: string;
+  environment_type: CreativeEnvironmentType;
+  sort_order: number;
+  eligible_for_carousel: boolean;
+  eligible_for_video: boolean;
+  media_status: "pending" | "approved" | "excluded" | "failed";
+  orientation: "portrait" | "landscape" | "square" | "unknown";
+  human_note: string | null;
+  exclusion_reason: string | null;
+  processing_status: string;
+  is_publication_allowed: boolean;
+  upload_state: string;
+  is_cover: boolean;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  original_filename: string | null;
+  file_extension: string | null;
+  source_kind: string | null;
+};
+
+async function loadGovernableMedia(
+  context: { supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>; tenantId: string },
+  propertyId: string,
+  mediaId: string,
+): Promise<GovernableMediaRow | null> {
+  const media = await context.supabase
+    .from("yzi_imob_property_media")
+    .select(GOVERNABLE_MEDIA_COLUMNS)
+    .eq("id", mediaId)
+    .eq("property_id", propertyId)
+    .eq("tenant_id", context.tenantId)
+    .maybeSingle();
+  if (media.error || !media.data) return null;
+  return media.data as unknown as GovernableMediaRow;
+}
+
+/**
+ * Aprovação governada da mídia original.
+ *
+ * Upload continua não aprovando nada: esta é a decisão humana explícita que
+ * libera a mídia para uso e, só a partir dela, permite capa e prontidão de
+ * formato. Reverter devolve a mídia para revisão e derruba a capa junto.
+ */
+export async function setPropertyMediaApprovalAction(input: {
+  propertyId: string;
+  mediaId: string;
+  approved: boolean;
+}): Promise<PropertyMediaActionResult> {
+  if (
+    !input ||
+    typeof input.propertyId !== "string" ||
+    typeof input.mediaId !== "string" ||
+    typeof input.approved !== "boolean"
+  ) {
+    return { status: "error", message: "Mídia inválida." };
+  }
+  if (!UUID_RE.test(input.mediaId)) return { status: "error", message: "Mídia inválida." };
+  const context = await getMediaActionContext(input.propertyId);
+  if (!context) return { status: "error", message: "Você não pode revisar a mídia deste imóvel." };
+
+  const row = await loadGovernableMedia(context, input.propertyId, input.mediaId);
+  if (!row) return { status: "error", message: "Mídia não encontrada neste imóvel." };
+  if (row.upload_state !== "completed" || row.processing_status !== "ready") {
+    return { status: "error", message: "O envio desta mídia ainda não foi concluído." };
+  }
+  if (input.approved && row.media_status === "approved") {
+    return { status: "ok", message: "Esta mídia já estava aprovada." };
+  }
+
+  const result = await updateCreativeMediaGovernance(context.supabase, context.tenantId, {
+    propertyId: input.propertyId,
+    mediaId: input.mediaId,
+    environmentType: row.environment_type,
+    displayOrder: row.sort_order,
+    isPrimary: input.approved && row.is_cover,
+    // Elegibilidade de formato só faz sentido para imagem; vídeo bruto e
+    // documento entram no acervo, não na composição de carrossel/vídeo.
+    eligibleForCarousel: input.approved && row.media_type === "image",
+    eligibleForVideo: input.approved && row.media_type === "image",
+    mediaStatus: input.approved ? "approved" : "pending",
+    orientation: row.orientation,
+    humanNote: row.human_note,
+    exclusionReason: null,
+  });
+  if (result.status !== "ok") {
+    return { status: "error", message: "Não foi possível registrar a revisão desta mídia." };
+  }
+  revalidatePropertyMedia(input.propertyId);
+  return {
+    status: "ok",
+    message: input.approved
+      ? "Mídia aprovada e liberada para uso, com governança registrada."
+      : "Mídia devolvida para revisão.",
+  };
+}
+
 export async function setPropertyMediaCoverAction(input: {
   propertyId: string;
   mediaId: string;
@@ -290,32 +393,8 @@ export async function setPropertyMediaCoverAction(input: {
   if (!(await getPropertyMediaUploadCapability(context.supabase, input.propertyId))) {
     return { status: "error", message: "A governança segura de mídia não está disponível." };
   }
-  const media = await context.supabase
-    .from("yzi_imob_property_media")
-    .select(
-      "id,media_type,environment_type,sort_order,eligible_for_carousel,eligible_for_video,media_status,orientation,human_note,exclusion_reason,processing_status,is_publication_allowed,upload_state",
-    )
-    .eq("id", input.mediaId)
-    .eq("property_id", input.propertyId)
-    .eq("tenant_id", context.tenantId)
-    .maybeSingle();
-  const row = media.data as {
-    id: string;
-    media_type: string;
-    environment_type: CreativeEnvironmentType;
-    sort_order: number;
-    eligible_for_carousel: boolean;
-    eligible_for_video: boolean;
-    media_status: "pending" | "approved" | "excluded" | "failed";
-    orientation: "portrait" | "landscape" | "square" | "unknown";
-    human_note: string | null;
-    exclusion_reason: string | null;
-    processing_status: string;
-    is_publication_allowed: boolean;
-    upload_state: string;
-  } | null;
+  const row = await loadGovernableMedia(context, input.propertyId, input.mediaId);
   if (
-    media.error ||
     !row ||
     row.media_type !== "image" ||
     row.media_status !== "approved" ||
@@ -323,7 +402,10 @@ export async function setPropertyMediaCoverAction(input: {
     !row.is_publication_allowed ||
     row.upload_state !== "completed"
   ) {
-    return { status: "error", message: "Somente imagem aprovada e liberada pode virar capa." };
+    return {
+      status: "error",
+      message: "Só uma imagem aprovada pode virar capa. Aprove esta mídia antes.",
+    };
   }
   const result = await updateCreativeMediaGovernance(context.supabase, context.tenantId, {
     propertyId: input.propertyId,
@@ -341,4 +423,123 @@ export async function setPropertyMediaCoverAction(input: {
   if (result.status !== "ok") return { status: "error", message: "Não foi possível definir a capa." };
   revalidatePropertyMedia(input.propertyId);
   return { status: "ok", message: "Capa definida com governança registrada." };
+}
+
+/**
+ * Remoção governada. A linha nunca some do banco: ela sai do acervo, o evento
+ * fica registrado e o arquivo privado é apagado em seguida com a sessão do
+ * próprio usuário. Se a mídia removida era a capa, o imóvel fica sem capa —
+ * explicitamente, nunca apontando para algo que não existe mais.
+ */
+export async function removePropertyMediaAction(input: {
+  propertyId: string;
+  mediaId: string;
+  replacementMediaId?: string | null;
+  reason?: string | null;
+}): Promise<PropertyMediaActionResult> {
+  if (
+    !input ||
+    typeof input.propertyId !== "string" ||
+    typeof input.mediaId !== "string" ||
+    !UUID_RE.test(input.mediaId)
+  ) {
+    return { status: "error", message: "Mídia inválida." };
+  }
+  const replacementMediaId = input.replacementMediaId ?? null;
+  if (replacementMediaId !== null && !UUID_RE.test(replacementMediaId)) {
+    return { status: "error", message: "Mídia substituta inválida." };
+  }
+  const context = await getMediaActionContext(input.propertyId);
+  if (!context) return { status: "error", message: "Você não pode remover mídia deste imóvel." };
+
+  const removed = await removePropertyMedia(context.supabase, {
+    propertyId: input.propertyId,
+    mediaId: input.mediaId,
+    replacementMediaId,
+    reason: typeof input.reason === "string" ? input.reason.slice(0, 300) : null,
+  });
+  if (!removed) {
+    return { status: "error", message: "Não foi possível remover esta mídia. Tente novamente." };
+  }
+
+  let cleanupPending = false;
+  if (removed.storageCleanupRequired && removed.storageBucket && removed.storagePath) {
+    const cleanup = await context.supabase.storage
+      .from(removed.storageBucket)
+      .remove([removed.storagePath]);
+    cleanupPending = Boolean(cleanup.error);
+  }
+  revalidatePropertyMedia(input.propertyId);
+
+  const base = replacementMediaId
+    ? "Mídia substituída; a anterior saiu do acervo com o registro da troca."
+    : "Mídia removida do acervo com o registro da exclusão.";
+  return {
+    status: "ok",
+    message: [
+      base,
+      removed.coverCleared ? "O imóvel ficou sem capa — defina uma nova." : null,
+      cleanupPending ? "A limpeza do arquivo privado ficou pendente." : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+export type PropertyMediaAccessLinkResult =
+  | {
+      status: "ok";
+      url: string;
+      expiresAt: string;
+      ttlSeconds: number;
+      filename: string | null;
+    }
+  | { status: "error"; message: string };
+
+/**
+ * Acesso temporário para baixar ou compartilhar. Nunca devolve URL pública nem
+ * caminho de Storage: cada clique gera um link assinado novo, com validade
+ * curta e explícita para o gestor.
+ */
+export async function createPropertyMediaAccessLinkAction(input: {
+  propertyId: string;
+  mediaId: string;
+  mode: "download" | "share";
+}): Promise<PropertyMediaAccessLinkResult> {
+  if (
+    !input ||
+    typeof input.propertyId !== "string" ||
+    typeof input.mediaId !== "string" ||
+    !UUID_RE.test(input.mediaId) ||
+    (input.mode !== "download" && input.mode !== "share")
+  ) {
+    return { status: "error", message: "Mídia inválida." };
+  }
+  const context = await getMediaActionContext(input.propertyId);
+  if (!context) return { status: "error", message: "Você não pode acessar a mídia deste imóvel." };
+
+  const row = await loadGovernableMedia(context, input.propertyId, input.mediaId);
+  if (!row || row.upload_state !== "completed") {
+    return { status: "error", message: "Esta mídia ainda não está disponível para acesso." };
+  }
+
+  const filename = row.original_filename?.trim() || null;
+  const link = await createPropertyMediaAccessLink(context.supabase, {
+    tenantId: context.tenantId,
+    propertyId: input.propertyId,
+    storageBucket: row.storage_bucket,
+    storagePath: row.storage_path,
+    mode: input.mode,
+    downloadFilename: filename,
+  });
+  if (!link) {
+    return { status: "error", message: "Não foi possível gerar o acesso temporário." };
+  }
+  return {
+    status: "ok",
+    url: link.signedUrl,
+    expiresAt: link.expiresAt,
+    ttlSeconds: link.ttlSeconds,
+    filename,
+  };
 }

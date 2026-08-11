@@ -267,7 +267,9 @@ export async function listPropertyPublicationMedia(
     .select(MEDIA_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("property_id", propertyId)
-    .neq("upload_state", "cancelled")
+    // Reserva abortada e mídia removida por governança saem do acervo visível.
+    // A linha continua no banco para auditoria; ela só não é mais acervo.
+    .not("upload_state", "in", "(cancelled,removed)")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 

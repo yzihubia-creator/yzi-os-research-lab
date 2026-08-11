@@ -40,7 +40,7 @@ export type GovernedPropertyMedia = {
   exclusionReason: string | null;
   processingStatus?: "processing" | "ready" | "failed";
   isPublicationAllowed?: boolean;
-  uploadState?: "reserved" | "completed" | "cancelled" | "failed" | null;
+  uploadState?: "reserved" | "completed" | "cancelled" | "failed" | "removed" | null;
 };
 
 export type CreativeReadinessDiagnostic = {

@@ -62,7 +62,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
     key: "primary",
     mediaClass: "image",
     label: "Imagem principal",
-    description: "Capa operacional do imóvel e referência para os formatos derivados.",
+    description: "Capa do imóvel.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && (media.isPrimary || media.isCover),
@@ -71,7 +71,7 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
     key: "facade",
     mediaClass: "image",
     label: "Fachada",
-    description: "Identidade externa do imóvel ou do empreendimento.",
+    description: "Primeira leitura externa.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && media.environmentType === "facade",
@@ -79,8 +79,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "location_view",
     mediaClass: "image",
-    label: "Localização / vista externa",
-    description: "Entorno, acesso e vistas externas confirmadas.",
+    label: "Localização",
+    description: "Vista, rua, entorno ou mapa.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) =>
@@ -89,8 +89,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "entrance",
     mediaClass: "image",
-    label: "Entrada / recepção",
-    description: "Chegada, hall e recepção do imóvel ou condomínio.",
+    label: "Entrada",
+    description: "Recepção, acesso ou chegada.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && media.environmentType === "entrance",
@@ -98,8 +98,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "common_area",
     mediaClass: "image",
-    label: "Área comum",
-    description: "Circulação, salão, academia e outras áreas compartilhadas.",
+    label: "Áreas comuns",
+    description: "Ambientes compartilhados do imóvel.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && media.slot === "common_area",
@@ -107,8 +107,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "leisure",
     mediaClass: "image",
-    label: "Lazer / rooftop / piscina",
-    description: "Piscina, rooftop e espaços de lazer confirmados.",
+    label: "Lazer",
+    description: "Rooftop, piscina e espaços de convivência.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && media.environmentType === "leisure",
@@ -116,8 +116,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "interior",
     mediaClass: "image",
-    label: "Unidade / interior",
-    description: "Sala, varanda, cozinha, quartos, suítes, banheiros e detalhes.",
+    label: "Interior da unidade",
+    description: "Sala, quartos, cozinha, suíte e banheiro.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) =>
@@ -126,8 +126,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "floor_plan",
     mediaClass: "image",
-    label: "Planta / tipologia",
-    description: "Plantas e materiais visuais que explicam a distribuição dos espaços.",
+    label: "Planta",
+    description: "Distribuição e tipologia.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.image.ruleLabel,
     support: "current",
     matches: (media) => media.mediaType === "image" && media.environmentType === "floor_plan",
@@ -144,8 +144,8 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   {
     key: "commercial_document",
     mediaClass: "document",
-    label: "Material comercial / documentos",
-    description: "Apresentações, folders, tabelas e documentos liberados para uso.",
+    label: "Material comercial",
+    description: "Book, tabela, memorial ou PDF.",
     fileRule: PROPERTY_MEDIA_ALLOWED_FILES.document.ruleLabel,
     support: "current",
     matches: (media) =>
@@ -155,11 +155,30 @@ export const PROPERTY_GALLERY_SLOTS: readonly PropertyGallerySlotDefinition[] = 
   },
 ] as const;
 
+/**
+ * A categoria de uma mídia é única.
+ *
+ * A coluna `slot` é a verdade desde a ingestão governada e decide sozinha.
+ * Os predicados `matches` existem apenas como leitura de compatibilidade para
+ * registros legados anteriores à coluna — e, mesmo neles, vence o primeiro slot
+ * da ordem canônica.
+ *
+ * Sem esta exclusividade a mesma mídia era renderizada em duas categorias: no
+ * instante em que uma foto de Fachada virava capa, ela passava a satisfazer
+ * também o predicado de "Imagem principal" e aparecia nos dois carrosséis.
+ */
+export function resolvePropertyGallerySlotKey(
+  media: PropertyPublicationMedia,
+): PropertyGallerySlotKey | null {
+  if (media.slot) return media.slot;
+  return PROPERTY_GALLERY_SLOTS.find((slot) => slot.matches(media))?.key ?? null;
+}
+
 export function mediaForGallerySlot(
   slot: PropertyGallerySlotDefinition,
   media: readonly PropertyPublicationMedia[],
 ): readonly PropertyPublicationMedia[] {
-  return media.filter((item) => item.slot === slot.key || slot.matches(item)).sort(
+  return media.filter((item) => resolvePropertyGallerySlotKey(item) === slot.key).sort(
     (left, right) =>
       left.displayOrder - right.displayOrder ||
       left.sortOrder - right.sortOrder ||
