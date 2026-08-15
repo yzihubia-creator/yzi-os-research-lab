@@ -1,4 +1,5 @@
 import type {
+  MetricoolAccountCandidate,
   MetricoolMetric,
   MetricoolMetricPeriod,
   MetricoolNetwork,
@@ -8,7 +9,7 @@ import type {
   MetricoolTransportResult,
   MetricoolValidation,
 } from "./types.ts";
-import type { MetricoolTransport } from "./transport.ts";
+import type { MetricoolDiscoveryTransport, MetricoolTransport } from "./transport.ts";
 
 type FakeFailureCode =
   | "token_invalid"
@@ -17,6 +18,27 @@ type FakeFailureCode =
   | "timeout"
   | "provider_rejected"
   | "provider_unavailable";
+
+export class DeterministicFakeMetricoolDiscoveryTransport
+  implements MetricoolDiscoveryTransport {
+  readonly accounts: readonly MetricoolAccountCandidate[];
+
+  constructor(
+    accounts: readonly MetricoolAccountCandidate[] = [{
+      externalUserId: "10001",
+      externalBlogId: "20001",
+      displayName: "Metricool sintético",
+    }],
+  ) {
+    this.accounts = accounts;
+  }
+
+  async discoverAccounts(): Promise<
+    MetricoolTransportResult<readonly MetricoolAccountCandidate[]>
+  > {
+    return { status: "ok", value: this.accounts };
+  }
+}
 
 export class DeterministicFakeMetricoolTransport implements MetricoolTransport {
   readonly #postsByRequest = new Map<string, MetricoolScheduledPost>();
@@ -65,6 +87,9 @@ export class DeterministicFakeMetricoolTransport implements MetricoolTransport {
       const updated = {
         ...existing,
         state,
+        networkStates: Object.fromEntries(
+          Object.keys(existing.networkStates).map((network) => [network, state]),
+        ),
         publicUrl:
           state === "published"
             ? `https://social.invalid/posts/${externalPostId}`
@@ -128,6 +153,9 @@ export class DeterministicFakeMetricoolTransport implements MetricoolTransport {
       externalPostUuid: `yzi-synthetic-${externalPostId}`,
       externalNetworkPostIds: Object.fromEntries(
         request.networks.map((network) => [network, `${network}-${externalPostId}`]),
+      ),
+      networkStates: Object.fromEntries(
+        request.networks.map((network) => [network, "pending"]),
       ),
       state: "pending",
       publicUrl: null,

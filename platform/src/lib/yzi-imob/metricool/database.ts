@@ -4,6 +4,7 @@ import postgres from "postgres";
 
 import type {
   MetricoolCapability,
+  MetricoolAccountCandidate,
   MetricoolMetric,
   MetricoolNetwork,
   MetricoolTargetProfile,
@@ -34,6 +35,16 @@ export type ClaimedMetricoolValidation = {
   };
 };
 
+export type ClaimedMetricoolDiscovery = {
+  connectionId: string;
+  tenantId: string;
+  credentials: { apiToken: string };
+};
+
+export type CompleteMetricoolDiscoveryInput =
+  | { connectionId: string; outcome: "ok"; accounts: readonly MetricoolAccountCandidate[] }
+  | { connectionId: string; outcome: "error"; errorCode: string };
+
 export type CompleteMetricoolValidationInput =
   | {
       connectionId: string;
@@ -50,6 +61,48 @@ export type CompleteMetricoolValidationInput =
 
 let runtimeSql: Sql | null = null;
 let identityVerified = false;
+
+export async function claimMetricoolDiscoveries(
+  limit = 2,
+): Promise<readonly ClaimedMetricoolDiscovery[]> {
+  const sql = await getVerifiedRuntimeSql();
+  const rows = await sql.unsafe<JsonRecord[]>(
+    "select * from yzi_imob_metricool_private.claim_yzi_imob_metricool_discoveries($1)",
+    [Math.min(5, Math.max(1, Math.trunc(limit)))],
+  );
+  return rows.map((row) => {
+    const connectionId = readUuid(row.connection_id);
+    const tenantId = readUuid(row.tenant_id);
+    const apiToken = readSecret(row.api_token);
+    return connectionId && tenantId && apiToken
+      ? { connectionId, tenantId, credentials: { apiToken } }
+      : null;
+  }).filter((row): row is ClaimedMetricoolDiscovery => row !== null);
+}
+
+export async function completeMetricoolDiscovery(
+  input: CompleteMetricoolDiscoveryInput,
+): Promise<void> {
+  const sql = await getVerifiedRuntimeSql();
+  const accounts = input.outcome === "ok"
+    ? input.accounts.map((account) => ({
+        external_user_id: account.externalUserId,
+        external_blog_id: account.externalBlogId,
+        display_name: account.displayName,
+      }))
+    : [];
+  await sql.unsafe(
+    `select * from yzi_imob_metricool_private.complete_yzi_imob_metricool_discovery(
+      $1, $2, $3::jsonb, $4
+    )`,
+    [
+      input.connectionId,
+      input.outcome,
+      JSON.stringify(accounts),
+      input.outcome === "error" ? sanitizeErrorCode(input.errorCode) : null,
+    ],
+  );
+}
 
 export async function claimMetricoolValidations(
   limit = 2,

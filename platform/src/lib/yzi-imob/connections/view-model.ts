@@ -271,6 +271,9 @@ function buildItem(
       status === "Ativo"
         ? activeSummary(definition)
         : definition.resumoNaoConfigurado,
+    // Só existe identidade quando a conexão está realmente ativa; fora disso o
+    // nome persistido não descreve nada que a operação possa usar.
+    contaConectada: status === "Ativo" ? persisted?.displayName ?? null : null,
     capabilitiesDisponiveis,
     ultimaVerificacao: persisted?.lastCheckedAt ?? null,
     proximaAcao: nextAction(definition, status),

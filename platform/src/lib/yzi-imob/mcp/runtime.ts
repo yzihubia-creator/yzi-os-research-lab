@@ -265,6 +265,23 @@ export class McpConnectionRuntime {
     return this.#requiredConnection(connection.id);
   }
 
+  async completeAuthorizationFromCallback(input: {
+    state: string;
+    code: string;
+    callbackUrl: string;
+  }): Promise<McpConnection> {
+    const attemptId = input.state.split(".", 1)[0];
+    if (!attemptId) throw new McpRuntimeError("state_invalid");
+    const attempt = await this.#repository.getAuthorizationAttempt(attemptId);
+    if (!attempt) throw new McpRuntimeError("state_invalid");
+    return this.completeAuthorization({
+      connectionId: attempt.connectionId,
+      state: input.state,
+      code: input.code,
+      callbackUrl: input.callbackUrl,
+    });
+  }
+
   async discover(connectionId: string): Promise<readonly McpCapabilityKey[]> {
     const connection = await this.#requiredConnection(connectionId);
     this.#assertAuthorized(connection);

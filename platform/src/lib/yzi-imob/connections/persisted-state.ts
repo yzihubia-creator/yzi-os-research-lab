@@ -36,6 +36,12 @@ export type SafePersistedConnection = SafeConnectionState & {
   humanCapabilities: string[];
 };
 
+type PublicRegistryState = {
+  authState: "not_authorized" | "pending" | "authorized" | "expired" | "revoked" | "refresh_failed";
+  connectionState: "not_connected" | "awaiting_authorization" | "connecting" | "ready" | "needs_attention" | "unavailable" | "revoked";
+  healthState: "unknown" | "healthy" | "degraded" | "unavailable";
+};
+
 type MetaAssetKind =
   | "facebook_page"
   | "instagram_business"
@@ -136,6 +142,20 @@ export function parseTenantConnectionsRpcPayload(payload: unknown): SafePersiste
     const rawHealthState = readString(record.health_state);
     const rawCapabilities =
       record.capability_snapshot ?? record.capabilities;
+    const capabilityIds = readConnectionCapabilities(rawCapabilities);
+    const publicRegistryState = derivePublicRegistryState({
+      visualId,
+      rawStatus,
+      rawAuthorizationState,
+      rawHealthState,
+      validatedAt: readDateString(record.validated_at),
+      lastCheckedAt: readDateString(record.last_checked_at),
+      expiresAt: readDateString(record.expires_at),
+      externalUserId: readString(record.external_user_id),
+      externalBlogId: readString(record.external_blog_id),
+      capabilityIds,
+      lastErrorCode: readString(record.last_error_code),
+    });
 
     parsed.push({
       id: visualId,
@@ -145,17 +165,21 @@ export function parseTenantConnectionsRpcPayload(payload: unknown): SafePersiste
       ...readSafeMetadata(record),
       assets: readAssets(record.assets),
       availableNetworks: readMetricoolNetworks(record.assets),
-      capabilityIds: readConnectionCapabilities(rawCapabilities),
+      capabilityIds,
       lastSyncAt: readDateString(record.last_sync_at),
       pendingPublications: readNonNegativeInteger(record.pending_publications),
       recentFailures: readNonNegativeInteger(record.recent_failures),
       authorizationExpired:
-        rawStatus === "expired" ||
-        rawStatus === "token_invalid" ||
-        isExpiredDate(readDateString(record.expires_at)),
+        publicRegistryState.authState === "expired" ||
+        rawStatus === "token_invalid",
       governedAuthorizationValidated:
-        rawAuthorizationState === "authorized",
-      governedRuntimeValidated: rawHealthState === "healthy",
+        visualId === "metricool"
+          ? publicRegistryState.authState === "authorized"
+          : rawAuthorizationState === "authorized",
+      governedRuntimeValidated:
+        visualId === "metricool"
+          ? publicRegistryState.healthState === "healthy"
+          : rawHealthState === "healthy",
       humanCapabilities: readHumanCapabilities(rawCapabilities),
     });
   }
@@ -252,10 +276,14 @@ function readConnectionCapabilities(value: unknown): ConnectionCapabilityId[] {
   const mapped = value.flatMap((item) => {
     if (typeof item === "string") {
       switch (item) {
+        case "social_publish":
         case "social_content_publish":
           return ["publicar-conteudo" as const];
+        case "social_schedule":
         case "social_content_schedule":
           return ["programar-publicacao" as const];
+        case "post_metrics":
+        case "profile_metrics":
         case "social_metrics_read":
           return ["ler-metricas" as const];
         case "image_generation":
@@ -312,8 +340,104 @@ function readHumanCapabilities(value: unknown): string[] {
   return Array.from(new Set(labels));
 }
 
-function isExpiredDate(value: string | null): boolean {
-  return value !== null && Date.parse(value) <= Date.now();
+function derivePublicRegistryState(input: {
+  visualId: string;
+  rawStatus: string | null;
+  rawAuthorizationState: string | null;
+  rawHealthState: string | null;
+  validatedAt: string | null;
+  lastCheckedAt: string | null;
+  expiresAt: string | null;
+  externalUserId: string | null;
+  externalBlogId: string | null;
+  capabilityIds: readonly ConnectionCapabilityId[];
+  lastErrorCode: string | null;
+}): PublicRegistryState {
+  const explicit = {
+    authState: readPublicAuthState(input.rawAuthorizationState),
+    healthState: readPublicHealthState(input.rawHealthState),
+  };
+  const statusState = mapPersistedStatus(input.rawStatus);
+  const expired = input.expiresAt !== null && Date.parse(input.expiresAt) <= Date.now();
+
+  if (input.visualId === "metricool") {
+    const hasProbeEvidence = Boolean(input.validatedAt ?? input.lastCheckedAt);
+    const hasDiscoveredCapabilities = input.capabilityIds.length > 0;
+    const active = ["active", "connected", "ready"].includes(input.rawStatus ?? "");
+    const failed = statusState === "requer-atencao" || Boolean(input.lastErrorCode);
+
+    return {
+      authState:
+        explicit.authState ??
+        (expired
+          ? "expired"
+          : active && hasProbeEvidence
+            ? "authorized"
+            : statusState === "aguardando-autorizacao"
+              ? "pending"
+              : "not_authorized"),
+      connectionState:
+        active && hasProbeEvidence && hasDiscoveredCapabilities && !failed
+          ? "ready"
+          : failed
+            ? "needs_attention"
+            : statusState === "em-configuracao"
+              ? "connecting"
+              : statusState === "aguardando-autorizacao"
+                ? "awaiting_authorization"
+                : "not_connected",
+      healthState:
+        explicit.healthState ??
+        (active && hasProbeEvidence && hasDiscoveredCapabilities && !failed
+          ? "healthy"
+          : failed
+            ? "degraded"
+            : "unknown"),
+    };
+  }
+
+  return {
+    authState:
+      explicit.authState ??
+      (expired ? "expired" : statusState === "conectado" ? "authorized" : "not_authorized"),
+    connectionState:
+      statusState === "conectado"
+        ? "ready"
+        : statusState === "em-configuracao"
+          ? "connecting"
+          : statusState === "aguardando-autorizacao"
+            ? "awaiting_authorization"
+            : statusState === "requer-atencao"
+              ? "needs_attention"
+              : "not_connected",
+    healthState: explicit.healthState ?? (statusState === "conectado" ? "healthy" : "unknown"),
+  };
+}
+
+function readPublicAuthState(value: string | null): PublicRegistryState["authState"] | null {
+  switch (value) {
+    case "not_authorized":
+    case "pending":
+    case "authorized":
+    case "expired":
+    case "revoked":
+    case "refresh_failed":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function readPublicHealthState(value: string | null): PublicRegistryState["healthState"] | null {
+  switch (value) {
+    case "unknown":
+    case "healthy":
+    case "degraded":
+    case "unavailable":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function applyMetricoolSemantics(entry: ConnectionEntry): void {

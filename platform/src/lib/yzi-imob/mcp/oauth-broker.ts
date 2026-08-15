@@ -10,6 +10,7 @@ import type {
 
 type FetchLike = typeof fetch;
 type Metadata = {
+  issuer: string;
   authorization_endpoint: string;
   token_endpoint: string;
   registration_endpoint: string;
@@ -131,9 +132,34 @@ export class DynamicRegistrationOAuthBroker implements McpAuthorizationBroker {
   }
 
   async #metadata(endpoint: string): Promise<Metadata> {
-    const origin = new URL(endpoint).origin;
-    const raw = await this.#json(`${origin}/.well-known/oauth-authorization-server`);
+    if (endpoint !== MCP_ENDPOINT_CATALOG.metricool.endpoint) {
+      return this.#authorizationServerMetadata(new URL(endpoint).origin);
+    }
+    const challenge = await this.#request(endpoint, {
+      headers: { accept: "application/json" },
+    });
+    if (challenge.status !== 401) throw new Error("oauth_resource_challenge_missing");
+    const resourceMetadataUrl = bearerResourceMetadataUrl(
+      challenge.headers.get("www-authenticate"),
+    );
+    const resourceMetadata = await this.#json(resourceMetadataUrl);
+    if (requiredString(resourceMetadata, "resource") !== endpoint) {
+      throw new Error("oauth_resource_mismatch");
+    }
+    const authorizationServers = resourceMetadata.authorization_servers;
+    if (!Array.isArray(authorizationServers) || typeof authorizationServers[0] !== "string") {
+      throw new Error("oauth_authorization_server_missing");
+    }
+    const issuer = authorizationServers[0];
+    assertHttps(issuer);
+    return this.#authorizationServerMetadata(issuer);
+  }
+
+  async #authorizationServerMetadata(issuer: string): Promise<Metadata> {
+    const raw = await this.#json(authorizationServerMetadataUrl(issuer));
+    if (requiredString(raw, "issuer") !== issuer) throw new Error("oauth_issuer_mismatch");
     const metadata = {
+      issuer,
       authorization_endpoint: requiredString(raw, "authorization_endpoint"),
       token_endpoint: requiredString(raw, "token_endpoint"),
       registration_endpoint: requiredString(raw, "registration_endpoint"),
@@ -209,6 +235,22 @@ export class DynamicRegistrationOAuthBroker implements McpAuthorizationBroker {
       clearTimeout(timeout);
     }
   }
+}
+
+function bearerResourceMetadataUrl(header: string | null): string {
+  const match = header?.match(/(?:^|,)\s*Bearer\b[^,]*\bresource_metadata="([^"]+)"/i);
+  if (!match?.[1]) throw new Error("oauth_resource_metadata_missing");
+  assertHttps(match[1]);
+  return match[1];
+}
+
+function authorizationServerMetadataUrl(issuer: string): string {
+  const parsed = new URL(issuer);
+  const issuerPath = parsed.pathname.replace(/\/$/, "");
+  parsed.pathname = `/.well-known/oauth-authorization-server${issuerPath}`;
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
 }
 
 function parseMaterial(material: JsonObject) {

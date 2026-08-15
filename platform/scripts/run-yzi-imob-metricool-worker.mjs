@@ -19,6 +19,11 @@ function parseArgs(argv) {
       args.validationLimit = boundedInteger(item.slice(19), 2, 5);
     } else if (item.startsWith("--publication-limit=")) {
       args.publicationLimit = boundedInteger(item.slice(20), 5, 10);
+    } else if (item === "--wire-real") {
+      args.transportMode = "real";
+      args.allowRealTransport = true;
+    } else if (item === "--fake") {
+      args.transportMode = "fake";
     }
   }
   return args;

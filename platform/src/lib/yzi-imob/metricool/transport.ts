@@ -4,6 +4,8 @@ import {
   METRICOOL_CAPABILITY_VALUES,
   METRICOOL_NETWORK_VALUES,
   type MetricoolCredentials,
+  type MetricoolAccountCandidate,
+  type MetricoolDiscoveryCredentials,
   type MetricoolMetric,
   type MetricoolMetricPeriod,
   type MetricoolNetwork,
@@ -49,6 +51,12 @@ export type MetricoolTransport = {
     period: MetricoolMetricPeriod,
     signal?: AbortSignal,
   ): Promise<MetricoolTransportResult<readonly MetricoolMetric[]>>;
+};
+
+export type MetricoolDiscoveryTransport = {
+  discoverAccounts(
+    signal?: AbortSignal,
+  ): Promise<MetricoolTransportResult<readonly MetricoolAccountCandidate[]>>;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -98,6 +106,72 @@ const PROFILE_METRIC_MAP: Readonly<Record<string, NormalizedSocialMetric | null>
   clicks_total: "clicks",
   postsInteractions: null,
 };
+
+export class OfficialMetricoolDiscoveryTransport implements MetricoolDiscoveryTransport {
+  readonly #credentials: MetricoolDiscoveryCredentials;
+  readonly #fetchImpl: typeof fetch;
+  readonly #baseUrl: string;
+  readonly #timeoutMs: number;
+
+  constructor(input: {
+    credentials: MetricoolDiscoveryCredentials;
+    fetchImpl?: typeof fetch;
+    baseUrl?: string;
+    timeoutMs?: number;
+  }) {
+    this.#credentials = input.credentials;
+    this.#fetchImpl = input.fetchImpl ?? fetch;
+    this.#baseUrl = (input.baseUrl ?? METRICOOL_API_BASE_URL).replace(/\/+$/, "");
+    this.#timeoutMs = input.timeoutMs ?? METRICOOL_HTTP_TIMEOUT_MS;
+  }
+
+  async discoverAccounts(
+    signal?: AbortSignal,
+  ): Promise<MetricoolTransportResult<readonly MetricoolAccountCandidate[]>> {
+    if (this.#credentials.apiToken.trim().length < 8) {
+      return failure("invalid_configuration", false);
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort("timeout"), this.#timeoutMs);
+    const onAbort = () => controller.abort(signal?.reason);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const response = await this.#fetchImpl(`${this.#baseUrl}/admin/simpleProfiles`, {
+        method: "GET",
+        headers: { "X-Mc-Auth": this.#credentials.apiToken },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return {
+          status: "error",
+          error: mapHttpFailure(response.status, response.headers.get("Retry-After")),
+        };
+      }
+      const payload: unknown = await response.json().catch(() => null);
+      if (!Array.isArray(payload)) return failure("provider_response_invalid", false);
+      const accounts = payload.map(asRecord).flatMap((brand) => {
+        const externalBlogId = readIdentifier(brand?.id);
+        const externalUserId = readIdentifier(brand?.userId) ?? readIdentifier(brand?.ownerUserId);
+        const displayName = readSafeLabel(brand?.label) ?? readSafeLabel(brand?.title);
+        return externalBlogId && externalUserId && displayName
+          ? [{ externalUserId, externalBlogId, displayName }]
+          : [];
+      });
+      return { status: "ok", value: accounts };
+    } catch (error) {
+      return failure(
+        controller.signal.aborted || (error instanceof Error && error.name === "AbortError")
+          ? "timeout"
+          : "network_error",
+        true,
+      );
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+    }
+  }
+}
 
 export class OfficialMetricoolHttpTransport implements MetricoolTransport {
   readonly #credentials: MetricoolCredentials;
@@ -496,7 +570,16 @@ function parseScheduledPost(
   if (!data || !id) return failure("provider_response_invalid", false);
 
   const providers = asArray(data.providers).map(asRecord).filter(Boolean);
-  const provider = providers[0] ?? null;
+  const networkStates = Object.fromEntries(
+    providers.flatMap((item) => {
+      const network = readSafeLabel(item?.network);
+      return network &&
+        METRICOOL_NETWORK_VALUES.includes(network as MetricoolNetwork)
+        ? [[network, mapProviderState(readSafeLabel(item?.status))]]
+        : [];
+    }),
+  ) as Partial<Record<MetricoolNetwork, MetricoolPostState>>;
+  const providerStates = Object.values(networkStates);
   const publicationDate = asRecord(data.publicationDate);
   return {
     status: "ok",
@@ -512,11 +595,34 @@ function parseScheduledPost(
             : [];
         }),
       ),
-      state: mapProviderState(readSafeLabel(provider?.status)),
-      publicUrl: readSafeHttpsUrl(provider?.publicUrl),
+      networkStates,
+      state: aggregateProviderStates(
+        providerStates.length
+          ? providerStates
+          : [mapProviderState(readSafeLabel(data.status))],
+      ),
+      publicUrl:
+        providers
+          .map((item) => readSafeHttpsUrl(item?.publicUrl))
+          .find(Boolean) ?? null,
       scheduledAt: readSafeLabel(publicationDate?.dateTime) ?? fallbackScheduledAt,
     },
   };
+}
+
+function aggregateProviderStates(
+  states: readonly MetricoolPostState[],
+): MetricoolPostState {
+  if (states.some((state) => state === "error")) return "error";
+  if (states.length > 0 && states.every((state) => state === "published")) {
+    return "published";
+  }
+  if (states.some((state) => state === "publishing")) return "publishing";
+  if (states.some((state) => state === "awaiting_confirmation")) {
+    return "awaiting_confirmation";
+  }
+  if (states.some((state) => state === "pending")) return "pending";
+  return states.some((state) => state === "draft") ? "draft" : "pending";
 }
 
 function mapProviderState(value: string | null): MetricoolPostState {

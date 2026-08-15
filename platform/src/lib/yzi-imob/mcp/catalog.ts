@@ -11,7 +11,7 @@ import type {
 export const MCP_ENDPOINT_CATALOG = {
   metricool: {
     endpoint: "https://ai.metricool.com/mcp",
-    callbackPath: "/api/yzi-imob/connections/social/callback",
+    callbackPath: "/api/yzi-imob/connections/metricool/callback",
   },
   higgsfield: {
     endpoint: "https://mcp.higgsfield.ai/mcp",

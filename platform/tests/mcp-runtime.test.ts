@@ -231,6 +231,13 @@ test("authorization requires allowlisted callback, one-time state and PKCE", asy
   );
 });
 
+test("Metricool authorization uses its dedicated callback route", () => {
+  assert.equal(
+    MCP_ENDPOINT_CATALOG.metricool.callbackPath,
+    "/api/yzi-imob/connections/metricool/callback",
+  );
+});
+
 test("authorization expiry, refresh failure and revocation block execution", async () => {
   const harness = createHarness();
   const connection = await authorize(harness, "metricool");

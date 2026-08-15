@@ -134,11 +134,13 @@ test("Metricool configuration state and allowlisted capabilities are parsed", ()
     {
       provider: "metricool",
       status: "active",
+      external_user_id: "194",
+      external_blog_id: "9020",
       display_name: "Workspace administrado",
       validated_at: "2026-07-28T12:00:00.000Z",
       last_sync_at: "2026-07-28T12:30:00.000Z",
       pending_publications: 2,
-      recent_failures: 1,
+      recent_failures: 0,
       assets: [
         { network: "instagram", profile_id: "hidden-profile-id" },
         { network: "facebook", profile_id: "hidden-profile-id-2" },
@@ -158,8 +160,43 @@ test("Metricool configuration state and allowlisted capabilities are parsed", ()
   assert.deepEqual(metricool.availableNetworks, ["instagram", "facebook"]);
   assert.equal(metricool.capabilities.every((capability) => capability.unlocked), true);
   assert.equal(metricool.pendingPublications, 2);
-  assert.equal(metricool.recentFailures, 1);
+  assert.equal(metricool.recentFailures, 0);
   assert.equal(JSON.stringify(metricool).includes("hidden-profile-id"), false);
+});
+
+test("Metricool public registry derives governed truth from official persisted evidence", () => {
+  const [metricool] = parseTenantConnectionsRpcPayload([
+    {
+      provider: "metricool",
+      status: "active",
+      external_user_id: "194",
+      external_blog_id: "9020",
+      validated_at: "2026-07-28T12:00:00.000Z",
+      capabilities: ["social_publish", "social_schedule", "post_metrics"],
+      last_error_code: null,
+    },
+  ]);
+
+  assert.equal(metricool.governedAuthorizationValidated, true);
+  assert.equal(metricool.governedRuntimeValidated, true);
+  assert.deepEqual(metricool.capabilityIds, [
+    "publicar-conteudo",
+    "programar-publicacao",
+    "ler-metricas",
+  ]);
+});
+
+test("Metricool active without identity, probe or discovered capabilities is not promoted", () => {
+  const [metricool] = parseTenantConnectionsRpcPayload([
+    {
+      provider: "metricool",
+      status: "active",
+      capabilities: [],
+    },
+  ]);
+
+  assert.equal(metricool.governedAuthorizationValidated, false);
+  assert.equal(metricool.governedRuntimeValidated, false);
 });
 
 test("Metricool plan and token failures map to honest attention states", () => {

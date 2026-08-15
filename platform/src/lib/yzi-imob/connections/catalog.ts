@@ -106,10 +106,10 @@ export const CONNECTIONS_CATALOG: ConnectionEntry[] = [
       { id: "programar-publicacao", unlocked: false },
       { id: "ler-metricas", unlocked: false },
     ],
-    primaryPendency: "Solicitar a configuração gerenciada da API Metricool.",
-    impact: ["Sem a API Metricool validada, publicações sociais não podem ser agendadas pelo YZI IMOB."],
+    primaryPendency: "Autorizar a conta Metricool pelo MCP oficial.",
+    impact: ["Sem o MCP Metricool autorizado, as capacidades sociais permanecem indisponíveis."],
     evidence: "produto",
-    evidenceNote: "A API oficial é o runtime; o MCP permanece um canal operacional interno opcional.",
+    evidenceNote: "O MCP remoto oficial é o transporte principal; a API tradicional é um caminho avançado preservado.",
   },
   {
     id: "site",

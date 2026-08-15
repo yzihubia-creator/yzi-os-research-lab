@@ -61,6 +61,16 @@ export type MetricoolCredentials = {
   apiToken: string;
 };
 
+export type MetricoolDiscoveryCredentials = {
+  apiToken: string;
+};
+
+export type MetricoolAccountCandidate = {
+  externalUserId: string;
+  externalBlogId: string;
+  displayName: string;
+};
+
 export type SocialPublicationFormat = "single_image" | "carousel";
 
 export type SocialPublicationStatus =
@@ -130,6 +140,7 @@ export type MetricoolScheduledPost = {
   externalPostId: string;
   externalPostUuid: string | null;
   externalNetworkPostIds: Readonly<Partial<Record<MetricoolNetwork, string>>>;
+  networkStates: Readonly<Partial<Record<MetricoolNetwork, MetricoolPostState>>>;
   state: MetricoolPostState;
   publicUrl: string | null;
   scheduledAt: string;

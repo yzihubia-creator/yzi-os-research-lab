@@ -40,6 +40,12 @@ export type ConnectionViewModelItem = {
   finalidade: string;
   status: ConnectionHumanStatus;
   resumo: string;
+  /**
+   * Identidade real da conta/recurso conectado, já saneada na leitura do
+   * estado persistido. `null` quando o servidor não conhece um nome — a
+   * interface mostra apenas "Conectado" em vez de inventar identidade.
+   */
+  contaConectada: string | null;
   capabilitiesDisponiveis: string[];
   ultimaVerificacao: string | null;
   proximaAcao: string | null;

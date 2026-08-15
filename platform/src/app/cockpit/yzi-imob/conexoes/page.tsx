@@ -5,6 +5,7 @@ import {
   buildConnectionsLoadFailure,
   buildConnectionsViewModelFromRpcPayload,
 } from "@/lib/yzi-imob/connections/view-model";
+import { mergeMetricoolMcpRegistryRow } from "@/lib/yzi-imob/mcp/public-registry";
 
 type MetaOAuthCallbackStatus =
   | "success"
@@ -70,7 +71,7 @@ async function loadTenantConnectionsPayload(tenantId: string): Promise<TenantCon
       };
     }
 
-    return { status: "ok", payload: data };
+    return { status: "ok", payload: await mergeMetricoolMcpRegistryRow(data, tenantId) };
   } catch {
     console.error("[yzi-imob/conexoes] tenant_connections_unavailable");
     return {
@@ -125,6 +126,7 @@ export default async function YziImobConexoesPage({ searchParams }: PageProps) {
     <YziImobConnectionsWorkspace
       viewModel={viewModel}
       authorizationCallbackStatus={metaOAuthStatus}
+      operationName={tenantContext.tenant.name}
     />
   );
 }

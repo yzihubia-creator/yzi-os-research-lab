@@ -58,7 +58,8 @@ export class PostgresMcpRepository implements McpRepository {
         "granted_scopes=$11::text[],capability_snapshot=$12::text[]," +
         "capability_snapshot_version=$13,authorization_reference=$14,expires_at=$15::timestamptz," +
         "last_connected_at=$16::timestamptz,last_discovered_at=$17::timestamptz," +
-        "last_health_check_at=$18::timestamptz,revoked_at=$19::timestamptz,updated_at=$21::timestamptz " +
+        "last_health_check_at=$18::timestamptz,revoked_at=$19::timestamptz," +
+        "created_at=$20::timestamptz,updated_at=$21::timestamptz " +
         "where id=$1::uuid returning *",
       connectionParams(value),
     );
@@ -84,7 +85,7 @@ export class PostgresMcpRepository implements McpRepository {
     await (await getSql()).unsafe(
       "insert into yzi_imob_mcp_private.connection_events " +
         "(id,connection_id,event_type,status,safe_metadata,occurred_at) " +
-        "values($1::uuid,$2::uuid,$3,$4,$5::jsonb,$6::timestamptz)",
+        "values($1::uuid,$2::uuid,$3,$4,$5::text::jsonb,$6::timestamptz)",
       [value.id, value.connectionId, value.eventType, value.status,
         JSON.stringify(value.safeMetadata), value.occurredAt],
     );
@@ -198,7 +199,7 @@ export class PostgresMcpRepository implements McpRepository {
       "insert into yzi_imob_mcp_private.execution_requests " +
         "(id,connection_id,tenant_id,operation,capability_key,approval_state,estimated_cost," +
         "idempotency_key,status,created_at,completed_at,safe_result) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::timestamptz,$12::jsonb)",
+        "values($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::timestamptz,$12::text::jsonb)",
       requestParams(value),
     );
   }
@@ -218,7 +219,7 @@ export class PostgresMcpRepository implements McpRepository {
     const rows = await (await getSql()).unsafe<Row[]>(
       "update yzi_imob_mcp_private.execution_requests set operation=$4,capability_key=$5," +
         "approval_state=$6,estimated_cost=$7,status=$9,created_at=$10::timestamptz," +
-        "completed_at=$11::timestamptz,safe_result=$12::jsonb where id=$1::uuid returning *",
+        "completed_at=$11::timestamptz,safe_result=$12::text::jsonb where id=$1::uuid returning *",
       requestParams(value),
     );
     return required(mapRequest(rows[0]), "execution_request_not_found");
@@ -240,7 +241,7 @@ export class PostgresMcpRepository implements McpRepository {
     await (await getSql()).unsafe(
       "insert into yzi_imob_mcp_private.execution_events " +
         "(id,request_id,connection_id,tenant_id,event_type,status,safe_metadata,occurred_at) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7::jsonb,$8::timestamptz)",
+        "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7::text::jsonb,$8::timestamptz)",
       [value.id, value.requestId, value.connectionId, value.tenantId, value.eventType,
         value.status, JSON.stringify(value.safeMetadata), value.occurredAt],
     );
@@ -285,7 +286,7 @@ export class PostgresMcpRepository implements McpRepository {
 export class PostgresMcpSecretVault implements McpSecretVault {
   async put(kind: "pkce_verifier" | "authorization", value: JsonObject): Promise<string> {
     const rows = await (await getSql()).unsafe<{ id: string }[]>(
-      "select yzi_imob_mcp_private.put_secret($1,$2::jsonb) as id",
+      "select yzi_imob_mcp_private.put_secret($1,$2::text::jsonb) as id",
       [kind, JSON.stringify(value)],
     );
     const id = rows[0]?.id;
@@ -307,7 +308,7 @@ export class PostgresMcpSecretVault implements McpSecretVault {
     const id = parseRef(reference);
     if (!id) throw new Error("mcp_vault_reference_invalid");
     await (await getSql()).unsafe(
-      "select yzi_imob_mcp_private.update_secret($1::uuid,$2::jsonb)",
+      "select yzi_imob_mcp_private.update_secret($1::uuid,$2::text::jsonb)",
       [id, JSON.stringify(value)],
     );
   }

@@ -14,6 +14,10 @@ const METRICOOL_ACCESS_FIX_SQL = readFileSync(
   "../supabase/migrations/20260729005426_fix_yzi_imob_connections_authenticated_read.sql",
   "utf8",
 );
+const PUBLIC_REGISTRY_SQL = readFileSync(
+  "../supabase/migrations/20260813120000_yzi_imob_connections_public_registry_metricool_v1.sql",
+  "utf8",
+);
 
 test("connections RPC returns WhatsApp assets with sanitized metadata allowlists", () => {
   assert.match(MIGRATION_SQL, /create or replace function public\.get_yzi_imob_tenant_connections/);
@@ -68,4 +72,26 @@ test("Metricool RPC expansion grants only the sanitized connection columns it re
   assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /to anon/i);
   assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /security definer/i);
   assert.doesNotMatch(METRICOOL_ACCESS_FIX_SQL, /vault_secret_id/i);
+});
+
+test("public Connection Registry projects governed Metricool truth fields", () => {
+  for (const field of [
+    "auth_state",
+    "connection_state",
+    "health_state",
+    "capability_snapshot",
+  ]) {
+    assert.match(PUBLIC_REGISTRY_SQL, new RegExp(`\\b${field}\\b`, "i"));
+  }
+  assert.match(PUBLIC_REGISTRY_SQL, /tc\.provider = 'metricool'/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /external_user_id is not null/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /external_blog_id is not null/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /vault_secret_id is not null/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /validated_at is not null/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /cardinality\(cr\.public_capability_snapshot\) > 0/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /cr\.last_error_code is null/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /cr\.public_recent_failures = 0/i);
+  assert.match(PUBLIC_REGISTRY_SQL, /grant execute on function public\.get_yzi_imob_tenant_connections\(uuid\)\s*to authenticated;/i);
+  assert.doesNotMatch(PUBLIC_REGISTRY_SQL, /to anon/i);
+  assert.doesNotMatch(PUBLIC_REGISTRY_SQL, /security definer/i);
 });
