@@ -206,10 +206,20 @@ export class McpConnectionRuntime {
     }
 
     // Consume before exchange. A failed exchange cannot replay the same callback.
-    await this.#repository.updateAuthorizationAttempt(attempt.id, {
-      status: "consumed",
-      consumedAt: this.#now(),
-    });
+    // O claim é atômico: entre a leitura acima e esta linha outra execução do
+    // mesmo callback pode ter vencido a corrida, e só uma pode trocar o code.
+    const claimed = await this.#repository.claimAuthorizationAttempt(
+      attempt.id,
+      this.#now(),
+    );
+    if (!claimed) {
+      // Perdedora da corrida (ou replay): termina idempotente — sem exchange,
+      // sem discovery, sem erro. Quem venceu é a autoridade sobre o estado.
+      await this.#connectionEvent(connection.id, "authorization_claim_skipped", "ok", {
+        attemptId: attempt.id,
+      });
+      return this.#requiredConnection(connection.id);
+    }
     const verifierMaterial = await this.#secretVault.get(attempt.verifierReference);
     await this.#secretVault.delete(attempt.verifierReference);
     if (typeof verifierMaterial?.verifier !== "string") {

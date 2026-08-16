@@ -884,3 +884,112 @@ test("Canva Connect transport maps 401 to authorization_expired on health", asyn
   });
   assert.equal(await transport.health(), false);
 });
+
+/* ------------------------------------------------------------------ */
+/* Corrida e replay do callback (runtime genérico)                     */
+/* ------------------------------------------------------------------ */
+
+test("callbacks concorrentes reivindicam a mesma attempt uma única vez, sem erro e sem efeito duplicado", async () => {
+  const harness = createHarness();
+  const connection = await harness.runtime.createConnection({
+    ownerScope: "tenant",
+    ownerId: "tenant-race",
+    connectionKind: "higgsfield",
+    displayName: "Higgsfield tenant",
+  });
+  const callbackUrl = callbackFor("higgsfield");
+  const started = await harness.runtime.startAuthorization({
+    connectionId: connection.id,
+    callbackUrl,
+  });
+  const state = new URL(started.authorizationUrl).searchParams.get("state");
+  assert.ok(state);
+
+  // Três execuções do MESMO callback, como o provedor disparou em produção.
+  const settled = await Promise.allSettled([
+    harness.runtime.completeAuthorizationFromCallback({ state, code: "valid-code", callbackUrl }),
+    harness.runtime.completeAuthorizationFromCallback({ state, code: "valid-code", callbackUrl }),
+    harness.runtime.completeAuthorizationFromCallback({ state, code: "valid-code", callbackUrl }),
+  ]);
+
+  assert.ok(
+    settled.every((result) => result.status === "fulfilled"),
+    "nenhuma execução concorrente pode mostrar erro ao usuário",
+  );
+  assert.equal(
+    harness.higgsfieldBroker.exchangeCount,
+    1,
+    "somente a execução vencedora pode trocar o code",
+  );
+
+  const events = await harness.repository.listConnectionEvents(connection.id);
+  assert.equal(
+    events.filter((event) => event.eventType === "authorization_completed").length,
+    1,
+  );
+  assert.equal(
+    events.filter((event) => event.eventType === "authorization_claim_skipped").length,
+    2,
+  );
+  assert.equal(
+    events.filter((event) => event.eventType === "discovery_completed").length,
+    1,
+    "discovery não pode rodar de novo por execução perdedora",
+  );
+
+  const attempt = await harness.repository.getAuthorizationAttempt(started.attemptId);
+  assert.equal(attempt?.status, "consumed");
+  assert.ok(attempt?.consumedAt);
+});
+
+test("replay sequencial do callback é recusado e não troca o code de novo", async () => {
+  const harness = createHarness();
+  const connection = await harness.runtime.createConnection({
+    ownerScope: "tenant",
+    ownerId: "tenant-replay",
+    connectionKind: "higgsfield",
+    displayName: "Higgsfield tenant",
+  });
+  const callbackUrl = callbackFor("higgsfield");
+  const started = await harness.runtime.startAuthorization({
+    connectionId: connection.id,
+    callbackUrl,
+  });
+  const state = new URL(started.authorizationUrl).searchParams.get("state");
+  assert.ok(state);
+
+  await harness.runtime.completeAuthorizationFromCallback({ state, code: "valid-code", callbackUrl });
+  await expectCode(
+    harness.runtime.completeAuthorizationFromCallback({ state, code: "valid-code", callbackUrl }),
+    "state_replayed",
+  );
+  assert.equal(harness.higgsfieldBroker.exchangeCount, 1);
+});
+
+test("o claim atômico é fail-closed: uma attempt já consumida nunca é reivindicada de novo", async () => {
+  const repository = new InMemoryMcpRepository();
+  const attempt = {
+    id: "8f2a1f2e-1b7c-4a2d-9f3e-2c4d5e6f7a8b",
+    connectionId: "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    stateHash: "a".repeat(64),
+    verifierReference: "vault://ref/1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    callbackUrl: callbackFor("higgsfield"),
+    status: "pending" as const,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    consumedAt: null,
+  };
+  await repository.saveAuthorizationAttempt(attempt);
+
+  const claims = await Promise.all([
+    repository.claimAuthorizationAttempt(attempt.id, new Date().toISOString()),
+    repository.claimAuthorizationAttempt(attempt.id, new Date().toISOString()),
+    repository.claimAuthorizationAttempt(attempt.id, new Date().toISOString()),
+  ]);
+  assert.equal(claims.filter(Boolean).length, 1);
+  assert.equal(await repository.claimAuthorizationAttempt(attempt.id, new Date().toISOString()), null);
+  assert.equal(
+    await repository.claimAuthorizationAttempt("00000000-0000-4000-8000-000000000000", new Date().toISOString()),
+    null,
+  );
+});

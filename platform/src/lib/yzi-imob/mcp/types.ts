@@ -256,6 +256,15 @@ export type McpRepository = {
     id: string,
     patch: Partial<McpAuthorizationAttempt>,
   ): Promise<McpAuthorizationAttempt>;
+  /**
+   * Transição atômica `pending → consumed`. Uma única execução pode reivindicar
+   * uma attempt: as concorrentes recebem `null` e não podem trocar o code de
+   * novo. Nunca implementar como leitura seguida de escrita.
+   */
+  claimAuthorizationAttempt(
+    id: string,
+    consumedAt: string,
+  ): Promise<McpAuthorizationAttempt | null>;
   replaceToolSnapshot(
     connectionId: string,
     version: number,

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "test": "node --test --experimental-strip-types --conditions=react-server tests/*.test.ts",
     "test:mcp": "node --test --experimental-strip-types tests/mcp-runtime.test.ts",
     "test:surfaces": "node --test --experimental-strip-types tests/yzi-imob-surfaces.test.ts",
     "inbound-operations:worker": "node --conditions=react-server scripts/run-inbound-operations-worker.mjs",

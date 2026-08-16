@@ -329,7 +329,17 @@ function deriveHumanStatus(
     return "Aguardando autorização";
   }
   if (!truth.connectionHealthy) return "Precisa de atenção";
-  if (!truth.readCapabilityReady && !truth.writeCapabilityReady) {
+  // Prontidão da CONEXÃO e prontidão de CAPABILITY de produto são estados
+  // diferentes. Numa conexão criativa externa o snapshot de capabilities fica
+  // vazio por governança, até o contrato de tool ser verificado: isso bloqueia
+  // as operações do produto, não a conexão MCP — que está autorizada, pronta e
+  // saudável. Tratar as duas como a mesma coisa deixaria o card preso em
+  // "Conectando" para sempre.
+  if (
+    !definition.externalCreative &&
+    !truth.readCapabilityReady &&
+    !truth.writeCapabilityReady
+  ) {
     return "Conectando";
   }
   return "Ativo";

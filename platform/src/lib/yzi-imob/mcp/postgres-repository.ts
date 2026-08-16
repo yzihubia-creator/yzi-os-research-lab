@@ -109,6 +109,21 @@ export class PostgresMcpRepository implements McpRepository {
     );
   }
 
+  async claimAuthorizationAttempt(
+    id: string,
+    consumedAt: string,
+  ): Promise<McpAuthorizationAttempt | null> {
+    // UPDATE condicional em uma única instrução: o próprio Postgres serializa
+    // as execuções concorrentes e apenas uma vê `status='pending'`.
+    const rows = await (await getSql()).unsafe<Row[]>(
+      "update yzi_imob_mcp_private.authorization_attempts " +
+        "set status='consumed', consumed_at=$2::timestamptz " +
+        "where id=$1::uuid and status='pending' returning *",
+      [id, consumedAt],
+    );
+    return mapAttempt(rows[0]);
+  }
+
   async getAuthorizationAttempt(id: string): Promise<McpAuthorizationAttempt | null> {
     const rows = await (await getSql()).unsafe<Row[]>(
       "select * from yzi_imob_mcp_private.authorization_attempts where id=$1::uuid",

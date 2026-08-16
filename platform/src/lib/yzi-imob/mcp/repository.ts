@@ -79,6 +79,19 @@ export class InMemoryMcpRepository implements McpRepository {
     return clone(updated);
   }
 
+  async claimAuthorizationAttempt(
+    id: string,
+    consumedAt: string,
+  ): Promise<McpAuthorizationAttempt | null> {
+    // Sem `await` entre a leitura e a escrita: o claim é indivisível para as
+    // execuções concorrentes que compartilham este repositório.
+    const current = this.#attempts.get(id);
+    if (!current || current.status !== "pending") return null;
+    const claimed = { ...current, status: "consumed" as const, consumedAt };
+    this.#attempts.set(id, claimed);
+    return clone(claimed);
+  }
+
   async replaceToolSnapshot(
     connectionId: string,
     version: number,
