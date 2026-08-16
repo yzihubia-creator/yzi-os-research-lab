@@ -12,6 +12,7 @@ import {
   McpRuntimeError,
   RemoteHttpMcpTransport,
   UnavailableMcpTransport,
+  createFakeCanvaTransport,
   createFakeHiggsfieldTransport,
   createFakeMetricoolTransport,
   type McpCapabilityKey,
@@ -19,6 +20,13 @@ import {
   type McpConnectionBinding,
   type McpConnectionKind,
 } from "../src/lib/yzi-imob/mcp/index.ts";
+import {
+  CANVA_CONNECT_API_BASE,
+  CANVA_CONNECT_AUTHORIZATION_ENDPOINT,
+  CANVA_CONNECT_TOKEN_ENDPOINT,
+  CanvaConnectOAuthBroker,
+  CanvaConnectTransport,
+} from "../src/lib/yzi-imob/mcp/canva-connect.ts";
 import { parseTenantConnectionsRpcPayload } from "../src/lib/yzi-imob/connections/persisted-state.ts";
 
 type Harness = ReturnType<typeof createHarness>;
@@ -28,12 +36,14 @@ function createHarness(options?: { timeoutMs?: number; executionMode?: "fake" | 
   const vault = new InMemoryMcpSecretVault();
   const metricoolBroker = new DeterministicFakeAuthorizationBroker();
   const higgsfieldBroker = new DeterministicFakeAuthorizationBroker();
+  const canvaBroker = new DeterministicFakeAuthorizationBroker();
   const transports: Record<
     McpConnectionKind,
     DeterministicFakeMcpTransport
   > = {
     metricool: createFakeMetricoolTransport(),
     higgsfield: createFakeHiggsfieldTransport(),
+    canva: createFakeCanvaTransport(),
   };
   const runtime = new McpConnectionRuntime({
     repository,
@@ -41,6 +51,7 @@ function createHarness(options?: { timeoutMs?: number; executionMode?: "fake" | 
     authorizationBrokers: {
       metricool: metricoolBroker,
       higgsfield: higgsfieldBroker,
+      canva: canvaBroker,
     },
     transportFactory: (connection) => transports[connection.connectionKind],
     allowedCallbackOrigins: ["https://app.example.test"],
@@ -53,6 +64,7 @@ function createHarness(options?: { timeoutMs?: number; executionMode?: "fake" | 
     vault,
     metricoolBroker,
     higgsfieldBroker,
+    canvaBroker,
     transports,
   };
 }
@@ -235,6 +247,85 @@ test("Metricool authorization uses its dedicated callback route", () => {
   assert.equal(
     MCP_ENDPOINT_CATALOG.metricool.callbackPath,
     "/api/yzi-imob/connections/metricool/callback",
+  );
+});
+
+test("Canva uses the official MCP endpoint and persists PKCE state without fixed capabilities", async () => {
+  assert.deepEqual(MCP_ENDPOINT_CATALOG.canva, {
+    endpoint: "https://mcp.canva.com/mcp",
+    callbackPath: "/api/yzi-imob/connections/canva/callback",
+  });
+  const harness = createHarness();
+  const connection = await harness.runtime.createConnection({
+    ownerScope: "tenant",
+    ownerId: "tenant-ocm",
+    connectionKind: "canva",
+    displayName: "Canva",
+  });
+  const callbackUrl = callbackFor("canva");
+  const started = await harness.runtime.startAuthorization({
+    connectionId: connection.id,
+    callbackUrl,
+  });
+  const authorizationUrl = new URL(started.authorizationUrl);
+  assert.equal(authorizationUrl.searchParams.get("code_challenge_method"), "S256");
+  assert.equal(authorizationUrl.searchParams.get("redirect_uri"), callbackUrl);
+  assert.equal(authorizationUrl.searchParams.get("scope"), "");
+  const attempt = await harness.repository.getAuthorizationAttempt(started.attemptId);
+  assert.equal(attempt?.status, "pending");
+  assert.equal(attempt?.callbackUrl, callbackUrl);
+  assert.match(attempt?.verifierReference ?? "", /^vault:\/\/ref\//);
+  const verifierMaterial = await harness.vault.get(attempt?.verifierReference ?? "");
+  assert.equal(typeof verifierMaterial?.verifier, "string");
+  assert.ok((verifierMaterial?.verifier as string).length >= 43);
+
+  const state = authorizationUrl.searchParams.get("state");
+  assert.ok(state);
+  const authorized = await harness.runtime.completeAuthorization({
+    connectionId: connection.id,
+    state,
+    code: "valid-code",
+    callbackUrl,
+  });
+  assert.equal(authorized.connectionKind, "canva");
+  assert.deepEqual(authorized.capabilitySnapshot, []);
+  assert.deepEqual(await harness.repository.listToolSnapshots(connection.id), []);
+});
+
+test("Canva connection-kind migration preserves the constrained provider domain", async () => {
+  const migration = await readFile(
+    new URL("../../supabase/migrations/20260815035008_yzi_imob_mcp_canva_connection_kind.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /connection_kind in \('metricool', 'higgsfield', 'canva'\)/);
+  assert.match(migration, /endpoint_key = connection_kind/);
+  assert.match(migration, /validate constraint yzi_imob_mcp_connections_kind_check_canva/);
+  assert.match(migration, /rename constraint[\s\S]*to yzi_imob_mcp_connections_kind_check/);
+  assert.doesNotMatch(migration, /drop constraint[^;]*;\s*commit;/i);
+});
+
+test("Canva production route uses the generic MCP broker and transport", async () => {
+  const productionRuntime = await readFile(
+    new URL("../src/lib/yzi-imob/mcp/production-runtime.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(productionRuntime, /canva-connect|CanvaConnect/);
+  assert.match(productionRuntime, /canva:\s*broker/);
+  assert.match(
+    productionRuntime,
+    /transportFactory:\s*\(connection\)\s*=>\s*new RemoteHttpMcpTransport/,
+  );
+  assert.match(productionRuntime, /process\.env\.NEXT_PUBLIC_APP_URL/);
+  assert.match(
+    productionRuntime,
+    /new URL\(\s*"\/api\/yzi-imob\/connections\/canva\/callback",\s*readAppOrigin\(\)/,
+  );
+  assert.equal(
+    new URL(
+      MCP_ENDPOINT_CATALOG.canva.callbackPath,
+      "https://yzios.com.br",
+    ).toString(),
+    "https://yzios.com.br/api/yzi-imob/connections/canva/callback",
   );
 });
 
@@ -679,3 +770,117 @@ test("frontend exposes human states and capabilities without technical provider 
 });
 
 type JsonObject = Record<string, unknown>;
+
+test("Canva Connect broker builds official authorization URL without DCR", async () => {
+  process.env.CANVA_CONNECT_CLIENT_ID = "OC-TEST-CLIENT";
+  process.env.CANVA_CONNECT_CLIENT_SECRET = "test-secret";
+  const requests: string[] = [];
+  const broker = new CanvaConnectOAuthBroker({
+    fetchImpl: (async (url: RequestInfo | URL) => {
+      requests.push(String(url));
+      return new Response("{}", { status: 500 });
+    }) as typeof fetch,
+  });
+  const prepared = await broker.buildAuthorizationUrl({
+    endpoint: MCP_ENDPOINT_CATALOG.canva.endpoint,
+    state: "attempt-1.secret",
+    codeChallenge: "challenge-value",
+    callbackUrl: `https://app.example.test${MCP_ENDPOINT_CATALOG.canva.callbackPath}`,
+    scopes: ["profile:read", "design:meta:read"],
+  });
+  assert.equal(requests.length, 0, "não deve registrar cliente dinamicamente");
+  const url = new URL(prepared.authorizationUrl);
+  assert.equal(url.origin + url.pathname, CANVA_CONNECT_AUTHORIZATION_ENDPOINT);
+  assert.equal(url.searchParams.get("client_id"), "OC-TEST-CLIENT");
+  assert.equal(url.searchParams.get("code_challenge_method"), "S256");
+  assert.equal(url.searchParams.get("code_challenge"), "challenge-value");
+  assert.equal(url.searchParams.get("scope"), "profile:read design:meta:read");
+  assert.equal(url.searchParams.get("state"), "attempt-1.secret");
+});
+
+test("Canva Connect broker exchanges and refreshes with Basic auth and rotation", async () => {
+  process.env.CANVA_CONNECT_CLIENT_ID = "OC-TEST-CLIENT";
+  process.env.CANVA_CONNECT_CLIENT_SECRET = "test-secret";
+  const seen: Array<{ url: string; authorization: string | null; body: string }> = [];
+  let call = 0;
+  const broker = new CanvaConnectOAuthBroker({
+    fetchImpl: (async (url: RequestInfo | URL, init?: RequestInit) => {
+      call += 1;
+      seen.push({
+        url: String(url),
+        authorization:
+          (init?.headers as Record<string, string> | undefined)?.authorization ?? null,
+        body: String(init?.body),
+      });
+      return new Response(
+        JSON.stringify({
+          access_token: `access-${call}`,
+          refresh_token: `refresh-${call}`,
+          expires_in: 3600,
+          scope: "profile:read design:meta:read",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch,
+  });
+  const grant = await broker.exchange({
+    endpoint: MCP_ENDPOINT_CATALOG.canva.endpoint,
+    code: "auth-code",
+    codeVerifier: "verifier-value",
+    callbackUrl: `https://app.example.test${MCP_ENDPOINT_CATALOG.canva.callbackPath}`,
+  });
+  assert.equal(seen[0]?.url, CANVA_CONNECT_TOKEN_ENDPOINT);
+  const expectedBasic = `Basic ${Buffer.from("OC-TEST-CLIENT:test-secret", "utf8").toString("base64")}`;
+  assert.equal(seen[0]?.authorization, expectedBasic);
+  assert.match(seen[0]?.body ?? "", /grant_type=authorization_code/);
+  assert.match(seen[0]?.body ?? "", /code_verifier=verifier-value/);
+  assert.equal(grant.material.accessToken, "access-1");
+  assert.equal(grant.material.refreshToken, "refresh-1");
+  assert.equal(grant.material.clientSecret, undefined, "segredo não vai ao Vault");
+  assert.deepEqual(grant.grantedScopes, ["profile:read", "design:meta:read"]);
+  assert.ok(grant.expiresAt);
+
+  const refreshed = await broker.refresh(grant.material);
+  assert.equal(seen[1]?.authorization, expectedBasic);
+  assert.match(seen[1]?.body ?? "", /grant_type=refresh_token/);
+  assert.match(seen[1]?.body ?? "", /refresh_token=refresh-1/);
+  assert.equal(refreshed.material.accessToken, "access-2");
+  assert.equal(refreshed.material.refreshToken, "refresh-2");
+});
+
+test("Canva Connect transport proves the token with GET /users/me and stays tool-less", async () => {
+  const seen: Array<{ url: string; authorization: string | null }> = [];
+  const transport = new CanvaConnectTransport({
+    authorizationHeader: async () => "Bearer access-token",
+    fetchImpl: (async (url: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({
+        url: String(url),
+        authorization:
+          (init?.headers as Record<string, string> | undefined)?.authorization ?? null,
+      });
+      return new Response(
+        JSON.stringify({ team_user: { user_id: "user-1", team_id: "team-1" } }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch,
+  });
+  const initialized = await transport.initialize();
+  assert.equal(initialized.protocolVersion, "canva-connect-rest-v1");
+  assert.equal(seen[0]?.url, `${CANVA_CONNECT_API_BASE}/users/me`);
+  assert.equal(seen[0]?.authorization, "Bearer access-token");
+  assert.deepEqual(await transport.listTools(), []);
+  assert.equal(await transport.health(), true);
+  await assert.rejects(transport.callTool(), (error: unknown) => {
+    assert.ok(error instanceof McpRuntimeError);
+    assert.equal(error.code, "operation_not_allowed");
+    return true;
+  });
+});
+
+test("Canva Connect transport maps 401 to authorization_expired on health", async () => {
+  const transport = new CanvaConnectTransport({
+    authorizationHeader: async () => "Bearer stale-token",
+    fetchImpl: (async () => new Response("{}", { status: 401 })) as typeof fetch,
+  });
+  assert.equal(await transport.health(), false);
+});

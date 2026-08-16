@@ -152,6 +152,11 @@ export const CONNECTION_PROVIDER: Record<string, ConnectionProviderIdentity> = {
     rgb: "168, 130, 246",
     Mark: HiggsfieldMark,
   },
+  canva: {
+    serviceName: "Canva",
+    rgb: "0, 196, 204",
+    Mark: CanvaMark,
+  },
   "desempenho-busca": {
     serviceName: "Google Search Console",
     rgb: "66, 133, 244",
@@ -194,6 +199,7 @@ export const NEUTRAL_PROVIDER: ConnectionProviderIdentity = {
 export const CONNECTION_ORDER: readonly string[] = [
   "publicacao-social",
   "producao-criativa-complementar",
+  "canva",
   "desempenho-busca",
   "atendimento-mensagens",
   "site",
@@ -215,17 +221,7 @@ export type AnnouncedProvider = ConnectionProviderIdentity & {
   unavailableReason: string;
 };
 
-export const ANNOUNCED_PROVIDERS: readonly AnnouncedProvider[] = [
-  {
-    id: "canva",
-    serviceName: "Canva",
-    rgb: "0, 196, 204",
-    Mark: CanvaMark,
-    role: "Acabamento das peças",
-    unavailableReason:
-      "A conexão do Canva ainda não está disponível nesta operação.",
-  },
-];
+export const ANNOUNCED_PROVIDERS: readonly AnnouncedProvider[] = [];
 
 export function providerFor(id: string): ConnectionProviderIdentity {
   return CONNECTION_PROVIDER[id] ?? NEUTRAL_PROVIDER;

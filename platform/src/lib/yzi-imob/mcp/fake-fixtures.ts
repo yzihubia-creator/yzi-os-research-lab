@@ -112,6 +112,10 @@ export function createFakeHiggsfieldTransport(): DeterministicFakeMcpTransport {
   });
 }
 
+export function createFakeCanvaTransport(): DeterministicFakeMcpTransport {
+  return new DeterministicFakeMcpTransport({ tools: [] });
+}
+
 function tool(name: string, inputSchema: JsonObject): McpToolDefinition {
   return {
     name,

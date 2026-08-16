@@ -1,4 +1,5 @@
 export {
+  CanvaMcpAdapter,
   HiggsfieldMcpAdapter,
   MCP_ADAPTERS,
   MCP_ENDPOINT_CATALOG,
@@ -15,6 +16,7 @@ export {
 export {
   FAKE_HIGGSFIELD_TOOLS,
   FAKE_METRICOOL_TOOLS,
+  createFakeCanvaTransport,
   createFakeHiggsfieldTransport,
   createFakeMetricoolTransport,
 } from "./fake-fixtures.ts";

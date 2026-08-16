@@ -17,7 +17,7 @@ export const MCP_CAPABILITIES = [
 ] as const;
 
 export type McpCapabilityKey = (typeof MCP_CAPABILITIES)[number];
-export type McpConnectionKind = "metricool" | "higgsfield";
+export type McpConnectionKind = "metricool" | "higgsfield" | "canva";
 export type McpOwnerScope = "platform" | "tenant" | "operation";
 export type McpAuthState =
   | "not_authorized"

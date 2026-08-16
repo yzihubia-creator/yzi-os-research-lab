@@ -254,8 +254,10 @@ function readVisualConnectionId(record: Record<string, unknown>): string | null 
   if (provider === "meta") return "meta";
   if (provider === "metricool") return "metricool";
   if (provider === "higgsfield") return "geracao-criativa";
+  if (provider === "canva") return "canva";
   if (connectionKind === "metricool") return "metricool";
   if (connectionKind === "higgsfield") return "geracao-criativa";
+  if (connectionKind === "canva") return "canva";
 
   return catalogId && CONNECTIONS_CATALOG.some((entry) => entry.id === catalogId)
     ? catalogId

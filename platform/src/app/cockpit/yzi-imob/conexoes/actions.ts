@@ -10,6 +10,7 @@ import {
 } from "@/lib/yzi-imob/connections/meta-oauth-start";
 import type {
   ConnectionCommand,
+  McpConnectionActionResult,
   MetricoolAccountDiscoveryResult,
   MetricoolConnectionActionResult,
 } from "./action-types";
@@ -94,6 +95,72 @@ export async function startMetricoolMcpAuthorizationAction(): Promise<MetricoolC
       });
     }
     return { status: "error", code: "operation_failed" };
+  }
+}
+
+export async function startCanvaMcpAuthorizationAction(): Promise<McpConnectionActionResult> {
+  const tenantContext = await getTenantContext();
+  if (
+    tenantContext.status !== "tenant_found" ||
+    !["owner", "admin"].includes(tenantContext.role)
+  ) {
+    return { status: "error", code: "access_denied" };
+  }
+
+  let checkpoint = "connection_lookup";
+  try {
+    const [{ PostgresMcpRepository }, { createProductionMcpRuntime, readCanvaMcpCallbackUrl }] =
+      await Promise.all([
+        import("@/lib/yzi-imob/mcp/postgres-repository"),
+        import("@/lib/yzi-imob/mcp/production-runtime"),
+      ]);
+    const repository = new PostgresMcpRepository();
+    const existing = (await repository.listConnections()).find((connection) =>
+      connection.ownerScope === "tenant" &&
+      connection.ownerId === tenantContext.tenant.id &&
+      connection.connectionKind === "canva" &&
+      connection.connectionState !== "revoked"
+    );
+    checkpoint = "connection_selected";
+    const runtime = createProductionMcpRuntime();
+    const connection = existing ?? await runtime.createConnection({
+      ownerScope: "tenant",
+      ownerId: tenantContext.tenant.id,
+      connectionKind: "canva",
+      displayName: "Canva",
+    });
+    checkpoint = "authorization_start";
+    const authorization = await runtime.startAuthorization({
+      connectionId: connection.id,
+      callbackUrl: readCanvaMcpCallbackUrl(),
+    });
+    console.info("[Canva MCP authorization]", {
+      checkpoint: "action_return_ok",
+      reusedExistingConnection: Boolean(existing),
+      authorizationUrlPresent: Boolean(authorization.authorizationUrl),
+      authorizationHost: safeUrlHost(authorization.authorizationUrl),
+    });
+    return {
+      status: "ok",
+      connectionStatus: "awaiting_authorization",
+      authorizationUrl: authorization.authorizationUrl,
+    };
+  } catch (error) {
+    console.error("[Canva MCP authorization failed]", {
+      checkpoint,
+      name: error instanceof Error ? error.name : "Unknown",
+      sqlstate: sanitizeSqlState(error),
+      message: sanitizeMetricoolAuthorizationError(error),
+    });
+    return { status: "error", code: "operation_failed" };
+  }
+}
+
+function safeUrlHost(value: string): string | null {
+  try {
+    return new URL(value).host;
+  } catch {
+    return null;
   }
 }
 

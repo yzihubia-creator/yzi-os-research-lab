@@ -17,6 +17,10 @@ export const MCP_ENDPOINT_CATALOG = {
     endpoint: "https://mcp.higgsfield.ai/mcp",
     callbackPath: "/api/yzi-imob/connections/creative/callback",
   },
+  canva: {
+    endpoint: "https://mcp.canva.com/mcp",
+    callbackPath: "/api/yzi-imob/connections/canva/callback",
+  },
 } as const satisfies Record<
   McpConnectionKind,
   { endpoint: string; callbackPath: string }
@@ -78,6 +82,24 @@ const HIGGSFIELD_CAPABILITY_ALIASES: Readonly<Record<McpCapabilityKey, readonly 
   generation_output_read: ["job_output", "generation_output"],
   model_capabilities_read: ["models_list", "capabilities_list"],
   usage_limits_read: ["usage_limits", "limits_get"],
+};
+
+const CANVA_CAPABILITY_ALIASES: Readonly<Record<McpCapabilityKey, readonly string[]>> = {
+  social_accounts_read: [],
+  social_calendar_read: [],
+  social_content_read: [],
+  social_metrics_read: [],
+  social_content_create: [],
+  social_content_schedule: [],
+  social_content_publish: [],
+  social_publication_status_read: [],
+  image_generation: [],
+  video_generation: [],
+  generation_job_submit: [],
+  generation_job_status: [],
+  generation_output_read: [],
+  model_capabilities_read: [],
+  usage_limits_read: [],
 };
 
 abstract class CatalogMcpAdapter implements McpAdapter {
@@ -161,9 +183,20 @@ export class HiggsfieldMcpAdapter extends CatalogMcpAdapter {
   }
 }
 
+export class CanvaMcpAdapter extends CatalogMcpAdapter {
+  readonly kind = "canva" as const;
+  readonly endpointKey = "canva" as const;
+  // O contrato MCP publicado não declara scopes_supported. Não reutilizar
+  // scopes das Connect APIs nem inventar scopes antes de evidência do wire.
+  readonly authorizationScopes = [] as const;
+  protected readonly operations = [];
+  protected readonly aliases = CANVA_CAPABILITY_ALIASES;
+}
+
 export const MCP_ADAPTERS: Readonly<Record<McpConnectionKind, McpAdapter>> = {
   metricool: new MetricoolMcpAdapter(),
   higgsfield: new HiggsfieldMcpAdapter(),
+  canva: new CanvaMcpAdapter(),
 };
 
 function define(

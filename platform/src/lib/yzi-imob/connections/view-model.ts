@@ -120,6 +120,15 @@ const PUBLIC_CONNECTIONS: readonly PublicConnectionDefinition[] = [
     capabilityIds: ["produzir-criativos"],
     externalCreative: true,
   },
+  {
+    id: "canva",
+    sourceId: "canva",
+    nome: "Canva",
+    categoria: "Produção criativa",
+    finalidade: "Acessar designs, assets, templates e brand kits autorizados pelo usuario.",
+    resumoNaoConfigurado: "A conta Canva ainda nao foi autorizada.",
+    capabilityIds: [],
+  },
 ];
 
 export function buildConnectionsViewModelFromRpcPayload(
@@ -282,7 +291,7 @@ function buildItem(
     podeConfigurar:
       !definition.future &&
       !truth.externallyBlocked &&
-      ["publicacao-social", "producao-criativa-complementar"].includes(
+      ["publicacao-social", "producao-criativa-complementar", "canva"].includes(
         definition.id,
       ) &&
       !truth.connectionHealthy,

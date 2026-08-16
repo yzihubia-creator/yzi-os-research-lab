@@ -10,19 +10,26 @@ export function createProductionMcpRuntime(): McpConnectionRuntime {
   const secretVault = new PostgresMcpSecretVault();
   const broker = new DynamicRegistrationOAuthBroker();
 
+  const authorizationHeaderFor = (connection: { authorizationReference: string | null }) =>
+    async () => {
+      if (!connection.authorizationReference) return null;
+      const material = await secretVault.get(connection.authorizationReference);
+      return typeof material?.accessToken === "string"
+        ? `Bearer ${material.accessToken}`
+        : null;
+    };
+
   return new McpConnectionRuntime({
     repository,
     secretVault,
-    authorizationBrokers: { metricool: broker, higgsfield: broker },
+    authorizationBrokers: {
+      metricool: broker,
+      higgsfield: broker,
+      canva: broker,
+    },
     transportFactory: (connection) => new RemoteHttpMcpTransport({
       endpointKey: connection.endpointKey,
-      authorizationHeader: async () => {
-        if (!connection.authorizationReference) return null;
-        const material = await secretVault.get(connection.authorizationReference);
-        return typeof material?.accessToken === "string"
-          ? `Bearer ${material.accessToken}`
-          : null;
-      },
+      authorizationHeader: authorizationHeaderFor(connection),
     }),
     allowedCallbackOrigins: [readAppOrigin()],
     executionMode: "real_readonly",
@@ -32,6 +39,13 @@ export function createProductionMcpRuntime(): McpConnectionRuntime {
 export function readMetricoolMcpCallbackUrl(): string {
   return new URL(
     "/api/yzi-imob/connections/metricool/callback",
+    readAppOrigin(),
+  ).toString();
+}
+
+export function readCanvaMcpCallbackUrl(): string {
+  return new URL(
+    "/api/yzi-imob/connections/canva/callback",
     readAppOrigin(),
   ).toString();
 }

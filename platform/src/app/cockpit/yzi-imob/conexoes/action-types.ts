@@ -1,9 +1,11 @@
-export type MetricoolConnectionActionResult =
+export type McpConnectionActionResult =
   | { status: "ok"; connectionStatus: string; authorizationUrl?: string }
   | {
       status: "error";
       code: "access_denied" | "configuration_required" | "operation_failed";
     };
+
+export type MetricoolConnectionActionResult = McpConnectionActionResult;
 
 export type MetricoolAccountCandidate = {
   externalUserId: string;

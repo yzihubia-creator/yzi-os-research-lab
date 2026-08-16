@@ -17,6 +17,7 @@ import {
   discoverMetricoolAccountsAction,
   requestMetricoolValidationAction,
   runConnectionCommandAction,
+  startCanvaMcpAuthorizationAction,
   startMetricoolMcpAuthorizationAction,
 } from "@/app/cockpit/yzi-imob/conexoes/actions";
 import type { MetricoolAccountCandidate } from "@/app/cockpit/yzi-imob/conexoes/action-types";
@@ -76,6 +77,7 @@ type ConnectionsWorkspaceProps = {
 
 /** Entrada visual da conexão social principal. */
 const METRICOOL_CONNECTION_ID = "publicacao-social";
+const CANVA_CONNECTION_ID = "canva";
 
 /** Conexões sem nenhuma autorização implementada no servidor hoje. */
 const CONNECTIONS_WITHOUT_AUTH: Record<string, string> = {
@@ -824,7 +826,9 @@ function ConnectionCard({ item }: { item: ConnectionViewModelItem }) {
       try {
         const result = item.id === METRICOOL_CONNECTION_ID
           ? await startMetricoolMcpAuthorizationAction()
-          : await runConnectionCommandAction({ connectionId: item.id, command: "configure" });
+          : item.id === CANVA_CONNECTION_ID
+            ? await startCanvaMcpAuthorizationAction()
+            : await runConnectionCommandAction({ connectionId: item.id, command: "configure" });
 
         if (
           process.env.NODE_ENV !== "production" &&
