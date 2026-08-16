@@ -132,7 +132,10 @@ export class DynamicRegistrationOAuthBroker implements McpAuthorizationBroker {
   }
 
   async #metadata(endpoint: string): Promise<Metadata> {
-    if (endpoint !== MCP_ENDPOINT_CATALOG.metricool.endpoint) {
+    if (
+      endpoint !== MCP_ENDPOINT_CATALOG.metricool.endpoint &&
+      endpoint !== MCP_ENDPOINT_CATALOG.higgsfield.endpoint
+    ) {
       return this.#authorizationServerMetadata(new URL(endpoint).origin);
     }
     const challenge = await this.#request(endpoint, {

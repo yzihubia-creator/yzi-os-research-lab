@@ -396,6 +396,29 @@ test("discovery versions snapshots, preserves history and removes missing capabi
   );
 });
 
+test("Higgsfield uses the generic MCP authorization flow and persists an unclassified tool snapshot", async () => {
+  const harness = createHarness();
+  const connection = await harness.runtime.createConnection({ ownerScope: "tenant", ownerId: "tenant-ocm", connectionKind: "higgsfield", displayName: "Higgsfield tenant" });
+  const callbackUrl = callbackFor("higgsfield");
+  const started = await harness.runtime.startAuthorization({ connectionId: connection.id, callbackUrl });
+  const attempt = await harness.repository.getAuthorizationAttempt(started.attemptId);
+  assert.equal(new URL(started.authorizationUrl).searchParams.get("code_challenge_method"), "S256");
+  assert.equal(
+    new URL(started.authorizationUrl).searchParams.get("scope"),
+    "openid email offline_access",
+  );
+  assert.match(attempt?.verifierReference ?? "", /^vault:\/\/ref\//);
+  const state = new URL(started.authorizationUrl).searchParams.get("state");
+  assert.ok(state);
+  const connected = await harness.runtime.completeAuthorization({ connectionId: connection.id, state, code: "valid-code", callbackUrl });
+  const capabilities = await harness.runtime.discover(connected.id);
+  assert.equal(connected.connectionState, "ready");
+  assert.deepEqual(capabilities, []);
+  const snapshots = await harness.repository.listToolSnapshots(connection.id);
+  assert.ok(snapshots.length > 0);
+  assert.ok(snapshots.every((snapshot) => snapshot.capabilityKey === null));
+});
+
 test("invalid schema and insufficient authorization do not enable capabilities", async () => {
   const harness = createHarness();
   const connection = await authorize(harness, "metricool");
@@ -558,103 +581,6 @@ test("Metricool fake flow reads data and gates publication, assets and idempoten
   assert.equal(harness.transports.metricool.calls.length, callCount);
 });
 
-test("Higgsfield fake flow gates cost and approval, retries, cancels and marks output for review", async () => {
-  const harness = createHarness();
-  const connection = await authorize(harness, "higgsfield");
-  await bind(harness, connection.id, "image_generation", {
-    approvalPolicy: "always",
-    monthlyLimit: 10,
-  });
-  await bind(harness, connection.id, "generation_job_status");
-  await bind(harness, connection.id, "generation_output_read");
-  const generationInput = {
-    model: "image-model-allowlisted",
-    promptReference: "prompt://tenant-ocm/approved/1",
-    estimatedCost: 3,
-    outputReviewRequired: true,
-  };
-  await expectCode(
-    harness.runtime.execute({
-      tenantId: "tenant-ocm",
-      operation: "prepare_image_job",
-      arguments: generationInput,
-      idempotencyKey: "image-pending",
-      approvalState: "pending",
-      maxCost: 5,
-    }),
-    "approval_required",
-  );
-  await expectCode(
-    harness.runtime.execute({
-      tenantId: "tenant-ocm",
-      operation: "prepare_image_job",
-      arguments: generationInput,
-      idempotencyKey: "image-cost-blocked",
-      approvalState: "approved",
-      maxCost: 2,
-    }),
-    "cost_limit_reached",
-  );
-  const prepared = await harness.runtime.execute({
-    tenantId: "tenant-ocm",
-    operation: "prepare_image_job",
-    arguments: generationInput,
-    idempotencyKey: "image-fake-prepared",
-    approvalState: "approved",
-    maxCost: 5,
-  });
-  assert.equal(prepared.result.state, "prepared");
-  assert.equal(prepared.result.charged, false);
-  await expectCode(
-    harness.runtime.execute({
-      tenantId: "tenant-ocm",
-      operation: "prepare_image_job",
-      arguments: { ...generationInput, estimatedCost: 8 },
-      idempotencyKey: "image-monthly-limit",
-      approvalState: "approved",
-      maxCost: 10,
-    }),
-    "cost_limit_reached",
-  );
-
-  harness.transports.higgsfield.failCallOnce(
-    new McpRuntimeError("upstream_error", "synthetic_retry", true),
-  );
-  const status = await harness.runtime.execute({
-    tenantId: "tenant-ocm",
-    operation: "read_generation_job",
-    arguments: { jobId: "generation-job-fake-1" },
-    idempotencyKey: "job-status-retry",
-  });
-  assert.equal(status.result.state, "completed");
-  const retryEvents = await harness.repository.listExecutionEvents(status.requestId);
-  assert.ok(retryEvents.some((event) => event.eventType === "execution_retry"));
-
-  const output = await harness.runtime.execute({
-    tenantId: "tenant-ocm",
-    operation: "read_generation_output",
-    arguments: { jobId: "generation-job-fake-1" },
-    idempotencyKey: "job-output",
-  });
-  assert.equal(output.result.approved, false);
-  assert.equal(output.result.reviewState, "pending_human_review");
-  assert.ok(output.result.provenance);
-
-  harness.transports.higgsfield.setCallDelay(50);
-  const pending = harness.runtime.execute({
-    tenantId: "tenant-ocm",
-    operation: "read_generation_job",
-    arguments: { jobId: "generation-job-fake-1" },
-    idempotencyKey: "job-cancelled",
-  });
-  await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(
-    await harness.runtime.cancelByIdempotency("tenant-ocm", "job-cancelled"),
-    true,
-  );
-  await expectCode(pending, "timeout");
-});
-
 test("real readonly mode blocks publication and paid generation before a tool call", async () => {
   const harness = createHarness({ executionMode: "real_readonly" });
   const social = await authorize(harness, "metricool");
@@ -674,27 +600,6 @@ test("real readonly mode blocks publication and paid generation before a tool ca
     "operation_not_allowed",
   );
   assert.equal(harness.transports.metricool.calls.length, 0);
-
-  const creative = await authorize(harness, "higgsfield");
-  await bind(harness, creative.id, "image_generation", {
-    approvalPolicy: "always",
-  });
-  await expectCode(
-    harness.runtime.execute({
-      tenantId: "tenant-ocm",
-      operation: "prepare_image_job",
-      arguments: {
-        model: "image-model-allowlisted",
-        promptReference: "prompt://safe",
-        estimatedCost: 1,
-        outputReviewRequired: true,
-      },
-      idempotencyKey: "real-generation-blocked",
-      approvalState: "approved",
-    }),
-    "operation_not_allowed",
-  );
-  assert.equal(harness.transports.higgsfield.calls.length, 0);
 });
 
 test("connection events are append-only safe metadata without sensitive payload", async () => {

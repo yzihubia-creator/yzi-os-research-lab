@@ -50,6 +50,13 @@ export function readCanvaMcpCallbackUrl(): string {
   ).toString();
 }
 
+export function readHiggsfieldMcpCallbackUrl(): string {
+  return new URL(
+    "/api/yzi-imob/connections/creative/callback",
+    readAppOrigin(),
+  ).toString();
+}
+
 function readAppOrigin(): string {
   const raw = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (!raw) throw new Error("mcp_app_origin_unavailable");

@@ -18,6 +18,7 @@ import {
   requestMetricoolValidationAction,
   runConnectionCommandAction,
   startCanvaMcpAuthorizationAction,
+  startHiggsfieldMcpAuthorizationAction,
   startMetricoolMcpAuthorizationAction,
 } from "@/app/cockpit/yzi-imob/conexoes/actions";
 import type { MetricoolAccountCandidate } from "@/app/cockpit/yzi-imob/conexoes/action-types";
@@ -81,8 +82,6 @@ const CANVA_CONNECTION_ID = "canva";
 
 /** Conexões sem nenhuma autorização implementada no servidor hoje. */
 const CONNECTIONS_WITHOUT_AUTH: Record<string, string> = {
-  "producao-criativa-complementar":
-    "A conta externa conhecida ainda não possui autenticação configurada no projeto.",
 };
 
 /* ------------------------------------------------------------------ */
@@ -828,6 +827,8 @@ function ConnectionCard({ item }: { item: ConnectionViewModelItem }) {
           ? await startMetricoolMcpAuthorizationAction()
           : item.id === CANVA_CONNECTION_ID
             ? await startCanvaMcpAuthorizationAction()
+            : item.id === "producao-criativa-complementar"
+              ? await startHiggsfieldMcpAuthorizationAction()
             : await runConnectionCommandAction({ connectionId: item.id, command: "configure" });
 
         if (

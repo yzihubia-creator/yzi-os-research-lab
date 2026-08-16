@@ -3,7 +3,7 @@ import "server-only";
 import { PostgresMcpRepository } from "./postgres-repository";
 import type { McpConnection, McpConnectionKind } from "./types";
 
-const PUBLIC_MCP_CONNECTION_KINDS = ["metricool", "canva"] as const satisfies readonly McpConnectionKind[];
+const PUBLIC_MCP_CONNECTION_KINDS = ["metricool", "higgsfield", "canva"] as const satisfies readonly McpConnectionKind[];
 
 export async function mergeMcpRegistryRows(
   payload: unknown,

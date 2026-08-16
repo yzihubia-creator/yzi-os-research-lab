@@ -168,6 +168,21 @@ export class HiggsfieldMcpAdapter extends CatalogMcpAdapter {
   protected readonly operations = HIGGSFIELD_OPERATIONS;
   protected readonly aliases = HIGGSFIELD_CAPABILITY_ALIASES;
 
+  override mapCapability(): McpCapabilityKey | null {
+    // A tool snapshot is persisted on every discovery. Do not classify a
+    // Higgsfield tool until its live name and input schema have been verified
+    // for the YZI video-tour contract.
+    return null;
+  }
+
+  override validatePolicy(
+    definition: McpOperationDefinition,
+    input: JsonObject,
+  ): { ok: true } | { ok: false; code: string } {
+    if (definition.risk === "paid") return { ok: false, code: "paid_operation_not_allowlisted" };
+    return super.validatePolicy(definition, input);
+  }
+
   override normalizeResult(operation: McpOperation, result: JsonObject): JsonObject {
     const safe = sanitizePublicResult(result);
     if (operation === "read_generation_output") {
